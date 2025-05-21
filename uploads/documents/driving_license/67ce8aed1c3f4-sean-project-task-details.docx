@@ -1,0 +1,10 @@
+22/08/2024
+
+These are the points of the payment details page -
+
+1. Change font-weight of “&” separation word.(Done)
+2. Show all three subscriptions and remove condition of showing based on current active subscription.(Done)
+3. Replace previous message “Sorry, this section is only visible to users with an active subscription.” with new message “Sorry, this section is only visible to users with an active debit/credit card subscription.” if user does not have active credit/debit card subscription and change the font-weight of this message.(Done)
+4. User does not have a active membership then change the N/A value to Basic.(Done)
+
+Estimate time : 2:30 minutes

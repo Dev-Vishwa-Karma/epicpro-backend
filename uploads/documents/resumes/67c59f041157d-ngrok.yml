@@ -1,0 +1,12 @@
+tunnels:
+  frontend:
+    addr: 3000
+    proto: http
+  backend:
+    addr: 80
+    proto: http
+version: "3"
+agent:
+  authtoken: 1qkckH2X1A2dXq0dnAV8u7vMvJ6_7EDVyecEZQr2SPecLpxzt
+  connect_url: connect.us.ngrok-agent.com:443
+
