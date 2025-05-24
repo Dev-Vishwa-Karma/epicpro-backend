@@ -27,31 +27,57 @@ if (isset($action)) {
     switch ($action) {
         case 'view':
             if (isset($_GET['employee_id']) && is_numeric($_GET['employee_id']) && $_GET['employee_id'] > 0) {
-                // Fetch leaves only for the specific employee
-                $stmt = $conn->prepare("SELECT 
-                employee_leaves.id,
-                employee_leaves.employee_id, 
-                employee_leaves.from_date, 
-                employee_leaves.to_date,
-                employee_leaves.reason, 
-                employee_leaves.status,
-                employee_leaves.approved_by,
-                employee_leaves.created_at, 
-                employees.first_name, 
-                employees.last_name, 
-                employees.email
+                $start_date = isset($_GET['start_date']) ? $_GET['start_date'] : null;
+                $end_date = isset($_GET['end_date']) ? $_GET['end_date'] : null;
+
+                if ($start_date && $end_date && strtotime($start_date) > strtotime($end_date)) {
+                    sendJsonResponse('error', null, "Start date cannot be greater than end date.");
+                    exit; 
+                }
+
+                $query = "SELECT 
+                    employee_leaves.id,
+                    employee_leaves.employee_id, 
+                    employee_leaves.from_date, 
+                    employee_leaves.to_date,
+                    employee_leaves.reason, 
+                    employee_leaves.status,
+                    employee_leaves.approved_by,
+                    employee_leaves.created_at, 
+                    employees.first_name, 
+                    employees.last_name, 
+                    employees.email
                 FROM employee_leaves
                 INNER JOIN employees ON employee_leaves.employee_id = employees.id
-                WHERE employee_leaves.employee_id = ?");
-                $stmt->bind_param("i", $_GET['employee_id']);
-
+                WHERE employee_leaves.employee_id = ?";
+                
+                if ($start_date && $end_date) {
+                    $query .= " AND DATE(employee_leaves.created_at) BETWEEN ? AND ?";
+                } elseif ($start_date) {
+                    $query .= " AND DATE(employee_leaves.created_at) = ?";
+                } elseif ($end_date) {
+                    $query .= " AND DATE(employee_leaves.created_at) = ?";
+                }
+        
+                $stmt = $conn->prepare($query);
+        
+                if ($start_date && $end_date) {
+                    $stmt->bind_param("sss", $_GET['employee_id'], $start_date, $end_date);
+                } elseif ($start_date) {
+                    $stmt->bind_param("ss", $_GET['employee_id'], $start_date);
+                } elseif ($end_date) {
+                    $stmt->bind_param("ss", $_GET['employee_id'], $end_date);
+                } else {
+                    $stmt->bind_param("i", $_GET['employee_id']);
+                }
+                
                 if ($stmt->execute()) {
                     $result = $stmt->get_result();
-                    if ($result) {
+                    if ($result->num_rows > 0) {
                         $employee_leaves = $result->fetch_all(MYSQLI_ASSOC);
                         sendJsonResponse('success', $employee_leaves);
                     } else {
-                        sendJsonResponse('error', null, "No leaves found: $conn->error");
+                        sendJsonResponse('error', null, "No leaves found for this employee.");
                     }
                 } else {
                     sendJsonResponse('error', null, "Failed to execute query: $stmt->error");
