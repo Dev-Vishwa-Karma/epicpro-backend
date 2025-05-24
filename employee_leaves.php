@@ -27,95 +27,108 @@ if (isset($action)) {
     switch ($action) {
         case 'view':
             if (isset($_GET['employee_id']) && is_numeric($_GET['employee_id']) && $_GET['employee_id'] > 0) {
-                // Fetch leaves only for the specific employee
-                $stmt = $conn->prepare("SELECT 
-                employee_leaves.id,
-                employee_leaves.employee_id, 
-                employee_leaves.from_date, 
-                employee_leaves.to_date,
-                employee_leaves.reason, 
-                employee_leaves.status,
-                employee_leaves.approved_by,
-                employee_leaves.created_at, 
-                employees.first_name, 
-                employees.last_name, 
-                employees.email
+                $employee_id = (int)$_GET['employee_id'];
+                $start_date = isset($_GET['start_date']) ? $_GET['start_date'] : null;
+                $end_date = isset($_GET['end_date']) ? $_GET['end_date'] : null;
+
+                if ($start_date && $end_date && strtotime($start_date) > strtotime($end_date)) {
+                    sendJsonResponse('error', null, "Start date cannot be greater than end date.");
+                    exit; 
+                }
+
+                $query = "SELECT 
+                    employee_leaves.id,
+                    employee_leaves.employee_id, 
+                    employee_leaves.from_date, 
+                    employee_leaves.to_date,
+                    employee_leaves.reason, 
+                    employee_leaves.status,
+                    employee_leaves.is_half_day,
+                    employee_leaves.approved_by,
+                    employee_leaves.created_at, 
+                    employees.first_name, 
+                    employees.last_name, 
+                    employees.email
                 FROM employee_leaves
                 INNER JOIN employees ON employee_leaves.employee_id = employees.id
-                WHERE employee_leaves.employee_id = ?");
-                $stmt->bind_param("i", $_GET['employee_id']);
-
-                if ($stmt->execute()) {
-                    $result = $stmt->get_result();
-                    if ($result) {
-                        $employee_leaves = $result->fetch_all(MYSQLI_ASSOC);
-                        sendJsonResponse('success', $employee_leaves);
-                    } else {
-                        sendJsonResponse('error', null, "No leaves found: $conn->error");
-                    }
-                } else {
-                    sendJsonResponse('error', null, "Failed to execute query: $stmt->error");
+                WHERE employee_leaves.employee_id = $employee_id";
+            
+                // Append date filters if provided
+                if ($start_date && $end_date) {
+                    $query .= " AND DATE(employee_leaves.created_at) BETWEEN '$start_date' AND '$end_date'";
+                } elseif ($start_date) {
+                    $query .= " AND DATE(employee_leaves.created_at) = '$start_date'";
+                } elseif ($end_date) {
+                    $query .= " AND DATE(employee_leaves.created_at) = '$end_date'";
                 }
+            
+                $result = $conn->query($query);
+            
+                if ($result && $result->num_rows > 0) {
+                    $employee_leaves = $result->fetch_all(MYSQLI_ASSOC);
+                    sendJsonResponse('success', $employee_leaves);
+                } else {
+                    sendJsonResponse('error', null, "No leaves found for this employee.");
+                }
+            
             } else {
+                // Return all records if no specific employee ID is given
                 $result = $conn->query("SELECT 
-                        employee_leaves.id,
-                        employee_leaves.employee_id, 
-                        employee_leaves.from_date, 
-                        employee_leaves.to_date,
-                        employee_leaves.reason, 
-                        employee_leaves.status,
-                        employee_leaves.approved_by,
-                        employee_leaves.created_at, 
-                        employees.first_name, 
-                        employees.last_name, 
-                        employees.email
-                    FROM employee_leaves
-                    INNER JOIN employees ON employee_leaves.employee_id = employees.id");
+                    employee_leaves.id,
+                    employee_leaves.employee_id, 
+                    employee_leaves.from_date, 
+                    employee_leaves.to_date,
+                    employee_leaves.reason, 
+                    employee_leaves.status,
+                    employee_leaves.is_half_day,
+                    employee_leaves.approved_by,
+                    employee_leaves.created_at, 
+                    employees.first_name, 
+                    employees.last_name, 
+                    employees.email
+                FROM employee_leaves
+                INNER JOIN employees ON employee_leaves.employee_id = employees.id");
+            
                 if ($result) {
                     $employee_leaves = $result->fetch_all(MYSQLI_ASSOC);
                     sendJsonResponse('success', $employee_leaves);
                 } else {
-                    sendJsonResponse('error', null, "No records found $conn->error");
+                    sendJsonResponse('error', null, "No records found: " . $conn->error);
                 }
             }
             break;
 
         case 'add':
             // Get form data
-            $employee_id = isset($_POST['employee_id']) ? $_POST['employee_id'] : null;
+            $employee_id = isset($_POST['employee_id']) ? (int)$_POST['employee_id'] : 0;
             $from_date = $_POST['from_date'];
             $to_date = $_POST['to_date'];
             $reason = $_POST['reason'];
             $status = $_POST['status'];
+            $is_half_day = isset($_POST['is_half_day']) ? (int)$_POST['is_half_day'] : 0;
 
-            // Validate the data (you can add additional validation as needed)
+            // Validate the data
             if (empty($from_date) || empty($to_date) || empty($reason) || empty($status)) {
                 echo json_encode(['error' => 'All fields are required.']);
                 exit;
             }
 
-            // Prepare the insert query
-            $stmt = $conn->prepare("INSERT INTO employee_leaves (employee_id, from_date, to_date, reason, status) VALUES (?, ?, ?, ?, ?)");
-            
-            // Bind the parameters
-            $stmt->bind_param("issss", $employee_id, $from_date, $to_date, $reason, $status);
+            // Build and execute the insert query
+            $insertSql = "INSERT INTO employee_leaves (employee_id, from_date, to_date, reason, status, is_half_day) 
+                        VALUES ($employee_id, '$from_date', '$to_date', '$reason', '$status', $is_half_day)";
 
-            // Execute the query
-            if ($stmt->execute()) {
+            if ($conn->query($insertSql)) {
                 $id = $conn->insert_id;
 
-                // Query to get the employee's first and last name based on employee_id
-                $employeeStmt = $conn->prepare("SELECT first_name, last_name FROM employees WHERE id = ?");
-                $employeeStmt->bind_param("i", $employee_id);
-                $employeeStmt->execute();
-                $employeeStmt->store_result();
+                // Fetch employee name
+                $empSql = "SELECT first_name, last_name FROM employees WHERE id = $employee_id";
+                $empResult = $conn->query($empSql);
 
-                // Check if the employee was found
-                if ($employeeStmt->num_rows > 0) {
-                    $employeeStmt->bind_result($emp_first_name, $emp_last_name);
-                    $employeeStmt->fetch();
+                if ($empResult && $empResult->num_rows > 0) {
+                    $empRow = $empResult->fetch_assoc();
+                    $emp_first_name = $empRow['first_name'];
+                    $emp_last_name = $empRow['last_name'];
                 } else {
-                    // Handle the case where the employee is not found
                     $emp_first_name = "Unknown";
                     $emp_last_name = "Unknown";
                 }
@@ -124,66 +137,82 @@ if (isset($action)) {
                     'id' => $id,
                     'employee_id' => $employee_id,
                     'first_name' => $emp_first_name,
-                    'last_name' => $emp_last_name,  
+                    'last_name' => $emp_last_name,
                     'from_date' => $from_date,
                     'to_date' => $to_date,
                     'reason' => $reason,
                     'status' => $status,
+                    'is_half_day' => $is_half_day
                 ];
-                // If successful, send success response
+
                 sendJsonResponse('success', $addEmployeeLeaveData, "Leave added successfully");
             } else {
-                sendJsonResponse('error', null, "Failed to add leave $stmt->error");
+                sendJsonResponse('error', null, "Failed to add leave: " . $conn->error);
             }
             break;
 
         case 'edit':
             if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
-                $id = $_GET['id'];
-                // Validate and get POST data
-                $employee_id = isset($_POST['employee_id']) ? $_POST['employee_id'] : null;
-                $from_date = $_POST['from_date'];
-                $to_date = $_POST['to_date'];
-                $reason = $_POST['reason'];
-                $status = $_POST['status'];
-                $updated_at = date('Y-m-d H:i:s'); // Set current timestamp for `updated_at`
-
-                // Prepare the SQL update statement
-                $stmt = $conn->prepare("UPDATE employee_leaves SET employee_id = ?, from_date = ?, to_date = ?, reason = ?, status = ?, updated_at = ? WHERE id = ?");
-                $stmt->bind_param("isssssi", $employee_id, $from_date, $to_date, $reason, $status, $updated_at, $id);
-    
-                // Execute the statement and check for success
-                if ($stmt->execute()) {
-                    // Query to get the employee's first and last name based on employee_id
-                    $employeeStmt = $conn->prepare("SELECT first_name, last_name FROM employees WHERE id = ?");
-                    $employeeStmt->bind_param("i", $employee_id);
-                    $employeeStmt->execute();
-                    $employeeStmt->store_result();
-
-                    // Check if the employee was found
-                    if ($employeeStmt->num_rows > 0) {
-                        $employeeStmt->bind_result($emp_first_name, $emp_last_name);
-                        $employeeStmt->fetch();
+                $id = (int)$_GET['id'];
+            
+                // Check if record exists
+                $checkSql = "SELECT id FROM employee_leaves WHERE id = $id";
+                $checkResult = $conn->query($checkSql);
+            
+                if ($checkResult && $checkResult->num_rows > 0) {
+                    // Get POST data
+                    $employee_id = isset($_POST['employee_id']) ? (int)$_POST['employee_id'] : 0;
+                    $from_date = $_POST['from_date'];
+                    $to_date = $_POST['to_date'];
+                    $reason = $_POST['reason'];
+                    $status = $_POST['status'];
+                    $is_half_day = isset($_POST['is_half_day']) ? (int)$_POST['is_half_day'] : 0;
+                    $updated_at = date('Y-m-d H:i:s');
+            
+                    // Update query
+                    $updateSql = "UPDATE employee_leaves SET 
+                        employee_id = $employee_id, 
+                        from_date = '$from_date', 
+                        to_date = '$to_date', 
+                        reason = '$reason', 
+                        status = '$status', 
+                        is_half_day = $is_half_day,
+                        updated_at = '$updated_at' 
+                        WHERE id = $id";
+            
+                    if ($conn->query($updateSql)) {
+                        // Fetch employee name
+                        $empSql = "SELECT first_name, last_name FROM employees WHERE id = $employee_id";
+                        $empResult = $conn->query($empSql);
+            
+                        if ($empResult && $empResult->num_rows > 0) {
+                            $empRow = $empResult->fetch_assoc();
+                            $emp_first_name = $empRow['first_name'];
+                            $emp_last_name = $empRow['last_name'];
+                        } else {
+                            $emp_first_name = "Unknown";
+                            $emp_last_name = "Unknown";
+                        }
+            
+                        $updatedEmployeeLeaveData = [
+                            'id' => $id,
+                            'employee_id' => $employee_id,
+                            'first_name' => $emp_first_name,
+                            'last_name' => $emp_last_name,
+                            'from_date' => $from_date,
+                            'to_date' => $to_date,
+                            'reason' => $reason,
+                            'status' => $status,
+                            'is_half_day' => $is_half_day,
+                            'updated_at' => $updated_at
+                        ];
+            
+                        sendJsonResponse('success', $updatedEmployeeLeaveData, 'Leave updated successfully');
                     } else {
-                        // Handle the case where the employee is not found
-                        $emp_first_name = "Unknown";
-                        $emp_last_name = "Unknown";
+                        sendJsonResponse('error', null, 'Failed to update employee leave');
                     }
-
-                    $updatedEmployeeLeaveData = [
-                        'id' => $id,
-                        'employee_id' => $employee_id,
-                        'first_name' => $first_name,
-                        'last_name' => $last_name,
-                        'from_date' => $from_date,
-                        'to_date' => $to_date,
-                        'reason' => $reason,
-                        'status' => $status,
-                        'updated_at' => $updated_at
-                    ];
-                    sendJsonResponse('success', $updatedEmployeeLeaveData, 'Leave updated successfully');
                 } else {
-                    sendJsonResponse('error', null, 'Failed to update employee leave');
+                    sendJsonResponse('error', null, 'Employee leave record not found');
                 }
                 exit;
             } else {
@@ -191,18 +220,19 @@ if (isset($action)) {
                 sendJsonResponse('error', null, 'Invalid employee leave ID');
                 exit;
             }
+            
             break;
-
         case 'delete':
             if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
-                // Prepare DELETE statement
-                $stmt = $conn->prepare("DELETE FROM employee_leaves WHERE id = ?");
-                $stmt->bind_param('i', $_GET['id']);
-                if ($stmt->execute()) {
+                $id = (int)$_GET['id'];
+            
+                // Direct delete query
+                $deleteSql = "DELETE FROM employee_leaves WHERE id = $id";
+                if ($conn->query($deleteSql)) {
                     sendJsonResponse('success', null, 'Leave deleted successfully');
                 } else {
                     http_response_code(500);
-                    sendJsonResponse('error', null, 'Failed to delete leave');
+                    sendJsonResponse('error', null, 'Failed to delete leave: ' . $conn->error);
                 }
                 exit;
             } else {
