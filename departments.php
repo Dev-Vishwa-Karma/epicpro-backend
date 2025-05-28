@@ -22,11 +22,14 @@
                 if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
                     // Prepare SELECT statement with WHERE clause using parameter binding
                     $stmt = $conn->prepare("
-                        SELECT d.*, 
-                            (SELECT COUNT(*) FROM employees e WHERE e.department_id = d.department_id AND e.deleted_at IS NULL) AS total_employee
-                        FROM departments d
-                        WHERE d.id = ?
-                    ");
+                                SELECT d.*, 
+                                    (SELECT COUNT(*) 
+                                    FROM employees e 
+                                    WHERE e.department_id = d.id AND e.deleted_at IS NULL) AS total_employee
+                                FROM departments d
+                                WHERE d.id = ?
+                            ");
+                   
                     $stmt->bind_param("i", $_GET['id']);
                     if ($stmt->execute()) {
                         $result = $stmt->get_result();
