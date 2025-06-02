@@ -66,10 +66,10 @@ if (isset($action)) {
             }
 
             // Prepare the insert query
-            $stmt = $conn->prepare("INSERT INTO events (event_name, event_date, event_type, created_by) VALUES (?, ?, ?, ?, ?)");
+            $stmt = $conn->prepare("INSERT INTO events (event_name, event_date, event_type, created_by) VALUES (?, ?, ?, ?)");
             
             // Bind the parameters
-            $stmt->bind_param("isssi", $event_name, $event_date, $event_type, $created_by);
+            $stmt->bind_param("sssi", $event_name, $event_date, $event_type, $created_by);
 
             // Execute the query
             if ($stmt->execute()) {
