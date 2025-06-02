@@ -27,7 +27,7 @@ switch ($action) {
         }
         
         $year = (int)$year; 
-        $query = "SELECT year, month, date FROM Weekends WHERE year = $year";
+        $query = "SELECT year, month, date FROM weekends WHERE year = $year";
         
         $result = $conn->query($query);
     
