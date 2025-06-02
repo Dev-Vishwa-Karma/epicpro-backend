@@ -73,13 +73,13 @@ switch ($action) {
             $dates = json_encode($item['dates']);
     
             // Check if the record for the specific year and month already exists
-            $sqlCheck = "SELECT id FROM Weekends WHERE year = $year AND month = $month LIMIT 1";
+            $sqlCheck = "SELECT id FROM weekends WHERE year = $year AND month = $month LIMIT 1";
             $result = $conn->query($sqlCheck);
           
             if ($result && $result->num_rows > 0) {
               
                 // Record exists, update the 'dates' field
-                $sqlUpdate = "UPDATE Weekends SET date = '$dates' WHERE year = $year AND month = $month";
+                $sqlUpdate = "UPDATE weekends SET date = '$dates' WHERE year = $year AND month = $month";
               //  var_dump($sqlUpdate);die;
                 if ($conn->query($sqlUpdate)) {
                     $added++;
@@ -90,7 +90,7 @@ switch ($action) {
             } else {
                 //var_dump($dates);die;
                 // Record doesn't exist, insert a new record
-                $sqlInsert = "INSERT INTO Weekends (year, month, date) VALUES ($year, $month, '$dates')";
+                $sqlInsert = "INSERT INTO weekends (year, month, date) VALUES ($year, $month, '$dates')";
                 if ($conn->query($sqlInsert)) {
                     $added++;
                 } else {
