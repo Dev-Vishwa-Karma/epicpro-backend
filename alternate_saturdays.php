@@ -20,20 +20,15 @@ switch ($action) {
     // GET: View Saturdays by Year
     // -----------------------------------------
     case 'view':
-        $year = $_GET['year'] ?? null;
+        $year = $_GET['year'];
     
-        if ($year !== null && !is_numeric($year)) {
+        if ($year === null || !is_numeric($year)) {
             sendJsonResponse('error', null, 'Year must be a number if provided.');
         }
-    
-        if ($year !== null) {
-            $year = (int)$year; // cast to int to prevent injection
-            $query = "SELECT year, month, date FROM Weekends WHERE year = $year";
-        } else {
-            // No year filter, get all Saturdays
-            $query = "SELECT year, month, date FROM Weekends";
-        }
-    
+        
+        $year = (int)$year; 
+        $query = "SELECT year, month, date FROM Weekends WHERE year = $year";
+        
         $result = $conn->query($query);
     
         if (!$result) {
