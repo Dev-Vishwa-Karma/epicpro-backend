@@ -26,79 +26,77 @@ $action = !empty($_GET['action']) ? $_GET['action'] : 'view';
 if (isset($action)) {
     switch ($action) {
         case 'view':
-            $employee_id = isset($_GET['user_id']) && is_numeric($_GET['user_id']) && $_GET['user_id'] > 0 ? (int)$_GET['user_id'] : null;
-            $start_date = isset($_GET['start_date']) ? $_GET['start_date'] : null;
-            $end_date = isset($_GET['end_date']) ? $_GET['end_date'] : null;
-        
-            // Validate dates
-            if ($start_date && $end_date && strtotime($start_date) > strtotime($end_date)) {
-                sendJsonResponse('error', null, "Start date cannot be greater than end date.");
-                exit;
-            }
-        
-            // Base query
-            $query = "
-                SELECT 
-                    reports.id AS id,
-                    reports.employee_id,
-                    reports.report,
-                    reports.start_time,
-                    reports.end_time,
-                    reports.break_duration_in_minutes,
-                    reports.total_working_hours,
-                    reports.total_hours,
-                    reports.created_at,
-                    reports.created_by,
-                    reports.updated_at,
-                    reports.updated_by,
-                    reports.deleted_at,
-                    reports.deleted_by,
-                    CONCAT(e.first_name, ' ', e.last_name) AS employee_name
-                FROM reports
-                LEFT JOIN employees e ON reports.employee_id = e.id
-                WHERE 1=1
-            ";
-        
-            // Add filters
-            if ($employee_id) {
-                $query .= " AND reports.employee_id = $employee_id";
-            }
-        
-            if ($start_date && $end_date) {
-                $query .= " AND DATE(reports.created_at) BETWEEN '$start_date' AND '$end_date'";
-            } elseif ($start_date) {
-                $query .= " AND DATE(reports.created_at) = '$start_date'";
-            } elseif ($end_date) {
-                $query .= " AND DATE(reports.created_at) = '$end_date'";
-            }
-        
-            $query .= " ORDER BY reports.created_at DESC";
-        
-            $result = $conn->query($query);
-            if ($result && $result->num_rows > 0) {
-                $reports = [];
-                while ($row = $result->fetch_assoc()) {
-                    $id = $row['id'];
-                    if (!isset($reports[$id])) {
-                        $reports[$id] = [
-                            'id' => $row['id'],
-                            'employee_id' => $row['employee_id'],
-                            'report' => $row['report'],
-                            'start_time' => $row['start_time'],
-                            'end_time' => $row['end_time'],
-                            'break_duration_in_minutes' => $row['break_duration_in_minutes'],
-                            'todays_working_hours' => $row['total_working_hours'],
-                            'todays_total_hours' => $row['total_hours'],
-                            'created_at' => $row['created_at'],
-                            'full_name' => $row['employee_name']
-                        ];
-                    }
+            if (isset($_GET['employee_id']) && is_numeric($_GET['employee_id']) && $_GET['employee_id'] > 0) {
+                $employee_id = (int)$_GET['employee_id'];
+                $start_date = isset($_GET['start_date']) ? $_GET['start_date'] : null;
+                $end_date = isset($_GET['end_date']) ? $_GET['end_date'] : null;
+
+                if ($start_date && $end_date && strtotime($start_date) > strtotime($end_date)) {
+                    sendJsonResponse('error', null, "Start date cannot be greater than end date.");
+                    exit; 
                 }
-                sendJsonResponse('success', array_values($reports), 'Report(s) fetched successfully');
+
+                $query = "SELECT 
+                    employee_leaves.id,
+                    employee_leaves.employee_id, 
+                    employee_leaves.from_date, 
+                    employee_leaves.to_date,
+                    employee_leaves.reason, 
+                    employee_leaves.status,
+                    employee_leaves.is_half_day,
+                    employee_leaves.approved_by,
+                    employee_leaves.created_at, 
+                    employees.first_name, 
+                    employees.last_name, 
+                    employees.email
+                FROM employee_leaves
+                INNER JOIN employees ON employee_leaves.employee_id = employees.id
+                WHERE employee_leaves.employee_id = $employee_id";
+            
+                // Append date filters if provided
+                if ($start_date && $end_date) {
+                    $query .= " AND DATE(employee_leaves.created_at) BETWEEN '$start_date' AND '$end_date'";
+                } elseif ($start_date) {
+                    $query .= " AND DATE(employee_leaves.created_at) = '$start_date'";
+                } elseif ($end_date) {
+                    $query .= " AND DATE(employee_leaves.created_at) = '$end_date'";
+                }
+            
+                $result = $conn->query($query);
+            
+                if ($result && $result->num_rows > 0) {
+                    $employee_leaves = $result->fetch_all(MYSQLI_ASSOC);
+                    sendJsonResponse('success', $employee_leaves);
+                } else {
+                    sendJsonResponse('error', null, "No leaves found for this employee.");
+                }
+            
             } else {
-                sendJsonResponse('error', [], 'Reports not available');
+                // Return all records if no specific employee ID is given
+                $result = $conn->query("SELECT 
+                    employee_leaves.id,
+                    employee_leaves.employee_id, 
+                    employee_leaves.from_date, 
+                    employee_leaves.to_date,
+                    employee_leaves.reason, 
+                    employee_leaves.status,
+                    employee_leaves.is_half_day,
+                    employee_leaves.approved_by,
+                    employee_leaves.created_at, 
+                    employees.first_name, 
+                    employees.last_name, 
+                    employees.email
+                FROM employee_leaves
+                INNER JOIN employees ON employee_leaves.employee_id = employees.id");
+            
+                if ($result) {
+                    $employee_leaves = $result->fetch_all(MYSQLI_ASSOC);
+                    sendJsonResponse('success', $employee_leaves);
+                } else {
+                    sendJsonResponse('error', null, "No records found: " . $conn->error);
+                }
             }
-            break;        
+            break;
 
         case 'add':
             // Get form data
