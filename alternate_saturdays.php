@@ -20,15 +20,27 @@ switch ($action) {
     // GET: View Saturdays by Year
     // -----------------------------------------
     case 'view':
-        $year = $_GET['year'];
+        $year = $_GET['year'] ?? null;
+        $month = $_GET['month'] ?? null;
     
         if ($year === null || !is_numeric($year)) {
             sendJsonResponse('error', null, 'Year must be a number if provided.');
         }
-        
-        $year = (int)$year; 
-        $query = "SELECT year, month, date FROM weekends WHERE year = $year";
-        
+    
+        $year = (int)$year;
+    
+        // Validate month if provided
+        $whereClause = "WHERE year = $year";
+        if ($month !== null) {
+            if (!is_numeric($month) || (int)$month < 1 || (int)$month > 12) {
+                sendJsonResponse('error', null, 'Month must be a number between 1 and 12.');
+            }
+            $month = (int)$month;
+            $whereClause .= " AND month = $month";
+        }
+    
+        $query = "SELECT year, month, date FROM weekends $whereClause";
+    
         $result = $conn->query($query);
     
         if (!$result) {
