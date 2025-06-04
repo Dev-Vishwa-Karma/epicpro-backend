@@ -30,12 +30,13 @@ if (isset($action)) {
                 $employee_id = (int)$_GET['employee_id'];
                 $start_date = isset($_GET['start_date']) ? $_GET['start_date'] : null;
                 $end_date = isset($_GET['end_date']) ? $_GET['end_date'] : null;
-
+                $status = isset($_GET['status']) ? $_GET['status'] : null;
+        
                 if ($start_date && $end_date && strtotime($start_date) > strtotime($end_date)) {
                     sendJsonResponse('error', null, "Start date cannot be greater than end date.");
-                    exit; 
+                    exit;
                 }
-
+        
                 $query = "SELECT 
                     employee_leaves.id,
                     employee_leaves.employee_id, 
@@ -52,8 +53,13 @@ if (isset($action)) {
                 FROM employee_leaves
                 INNER JOIN employees ON employee_leaves.employee_id = employees.id
                 WHERE employee_leaves.employee_id = $employee_id";
-            
-                // Append date filters if provided
+        
+                // Status filter
+                if ($status && in_array($status, ['pending', 'cancelled', 'approved', 'rejected'])) {
+                    $query .= " AND employee_leaves.status = '$status'";
+                }
+        
+                // Date filters
                 if ($start_date && $end_date) {
                     $query .= " AND DATE(employee_leaves.created_at) BETWEEN '$start_date' AND '$end_date'";
                 } elseif ($start_date) {
@@ -61,19 +67,21 @@ if (isset($action)) {
                 } elseif ($end_date) {
                     $query .= " AND DATE(employee_leaves.created_at) = '$end_date'";
                 }
-            
+        
                 $result = $conn->query($query);
-            
+        
                 if ($result && $result->num_rows > 0) {
                     $employee_leaves = $result->fetch_all(MYSQLI_ASSOC);
                     sendJsonResponse('success', $employee_leaves);
                 } else {
                     sendJsonResponse('error', null, "No leaves found for this employee.");
                 }
-            
+        
             } else {
                 // Return all records if no specific employee ID is given
-                $result = $conn->query("SELECT 
+                $status = isset($_GET['status']) ? $_GET['status'] : null;
+        
+                $query = "SELECT 
                     employee_leaves.id,
                     employee_leaves.employee_id, 
                     employee_leaves.from_date, 
@@ -87,8 +95,15 @@ if (isset($action)) {
                     employees.last_name, 
                     employees.email
                 FROM employee_leaves
-                INNER JOIN employees ON employee_leaves.employee_id = employees.id");
-            
+                INNER JOIN employees ON employee_leaves.employee_id = employees.id";
+        
+                // Status filter
+                if ($status && in_array($status, ['pending', 'cancelled', 'approved', 'rejected'])) {
+                    $query .= " WHERE employee_leaves.status = '$status'";
+                }
+        
+                $result = $conn->query($query);
+        
                 if ($result) {
                     $employee_leaves = $result->fetch_all(MYSQLI_ASSOC);
                     sendJsonResponse('success', $employee_leaves);
@@ -96,7 +111,7 @@ if (isset($action)) {
                     sendJsonResponse('error', null, "No records found: " . $conn->error);
                 }
             }
-            break;
+            break;        
 
         case 'add':
             // Get form data
