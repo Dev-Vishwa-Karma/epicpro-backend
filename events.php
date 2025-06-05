@@ -26,30 +26,36 @@ $action = !empty($_GET['action']) ? $_GET['action'] : 'view';
 if (isset($action)) {
     switch ($action) {
         case 'view':
-            if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
-                // Prepare SELECT statement with WHERE clause using parameter binding
-                $stmt = $conn->prepare("SELECT * FROM events WHERE id = ?");
-                $stmt->bind_param("i", $_GET['id']);
-                if ($stmt->execute()) {
-                    $result = $stmt->get_result();
-                    if ($result) {
-                        $events = $result->fetch_all(MYSQLI_ASSOC);
-                        sendJsonResponse('success', $events, null);
-                    } else {
-                        sendJsonResponse('error', null, "No leaves found : $conn->error");
-                    }
-                } else {
-                    sendJsonResponse('error', null, "Failed to execute query : $stmt->error");
-                }
-            } else {
-                $result = $conn->query("SELECT * FROM events");
-                if ($result) {
-                    $events = $result->fetch_all(MYSQLI_ASSOC);
-                    sendJsonResponse('success', $events);
-                } else {
-                    sendJsonResponse('error', null, "No records found $conn->error");
-                }
+            $id = isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0 ? (int)$_GET['id'] : null;
+
+            $allowed_event_types = ['holiday', 'event'];
+            $event_type = isset($_GET['event_type']) && in_array($_GET['event_type'], $allowed_event_types) 
+                ? $_GET['event_type'] 
+                : null;
+            
+            $conditions = [];
+            if ($id !== null) {
+                $conditions[] = "id = $id";
             }
+            if ($event_type !== null) {
+                $conditions[] = "event_type = '$event_type'";
+            }
+            
+            $whereClause = '';
+            if (!empty($conditions)) {
+                $whereClause = "WHERE " . implode(" AND ", $conditions);
+            }
+            
+            $sql = "SELECT * FROM events $whereClause";
+            $result = $conn->query($sql);
+            
+            if ($result) {
+                $events = $result->fetch_all(MYSQLI_ASSOC);
+                sendJsonResponse('success', $events);
+            } else {
+                sendJsonResponse('error', null, "Query failed: $conn->error");
+            }
+            
             break;
 
         case 'add':
