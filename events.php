@@ -27,6 +27,13 @@ if (isset($action)) {
     switch ($action) {
         case 'view':
             $id = isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0 ? (int)$_GET['id'] : null;
+            $start_date = isset($_GET['start_date']) ? $_GET['start_date'] : null;
+            $end_date = isset($_GET['end_date']) ? $_GET['end_date'] : null;
+        
+            if ($start_date && $end_date && strtotime($start_date) > strtotime($end_date)) {
+                sendJsonResponse('error', null, "Start date cannot be greater than end date.");
+                exit;
+            }
 
             $allowed_event_types = ['holiday', 'event'];
             $event_type = isset($_GET['event_type']) && in_array($_GET['event_type'], $allowed_event_types) 
@@ -40,11 +47,19 @@ if (isset($action)) {
             if ($event_type !== null) {
                 $conditions[] = "event_type = '$event_type'";
             }
+            if ($start_date && $end_date) {
+                $conditions[] = "DATE(events.event_date) BETWEEN '$start_date' AND '$end_date'";
+            } elseif ($start_date) {
+                $conditions[] = "DATE(events.event_date) = '$start_date'";
+            } elseif ($end_date) {
+                $conditions[] = "DATE(events.event_date) = '$end_date'";
+            }
             
             $whereClause = '';
             if (!empty($conditions)) {
                 $whereClause = "WHERE " . implode(" AND ", $conditions);
             }
+
             
             $sql = "SELECT * FROM events $whereClause";
             $result = $conn->query($sql);
