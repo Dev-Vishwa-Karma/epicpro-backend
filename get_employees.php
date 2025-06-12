@@ -596,128 +596,79 @@ if (isset($action)) {
 
                 $data['updated_at'] = date('Y-m-d H:i:s');
 
-                // Prepare SQL UPDATE statement
                 $updateColumns = [];
                 $updateValues = [];
-                $types = '';
-
-                // Dynamically create column assignments and bind parameters
                 foreach ($data as $column => $value) {
-                    $updateColumns[] = "$column = ?";
-                    $updateValues[] = ($value === null || $value === '') ? '' : $value;
-                    // Determine the data type
-                    if (in_array($column, ['department_id'])) {
-                        $types .= 'i'; // Integers
-                    } else {
-                        $types .= 's'; // Strings
-                    }
+                    $updateColumns[] = "$column = '" . $conn->real_escape_string($value) . "'";
                 }
                 // SQL query
-                $sql = "UPDATE employees SET " . implode(', ', $updateColumns) . " WHERE id = ?";
-                $updateValues[] = $id;
-                $types .= 'i';
+                $sql = "UPDATE employees SET " . implode(', ', $updateColumns) . " WHERE id = $id";
 
-                $stmt = $conn->prepare($sql);
-                $stmt->bind_param($types, ...$updateValues);
-
-                if ($stmt->execute()) {
+                if ($conn->query($sql)) {
                     // Insert new profile image into the gallery
                     if (!empty($data['profile'])) {
-                        $insert_gallery_sql = "INSERT INTO gallery (employee_id, url, created_at, created_by) VALUES (?, ?, ?, ?)";
-                        $insert_gallery_stmt = $conn->prepare($insert_gallery_sql);
                         $created_at = date('Y-m-d H:i:s');
-                        $insert_gallery_stmt->bind_param('issi', $id, $galleryPath, $created_at, $data['updated_by']);
-                        $insert_gallery_stmt->execute();
+                        $gallerySql = "INSERT INTO gallery (employee_id, url, created_at, created_by) VALUES ($id, '$galleryPath', '$created_at', {$data['updated_by']})";
+                        $conn->query($gallerySql);
                     }
 
                     $salaryDetails = $_POST['salaryDetails'] ?? [];
 
                     if (!empty($salaryDetails)) {
-                        // Update salary details into the salary_details table
-                        $salary_stmt = $conn->prepare(
-                            "UPDATE salary_details SET source = ?, amount = ?, from_date = ?, to_date = ?, updated_at = ? WHERE employee_id = ? AND id = ?"
-                        );
-                        $updated_at = date('Y-m-d H:i:s');
-
-                        
                         foreach ($salaryDetails as $detail) {
                             if (!isset($detail['id'])) {
                                 sendJsonResponse('error', null, "Salary detail ID is missing.");
                                 exit;
                             }
 
-                            // Trim and validate fields to ensure there is no empty data
                             $source = isset($detail['source']) ? trim($detail['source']) : '';
-                            $amount = isset($detail['amount']) && is_numeric($detail['amount']) && $detail['amount'] !== '' ? (int)$detail['amount'] : null;
-                            $from_date = isset($detail['from_date']) && !empty($detail['from_date']) ? $detail['from_date'] : null;
-                            $to_date = isset($detail['to_date']) && !empty($detail['to_date']) ? $detail['to_date'] : null;
-    
-                            // Skip the update if any of the required fields are empty or invalid
-                            if (empty($source) || $amount === null || $from_date === null || $to_date === null) {
+                            $amount = isset($detail['amount']) && is_numeric($detail['amount']) ? (int)$detail['amount'] : null;
+                            $from_date = isset($detail['from_date']) ? $detail['from_date'] : null;
+                            $to_date = isset($detail['to_date']) ? $detail['to_date'] : null;
+
+                            // Skip if any field is invalid
+                            if (empty($source) || $amount === null || empty($from_date) || empty($to_date)) {
                                 continue;
                             }
-    
-                            // Bind the parameters for each salary entry
-                            $salary_stmt->bind_param(
-                                'sssssii',
-                                $detail['source'],
-                                $detail['amount'],
-                                $detail['from_date'],
-                                $detail['to_date'],
-                                $updated_at,
-                                $id,
-                                $detail['id']
-                            );
 
-                            // Execute the insert for each salary detail
-                            if (!$salary_stmt->execute()) {
-                                $salary_error = $salary_stmt->error;
-                                sendJsonResponse('error', null, "Failed to add salary detail: $salary_error");
-                                exit;
-                            }
+                            $updated_at = date('Y-m-d H:i:s');
+                            $salarySql = "UPDATE salary_details SET source = '$source', amount = $amount, from_date = '$from_date', to_date = '$to_date', updated_at = '$updated_at' WHERE employee_id = $id AND id = {$detail['id']}";
+                            $conn->query($salarySql);
                         }
                     }
 
                     // Fetch department details based on department_id
                     if (!empty($data['department_id'])) {
-                        $dept_stmt = $conn->prepare("SELECT department_name, department_head FROM departments WHERE id = ?");
-                        $dept_stmt->bind_param("i", $data['department_id']);
-                        $dept_stmt->execute();
-                        $dept_result = $dept_stmt->get_result();
-                        $department = $dept_result->fetch_assoc();
+                        $deptSql = "SELECT department_name, department_head FROM departments WHERE id = {$data['department_id']}";
+                        $deptResult = $conn->query($deptSql);
+                        $department = $deptResult->fetch_assoc();
 
-                        // If department exists, get its details
                         $department_name = $department['department_name'] ?? null;
                         $department_head = $department['department_head'] ?? null;
                     }
 
+                    // Update event related to employee birthday
                     if (isset($data['dob']) && !empty($data['dob'])) {
                         $event_name = "Birthday of " . $data['first_name'] . " " . $data['last_name'];
                         $event_type = 'event';
                         $event_date = $data['dob'];
                         $updated_at = date('Y-m-d H:i:s');
-                    
-                        // First check if an event already exists for this employee
-                        $check_event_stmt = $conn->prepare("SELECT id FROM events WHERE employee_id = ?");
-                        $check_event_stmt->bind_param("i", $logged_in_user_id);
-                        $check_event_stmt->execute();
-                        $check_event_result = $check_event_stmt->get_result();
-                        if ($check_event_result->num_rows > 0) {
-                            // Event exists, so update it
-                            $event_row = $check_event_result->fetch_assoc();
+
+                        $eventCheckSql = "SELECT id FROM events WHERE employee_id = $logged_in_user_id";
+                        $eventResult = $conn->query($eventCheckSql);
+
+                        if ($eventResult->num_rows > 0) {
+                            $event_row = $eventResult->fetch_assoc();
                             $event_id = $event_row['id'];
-                    
-                            $update_event_stmt = $conn->prepare("UPDATE events SET event_name = ?, event_date = ?, event_type = ?, updated_at = ?, updated_by = ? WHERE employee_id = ?");
-                            $update_event_stmt->bind_param("ssssii", $event_name, $event_date, $event_type, $updated_at, $data['updated_by'], $logged_in_user_id);
-                            $update_event_stmt->execute();
+                            
+                            $updateEventSql = "UPDATE events SET event_name = '$event_name', event_date = '$event_date', event_type = '$event_type', updated_at = '$updated_at', updated_by = {$data['updated_by']} WHERE employee_id = $logged_in_user_id";
+                            $conn->query($updateEventSql);
                         } else {
-                            // No event exists, insert new one
                             $created_at = date('Y-m-d H:i:s');
-                            $insert_event_stmt = $conn->prepare("INSERT INTO events (employee_id, event_type, event_date, event_name, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?)");
-                            $insert_event_stmt->bind_param("issssi", $logged_in_user_id, $event_type, $event_date, $event_name, $created_at, $data['updated_by']);
-                            $insert_event_stmt->execute();
+                            $insertEventSql = "INSERT INTO events (employee_id, event_type, event_date, event_name, created_at, created_by) VALUES ($logged_in_user_id, '$event_type', '$event_date', '$event_name', '$created_at', {$data['updated_by']})";
+                            $conn->query($insertEventSql);
                         }
-                    }            
+                    }
 
                     $updatedData = [
                         'id' => $id,
@@ -740,13 +691,14 @@ if (isset($action)) {
 
                     sendJsonResponse('success', $updatedData, "Employee and salary details updated successfully");
                 } else {
-                    $error = $stmt->error;
+                    $error = $conn->error;
                     sendJsonResponse('error', null, "Failed to update employee details: $error");
                 }
             } else {
                 sendJsonResponse('error', null, 'Invalid user ID');
             }
             break;
+
 
             case 'delete':
                 // Get request body

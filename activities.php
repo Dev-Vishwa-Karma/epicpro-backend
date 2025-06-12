@@ -442,35 +442,35 @@ if (isset($action)) {
                 $employee_activity_id = $stmt->insert_id;
                 sendJsonResponse('success', ['user_id' => $employee_activity_id], 'The punch-in has been successfully recorded!');
             } elseif ($activity_type == 'Punch' && $status == 'completed') {
+                $currentTime = date('Y-m-d H:i:s');
 
-                $stmt = $conn->prepare("SELECT * FROM activities WHERE employee_id = ? AND activity_type = 'Punch' AND DATE(in_time) = CURDATE() AND deleted_at IS NULL LIMIT 1");
-                $stmt->bind_param('i', $employee_id);
-                $stmt->execute();
-                $result = $stmt->get_result();
-                if ($result->num_rows > 0) {
-                    $row = $result->fetch_assoc();
+                // Get active punch-in record
+                $query = "SELECT * FROM activities WHERE employee_id = $employee_id AND activity_type = 'Punch' AND DATE(in_time) = CURDATE() AND deleted_at IS NULL LIMIT 1";
+                $result = mysqli_query($conn, $query);
+
+                if (mysqli_num_rows($result) > 0) {
+                    $row = mysqli_fetch_assoc($result);
                     if ($row['status'] == 'active') {
-                        // If there's an active punch, record the punch out time
-                        $currentTime = date('Y-m-d H:i:s');
-                        $updateStmt = $conn->prepare("UPDATE activities SET out_time = ?, description = ?, status = 'completed' WHERE employee_id = ? AND status = 'active' AND activity_type = 'Punch' AND deleted_at IS NULL");
-                        $updateStmt->bind_param('ssi', $currentTime, $description, $employee_id);
-                        $updateStmt->execute();
-
                         // need to close any active break if any
-                        $getActiveBreakQuery = $conn->prepare("SELECT * FROM activities WHERE employee_id = ? AND status = 'active' AND activity_type = 'Break' AND deleted_at IS NULL LIMIT 1");
-                        $getActiveBreakQuery->bind_param('i', $employee_id);
-                        $getActiveBreakQuery->execute();
-                        $getActiveBreakQueryResult = $getActiveBreakQuery->get_result();
-                        if ($getActiveBreakQueryResult->num_rows > 0) {
+                        $getActiveBreakQuery = "SELECT * FROM activities WHERE employee_id = $employee_id AND status = 'active' AND activity_type = 'Break' AND deleted_at IS NULL LIMIT 1";
+                        
+                        $getActiveBreakQueryResult = mysqli_query($conn, $getActiveBreakQuery);
+                       
+                        if (mysqli_num_rows($getActiveBreakQueryResult) > 0) {
+                            sendJsonResponse('error', null, 'You already have active break Check this.');
                             // If there's an active break, record the break out time
-                            $updateStmt = $conn->prepare("UPDATE activities SET out_time = ?, status = 'completed' WHERE employee_id = ? AND status = 'active' AND activity_type = 'Break' AND deleted_at IS NULL");
-                            $updateStmt->bind_param('si', $currentTime, $employee_id);
-                            $updateStmt->execute();
-                        }
-                        // end: need to close any active break if any
-
+                            // $updateBreakQuery = "UPDATE activities SET out_time = '$currentTime', status = 'completed' 
+                            //                     WHERE employee_id = $employee_id AND status = 'active' AND activity_type = 'Break' AND deleted_at IS NULL";
+                            // mysqli_query($conn, $updateBreakQuery);
+                        }else{
+                            // If there's an active punch, record the punch out time
+                        $description = 'Punch Out'; // Add the description you want
+                        $updateQuery = "UPDATE activities SET out_time = '$currentTime', description = '$description', status = 'completed' 
+                                        WHERE employee_id = $employee_id AND status = 'active' AND activity_type = 'Punch' AND deleted_at IS NULL";
+                        mysqli_query($conn, $updateQuery);
                         // Respond with success
                         sendJsonResponse('success', null, 'The punch-out has been successfully recorded.');
+                        }
                     } elseif ($row['status'] == 'completed') {
                         sendJsonResponse('error', null, 'You already punched out for today.');
                     }
@@ -478,6 +478,7 @@ if (isset($action)) {
                     // No active punch found
                     sendJsonResponse('error', null, 'No active punch-in record found for this employee');
                 }
+
             } else {
                 // Respond with error if the user is not an admin
                 sendJsonResponse('error', null, 'You do not have the required permissions to perform this action');
@@ -486,13 +487,15 @@ if (isset($action)) {
 
         case 'get_punch_status':
             if (isset($_GET['user_id']) && is_numeric($_GET['user_id']) && $_GET['user_id'] > 0) {
-
-                $stmt = $conn->prepare("SELECT * FROM activities WHERE employee_id = ? AND status = 'active' AND activity_type = 'Punch' AND deleted_at IS NULL LIMIT 1");
-                $stmt->bind_param("i", $_GET['user_id']);
-                $stmt->execute();
-                $result = $stmt->get_result();
+                
+                $user_id = $_GET['user_id'];
+                $query = "SELECT * FROM activities WHERE employee_id = $user_id AND status = 'active' AND activity_type = 'Punch' AND deleted_at IS NULL LIMIT 1";
+                
+                $result = $conn->query($query); 
+        
                 if ($result->num_rows > 0) {
-                    sendJsonResponse('success', null, 'This employee is already punched in.');
+                    $punchDetails = $result->fetch_all(MYSQLI_ASSOC);
+                    sendJsonResponse('success', $punchDetails, 'This employee is already punched in.');
                 } else {
                     sendJsonResponse('error', null, 'This employee is not punched in.');
                 }

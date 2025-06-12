@@ -182,52 +182,51 @@ if (isset($action)) {
             }
             break;
         
-        case 'add-report-by-user':
-            // Capture POST data
-            $employee_id = $_POST['employee_id'] ?? null;
-            $report = $_POST['report'] ?? null;
-            $start_time = $_POST['start_time'] ?? null;
-            $break_duration_in_minutes = $_POST['break_duration_in_minutes'] ?? null;
-            $end_time = $_POST['end_time'] ?? null;
-            $todays_working_hours = $_POST['todays_working_hours'] ?? null;
-            $todays_total_hours = $_POST['todays_total_hours'] ?? null;
-            $created_at = date('Y-m-d H:i:s');
-            $updated_at = $created_at;
-
-            // Validate the data (you can add additional validation as needed)
-            if (empty($employee_id) || empty($report) || empty($start_time) || empty($end_time)) {
-                sendJsonResponse('error', null, "All fields are required");
-                exit;
-            }
-
-            // Prepare the insert query
-            $stmt = $conn->prepare("INSERT INTO reports (employee_id, report, start_time, end_time, break_duration_in_minutes, total_working_hours, total_hours, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            case 'add-report-by-user':
+                // Capture POST data
+                $employee_id = $_POST['employee_id'] ?? null;
+                $report = $_POST['report'] ?? null;
+                $start_time = $_POST['start_time'] ?? null;
+                $break_duration_in_minutes = $_POST['break_duration_in_minutes'] ?? null;
+                $end_time = $_POST['end_time'] ?? null;
+                $todays_working_hours = $_POST['todays_working_hours'] ?? null;
+                $todays_total_hours = $_POST['todays_total_hours'] ?? null;
+                $created_at = date('Y-m-d H:i:s');
+                $updated_at = $created_at;
             
-            // Bind the parameters
-            $stmt->bind_param("issssssss", $employee_id, $report, $start_time, $end_time, $break_duration_in_minutes, $todays_working_hours, $todays_total_hours, $created_at, $updated_at);
-
-            // Execute the query
-            if ($stmt->execute()) {
-                $id = $conn->insert_id;
-
-                $reportsData = [
-                    'id' => $id,
-                    'employee_id' => $employee_id,
-                    'report' => $report,
-                    'start_time' => $start_time,
-                    'end_time' => $end_time,
-                    'break_duration_in_minutes' => $break_duration_in_minutes,
-                    'total_working_hours' => $todays_working_hours,
-                    'total_hours' => $todays_total_hours,
-                    'created_at' => $created_at
-                ];
-                // If successful, send success response
-                sendJsonResponse('success', $reportsData, "Report has been submitted successfully.");
-            } else {
-                sendJsonResponse('error', null, "Failed to submit report $stmt->error");
-            }
-
-            break;
+                // Validate the data (you can add additional validation as needed)
+                if (empty($employee_id) || empty($report) || empty($start_time) || empty($end_time)) {
+                    sendJsonResponse('error', null, "All fields are required");
+                    exit;
+                }
+            
+                // Prepare the SQL query string directly
+                $sql = "INSERT INTO reports (employee_id, report, start_time, end_time, break_duration_in_minutes, total_working_hours, total_hours, created_at, updated_at) 
+                        VALUES ('$employee_id', '$report', '$start_time', '$end_time', '$break_duration_in_minutes', '$todays_working_hours', '$todays_total_hours', '$created_at', '$updated_at')";
+            
+                // Execute the query
+                if ($conn->query($sql) === TRUE) {
+                    $id = $conn->insert_id;
+            
+                    $reportsData = [
+                        'id' => $id,
+                        'employee_id' => $employee_id,
+                        'report' => $report,
+                        'start_time' => $start_time,
+                        'end_time' => $end_time,
+                        'break_duration_in_minutes' => $break_duration_in_minutes,
+                        'total_working_hours' => $todays_working_hours,
+                        'total_hours' => $todays_total_hours,
+                        'created_at' => $created_at
+                    ];
+                    // If successful, send success response
+                    sendJsonResponse('success', $reportsData, "Report has been submitted successfully.");
+                } else {
+                    sendJsonResponse('error', null, "Failed to submit report: " . $conn->error);
+                }
+            
+                break;
+            
         case 'update-report-by-user';
             // Capture POST data
             if (isset($_GET['report_id']) && is_numeric($_GET['report_id']) && $_GET['report_id'] > 0) {
