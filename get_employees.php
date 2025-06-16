@@ -291,7 +291,7 @@ if (isset($action)) {
                 $data['profile'],
                 $data['dob'],
                 $data['gender'],
-                $data['password'],
+                md5($data['password']),
                 $data['joining_date'],
                 $data['mobile_no1'],
                 $data['mobile_no2'],
@@ -762,21 +762,17 @@ if (isset($action)) {
                 sendJsonResponse('error', null, 'Password is required');
             }
 
-            $stmt = $conn->prepare("SELECT * FROM employees WHERE email = ? AND deleted_at IS NULL LIMIT 1");
-            $stmt->bind_param("s", $email);
+            $password = md5($password);
+            $stmt = $conn->prepare("SELECT id, first_name, last_name, email, role FROM employees WHERE email = ? AND password = ? AND deleted_at IS NULL LIMIT 1");
+            $stmt->bind_param("ss", $email, $password);
             $stmt->execute();
             $result = $stmt->get_result();
 
             /** Validate email */
             if ($result->num_rows == 0) {
-                sendJsonResponse('error', null, 'Please enter a valid registered email address.');
+                sendJsonResponse('error', null, 'Please enter a valid registered email address and password.');
             } else {
-                $row = $result->fetch_assoc();
-                if ($password != $row['password']) {
-                    sendJsonResponse('error', null, 'The password you entered is incorrect.');
-                } else {
-                    sendJsonResponse('success', $row, 'Login successful!');
-                }
+                sendJsonResponse('success', $result->fetch_assoc(), 'Login successful!');
             }
 
             break;
