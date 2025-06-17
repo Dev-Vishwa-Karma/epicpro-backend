@@ -194,6 +194,8 @@ if (isset($action)) {
                 'instagram_url' => $_POST['instagram_url'] ?? "",
                 'upwork_profile_url' => $_POST['upwork_profile_url'] ?? "",
                 'resume' => $_FILES['resume']['name'] ?? "",
+                'visibility_priority' => $_POST['visibility_priority'] ?? 0,
+                'status' => $_POST['status'] ?? 1,
             ];
 
             // Upload profile image
@@ -275,13 +277,13 @@ if (isset($action)) {
                 "INSERT INTO employees 
                 (department_id, code, first_name, last_name, email, role, profile, dob, gender, password, joining_date, mobile_no1, mobile_no2, address_line1, address_line2, 
                 emergency_contact1, emergency_contact2, emergency_contact3, frontend_skills, backend_skills, account_holder_name, account_number, ifsc_code, bank_name, bank_address,
-                aadhar_card_number, aadhar_card_file, pan_card_number, pan_card_file, driving_license_number, driving_license_file, facebook_url, twitter_url, linkedin_url, instagram_url, upwork_profile_url, resume, created_by) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                aadhar_card_number, aadhar_card_file, pan_card_number, pan_card_file, driving_license_number, driving_license_file, facebook_url, twitter_url, linkedin_url, instagram_url, upwork_profile_url, resume, visibility_priority, status, created_by) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
 
             // Bind parameters dynamically (use an array to store the data)
             $stmt->bind_param(
-                'isssssssssssssssssssssssssssssssssssss',
+                'issssssssssssssssssssssssssssssssssssiis',
                 $data['department_id'],
                 $next_user_code,
                 $data['first_name'],
@@ -319,6 +321,8 @@ if (isset($action)) {
                 $data['instagram_url'],
                 $data['upwork_profile_url'],
                 $data['resume'],
+                $data['visibility_priority'],
+                $data['status'],
                 $created_by
             );
 
@@ -538,6 +542,12 @@ if (isset($action)) {
                 }
                 if (isset($_POST['upwork_profile_url'])) {
                     $data['upwork_profile_url'] = $_POST['upwork_profile_url'];
+                }
+                if (isset($_POST['status'])) {
+                    $data['status'] = $_POST['status'];
+                }
+                if (isset($_POST['visibility_priority'])) {
+                    $data['visibility_priority'] = $_POST['visibility_priority'];
                 }
 
                 // File uploads: handle files only if they are present
