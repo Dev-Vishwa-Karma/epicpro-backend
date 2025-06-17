@@ -29,6 +29,7 @@ function validateId($id)
 }
 
 $action = !empty($_GET['action']) ? $_GET['action'] : 'view';
+$status = !empty($_GET['status']) ? $_GET['status'] : null;
 
 // File upload helper function
 function uploadFile($file, $targetDir, $allowedTypes = [], $maxSize = 2 * 1024 * 1024)
@@ -104,6 +105,7 @@ if (isset($action)) {
                 // Check if the role filter is passed via URL, e.g., role=employee or role=all
                 $roleFilter = isset($_GET['role']) ? $_GET['role'] : 'all';
                 if ($roleFilter == 'employee') {
+                    $status = !empty($status) ? 'AND status = '. $status : '';
                     // If 'employee' role filter is passed, show only employees with role 'employee'
                     $stmt = $conn->prepare("
                         SELECT e.*, 
@@ -111,8 +113,13 @@ if (isset($action)) {
                             d.department_head 
                         FROM employees e
                         LEFT JOIN departments d ON e.department_id = d.id
-                        WHERE e.role = 'employee' AND e.deleted_at IS NULL
-                        ORDER BY e.id DESC
+                        WHERE e.role = 'employee' AND e.deleted_at IS NULL " .$status." 
+                        ORDER BY 
+                            CASE 
+    							WHEN visibility_priority = 0 THEN 1 ELSE 0 
+  								END,
+  								visibility_priority ASC,
+                                first_name ASC
                     ");
                 } else if ($roleFilter == 'admin') {
                     $stmt = $conn->prepare("
@@ -773,7 +780,7 @@ if (isset($action)) {
             }
 
             $password = md5($password);
-            $stmt = $conn->prepare("SELECT id, first_name, last_name, email, role FROM employees WHERE email = ? AND password = ? AND deleted_at IS NULL LIMIT 1");
+            $stmt = $conn->prepare("SELECT id, first_name, last_name, email, role FROM employees WHERE email = ? AND password = ? AND status = 1 AND deleted_at IS NULL LIMIT 1");
             $stmt->bind_param("ss", $email, $password);
             $stmt->execute();
             $result = $stmt->get_result();
