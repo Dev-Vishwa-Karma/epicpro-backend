@@ -32,6 +32,7 @@ function validateId($id)
 }
 
 $action = !empty($_GET['action']) ? $_GET['action'] : 'view';
+$timeline = !empty($_GET['is_timeline']) ? $_GET['is_timeline'] : false;
 
 // Main action handler
 if (isset($action)) {
@@ -93,7 +94,9 @@ if (isset($action)) {
 
                 if ($result->num_rows > 0) {
                     $activities = $result->fetch_all(MYSQLI_ASSOC);
-                    $activities = getActivities($activities);
+                    if ($timeline) {
+                        $activities = getActivities($activities);
+                    }
                     sendJsonResponse('success', $activities);
                 } else {
                     sendJsonResponse('error', null, 'No records found');
@@ -154,7 +157,10 @@ if (isset($action)) {
 
                 if ($result->num_rows > 0) {
                     $activities = $result->fetch_all(MYSQLI_ASSOC);
-                    $activities = getActivities($activities);
+                    if ($timeline) {
+                        $activities = getActivities($activities);
+                    }
+
                     sendJsonResponse('success', $activities);
                 } else {
                     sendJsonResponse('error', null, 'No records found');
@@ -408,13 +414,14 @@ if (isset($action)) {
                 $stmt->execute();
                 $result = $stmt->get_result();
                 if ($result->num_rows > 0) {
+                    $row = $result->fetch_assoc();
                     // If there's an active break, record the break out time
                     $currentTime = date('Y-m-d H:i:s');
                     $updateStmt = $conn->prepare("UPDATE activities SET out_time = ?, status = 'completed' WHERE employee_id = ? AND status = 'active' AND activity_type = 'Break' AND deleted_at IS NULL");
                     $updateStmt->bind_param('si', $currentTime, $employee_id);
                     $updateStmt->execute();
                     // Respond with success
-                    sendJsonResponse('success', null, 'Break has been completed!');
+                    sendJsonResponse('success', ['breakIn' => $row['in_time'], 'breakOut' => $currentTime], 'Break has been completed!');
                 } else {
                     // No active break found
                     sendJsonResponse('error', null, 'No active break is currently recorded for this employee.');
