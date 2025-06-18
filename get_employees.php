@@ -29,6 +29,7 @@ function validateId($id)
 }
 
 $action = !empty($_GET['action']) ? $_GET['action'] : 'view';
+$status = !empty($_GET['status']) ? $_GET['status'] : null;
 
 // File upload helper function
 function uploadFile($file, $targetDir, $allowedTypes = [], $maxSize = 2 * 1024 * 1024)
@@ -104,6 +105,7 @@ if (isset($action)) {
                 // Check if the role filter is passed via URL, e.g., role=employee or role=all
                 $roleFilter = isset($_GET['role']) ? $_GET['role'] : 'all';
                 if ($roleFilter == 'employee') {
+                    $status = !empty($status) ? 'AND status = '. $status : '';
                     // If 'employee' role filter is passed, show only employees with role 'employee'
                     $stmt = $conn->prepare("
                         SELECT e.*, 
@@ -111,8 +113,13 @@ if (isset($action)) {
                             d.department_head 
                         FROM employees e
                         LEFT JOIN departments d ON e.department_id = d.id
-                        WHERE e.role = 'employee' AND e.deleted_at IS NULL
-                        ORDER BY e.id DESC
+                        WHERE e.role = 'employee' AND e.deleted_at IS NULL " .$status." 
+                        ORDER BY 
+                            CASE 
+    							WHEN visibility_priority = 0 THEN 1 ELSE 0 
+  								END,
+  								visibility_priority ASC,
+                                first_name ASC
                     ");
                 } else if ($roleFilter == 'admin') {
                     $stmt = $conn->prepare("
@@ -194,6 +201,8 @@ if (isset($action)) {
                 'instagram_url' => $_POST['instagram_url'] ?? "",
                 'upwork_profile_url' => $_POST['upwork_profile_url'] ?? "",
                 'resume' => $_FILES['resume']['name'] ?? "",
+                'visibility_priority' => $_POST['visibility_priority'] ?? 0,
+                'status' => $_POST['status'] ?? 1,
             ];
 
             // Upload profile image
@@ -275,13 +284,13 @@ if (isset($action)) {
                 "INSERT INTO employees 
                 (department_id, code, first_name, last_name, email, role, profile, dob, gender, password, joining_date, mobile_no1, mobile_no2, address_line1, address_line2, 
                 emergency_contact1, emergency_contact2, emergency_contact3, frontend_skills, backend_skills, account_holder_name, account_number, ifsc_code, bank_name, bank_address,
-                aadhar_card_number, aadhar_card_file, pan_card_number, pan_card_file, driving_license_number, driving_license_file, facebook_url, twitter_url, linkedin_url, instagram_url, upwork_profile_url, resume, created_by) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                aadhar_card_number, aadhar_card_file, pan_card_number, pan_card_file, driving_license_number, driving_license_file, facebook_url, twitter_url, linkedin_url, instagram_url, upwork_profile_url, resume, visibility_priority, status, created_by) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
 
             // Bind parameters dynamically (use an array to store the data)
             $stmt->bind_param(
-                'isssssssssssssssssssssssssssssssssssss',
+                'issssssssssssssssssssssssssssssssssssiis',
                 $data['department_id'],
                 $next_user_code,
                 $data['first_name'],
@@ -319,6 +328,8 @@ if (isset($action)) {
                 $data['instagram_url'],
                 $data['upwork_profile_url'],
                 $data['resume'],
+                $data['visibility_priority'],
+                $data['status'],
                 $created_by
             );
 
@@ -538,6 +549,12 @@ if (isset($action)) {
                 }
                 if (isset($_POST['upwork_profile_url'])) {
                     $data['upwork_profile_url'] = $_POST['upwork_profile_url'];
+                }
+                if (isset($_POST['status'])) {
+                    $data['status'] = $_POST['status'];
+                }
+                if (isset($_POST['visibility_priority'])) {
+                    $data['visibility_priority'] = $_POST['visibility_priority'];
                 }
 
                 // File uploads: handle files only if they are present
@@ -772,7 +789,12 @@ if (isset($action)) {
             if ($result->num_rows == 0) {
                 sendJsonResponse('error', null, 'Please enter a valid registered email address and password.');
             } else {
-                sendJsonResponse('success', $result->fetch_assoc(), 'Login successful!');
+                $result = $result->fetch_assoc();
+                if ($result['status'] === 0) {
+                    sendJsonResponse('error', null, 'Your account is deactivated. Please contact the administrator.');
+                }
+
+                sendJsonResponse('success', $result, 'Login successful!');
             }
 
             break;
