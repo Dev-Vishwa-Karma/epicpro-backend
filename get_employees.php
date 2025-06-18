@@ -557,6 +557,12 @@ if (isset($action)) {
                     $data['visibility_priority'] = $_POST['visibility_priority'];
                 }
 
+
+                if (isset($_POST['profileUrl'])) {
+                    $data['profile'] = $_POST['profileUrl'];
+                }
+
+
                 // File uploads: handle files only if they are present
                 // Upload profile image
                 $profileImage = $_FILES['photo'];
