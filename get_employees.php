@@ -1,4 +1,7 @@
 <?php
+// error_reporting(E_ALL);
+// ini_set('display_errors', 1);
+
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, DELETE, PUT, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type");
@@ -565,51 +568,63 @@ if (isset($action)) {
 
                 // File uploads: handle files only if they are present
                 // Upload profile image
-                $profileImage = $_FILES['photo'];
-                if ($profileImage) {
-                    try {
-                        // Upload to profile folder
-                        $profilePath = uploadFile($profileImage, 'uploads/profiles', ['image/jpeg', 'image/png', 'image/webp']);
-                        
-                        if ($profilePath) {
-                            $data['profile'] = $profilePath;
-                
-                            // Generate the same file name for the gallery
-                            $galleryPath = str_replace('profiles', 'gallery', $profilePath);
-                
-                            // Copy the file to the gallery folder
-                            if (!copy($profilePath, $galleryPath)) {
-                                throw new Exception("Failed to copy image to gallery folder.");
+                if (isset($_FILES['photo'])) {
+                     $profileImage = $_FILES['photo'];
+                    if ($profileImage) {
+                        try {
+                            // Upload to profile folder
+                            $profilePath = uploadFile($profileImage, 'uploads/profiles', ['image/jpeg', 'image/png', 'image/webp']);
+                            
+                            if ($profilePath) {
+                                $data['profile'] = $profilePath;
+                    
+                                // Generate the same file name for the gallery
+                                $galleryPath = str_replace('profiles', 'gallery', $profilePath);
+                    
+                                // Copy the file to the gallery folder
+                                if (!copy($profilePath, $galleryPath)) {
+                                    throw new Exception("Failed to copy image to gallery folder.");
+                                }
                             }
+                        } catch (Exception $e) {
+                            sendJsonResponse('error', null, $e->getMessage());
+                            exit;
                         }
-                    } catch (Exception $e) {
-                        sendJsonResponse('error', null, $e->getMessage());
-                        exit;
+                    }
+                }
+                               
+
+                // Upload Aadhaar card
+                if (isset($_FILES['aadhar_card_file'])) {
+                    $aadharCardFile = $_FILES['aadhar_card_file'];
+                    if ($aadharCardFile) {
+                        $data['aadhar_card_file'] = uploadFile($aadharCardFile, 'uploads/documents/aadhar', ['application/pdf', 'application/msword', 'text/plain', 'image/jpeg', 'image/png', 'image/webp', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/octet-stream']);
+                    }
+                }
+            
+
+                // Upload PAN card
+                if (isset($_FILES['pan_card_file'])) {
+                    $panCardFile = $_FILES['pan_card_file'];
+                    if ($panCardFile) {
+                        $data['pan_card_file'] = uploadFile($panCardFile, 'uploads/documents/pan', ['application/pdf', 'application/msword', 'text/plain', 'image/jpeg', 'image/png', 'image/webp']);
                     }
                 }
 
-                // Upload Aadhaar card
-                $aadharCardFile = $_FILES['aadhar_card_file'];
-                if ($aadharCardFile) {
-                    $data['aadhar_card_file'] = uploadFile($aadharCardFile, 'uploads/documents/aadhar', ['application/pdf', 'application/msword', 'text/plain', 'image/jpeg', 'image/png', 'image/webp', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/octet-stream']);
-                }
-
-                // Upload PAN card
-                $panCardFile = $_FILES['pan_card_file'];
-                if ($panCardFile) {
-                    $data['pan_card_file'] = uploadFile($panCardFile, 'uploads/documents/pan', ['application/pdf', 'application/msword', 'text/plain', 'image/jpeg', 'image/png', 'image/webp']);
-                }
-
                 // Upload driving license
-                $drivingLicenseFile = $_FILES['driving_license_file'];
-                if ($drivingLicenseFile) {
-                    $data['driving_license_file'] = uploadFile($drivingLicenseFile, 'uploads/documents/driving_license', ['application/pdf', 'application/msword', 'text/plain', 'image/jpeg', 'image/png', 'image/webp']);
+                if (isset($_FILES['driving_license_file'])) {
+                    $drivingLicenseFile = $_FILES['driving_license_file'];
+                    if ($drivingLicenseFile) {
+                        $data['driving_license_file'] = uploadFile($drivingLicenseFile, 'uploads/documents/driving_license', ['application/pdf', 'application/msword', 'text/plain', 'image/jpeg', 'image/png', 'image/webp']);
+                    }
                 }
 
                 // Upload resume
-                $resumeFile = $_FILES['resume'];
-                if ($resumeFile) {
-                    $data['resume'] = uploadFile($resumeFile, 'uploads/documents/resumes', ['application/pdf', 'application/msword', 'text/plain', 'application/octet-stream', 'image/jpeg', 'image/png', 'image/webp']);
+                if (isset($_FILES['resume'])) {
+                    $resumeFile = $_FILES['resume'];
+                    if ($resumeFile) {
+                        $data['resume'] = uploadFile($resumeFile, 'uploads/documents/resumes', ['application/pdf', 'application/msword', 'text/plain', 'application/octet-stream', 'image/jpeg', 'image/png', 'image/webp']);
+                    }
                 }
 
                 // Check if admin or super_admin is updating another user's profile
@@ -671,45 +686,45 @@ if (isset($action)) {
                     }
 
                     // Update event related to employee birthday
-                    if (isset($data['dob']) && !empty($data['dob'])) {
-                        $event_name = "Birthday of " . $data['first_name'] . " " . $data['last_name'];
-                        $event_type = 'event';
-                        $event_date = $data['dob'];
-                        $updated_at = date('Y-m-d H:i:s');
+                    // if (isset($data['dob']) && !empty($data['dob'])) {
+                    //     $event_name = "Birthday of " . $data['first_name'] . " " . $data['last_name'];
+                    //     $event_type = 'event';
+                    //     $event_date = $data['dob'];
+                    //     $updated_at = date('Y-m-d H:i:s');
 
-                        $eventCheckSql = "SELECT id FROM events WHERE employee_id = $logged_in_user_id";
-                        $eventResult = $conn->query($eventCheckSql);
+                    //     $eventCheckSql = "SELECT id FROM events WHERE employee_id = $logged_in_user_id";
+                    //     $eventResult = $conn->query($eventCheckSql);
 
-                        if ($eventResult->num_rows > 0) {
-                            $event_row = $eventResult->fetch_assoc();
-                            $event_id = $event_row['id'];
+                    //     if ($eventResult->num_rows > 0) {
+                    //         $event_row = $eventResult->fetch_assoc();
+                    //         $event_id = $event_row['id'];
                             
-                            $updateEventSql = "UPDATE events SET event_name = '$event_name', event_date = '$event_date', event_type = '$event_type', updated_at = '$updated_at', updated_by = {$data['updated_by']} WHERE employee_id = $logged_in_user_id";
-                            $conn->query($updateEventSql);
-                        } else {
-                            $created_at = date('Y-m-d H:i:s');
-                            $insertEventSql = "INSERT INTO events (employee_id, event_type, event_date, event_name, created_at, created_by) VALUES ($logged_in_user_id, '$event_type', '$event_date', '$event_name', '$created_at', {$data['updated_by']})";
-                            $conn->query($insertEventSql);
-                        }
-                    }
+                    //         $updateEventSql = "UPDATE events SET event_name = '$event_name', event_date = '$event_date', event_type = '$event_type', updated_at = '$updated_at', updated_by = {$data['updated_by']} WHERE employee_id = $logged_in_user_id";
+                    //         $conn->query($updateEventSql);
+                    //     } else {
+                    //         $created_at = date('Y-m-d H:i:s');
+                    //         $insertEventSql = "INSERT INTO events (employee_id, event_type, event_date, event_name, created_at, created_by) VALUES ($logged_in_user_id, '$event_type', '$event_date', '$event_name', '$created_at', {$data['updated_by']})";
+                    //         $conn->query($insertEventSql);
+                    //     }
+                    // }
 
                     $updatedData = [
                         'id' => $id,
-                        'first_name' => $data['first_name'],
-                        'last_name' => $data['last_name'],
-                        'profile' => $data['profile'],
-                        'email' => $data['email'],
-                        'dob' => $data['dob'],
-                        'address_line1' => $data['address_line1'],
+                        'first_name' => $data['first_name'] ?? null,
+                        'last_name' => $data['last_name'] ?? null,
+                        'profile' => $data['profile'] ?? null,
+                        'email' => $data['email'] ?? null,
+                        'dob' => $data['dob'] ?? null,
+                        'address_line1' => $data['address_line1'] ?? null,
                         'role' => $data['role'] ?? $logged_in_role,
-                        'mobile_no1' => $data['mobile_no1'],
-                        'about_me' => $data['about_me'],
-                        'joining_date' => $data['joining_date'],
-                        'job_role' => $data['job_role'],
-                        'facebook_url' => $data['facebook_url'],
-                        'twitter_url' => $data['twitter_url'],
-                        'department_name' => $department_name,
-                        'department_head' => $department_head,
+                        'mobile_no1' => $data['mobile_no1'] ?? null,
+                        'about_me' => $data['about_me'] ?? null,
+                        'joining_date' => $data['joining_date'] ?? null,
+                        'job_role' => $data['job_role'] ?? null,
+                        'facebook_url' => $data['facebook_url'] ?? null,
+                        'twitter_url' => $data['twitter_url'] ?? null,
+                        'department_name' => $department_name ?? null,
+                        'department_head' => $department_head ?? null,
                     ];
 
                     sendJsonResponse('success', $updatedData, "Employee and salary details updated successfully");

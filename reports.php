@@ -63,6 +63,7 @@ if (isset($action)) {
                     reports.break_duration_in_minutes,
                     reports.total_working_hours,
                     reports.total_hours,
+                    reports.note,
                     reports.created_at,
                     reports.created_by,
                     reports.updated_at,
@@ -97,6 +98,7 @@ if (isset($action)) {
                             'break_duration_in_minutes' => $row['break_duration_in_minutes'],
                             'todays_working_hours' => $row['total_working_hours'],
                             'todays_total_hours' => $row['total_hours'],
+                            'note' => $row['note'],
                             'created_at' => $row['created_at'],
                             'full_name' => $row['employee_name'],
                         ];
@@ -199,6 +201,9 @@ if (isset($action)) {
                     sendJsonResponse('error', null, "All fields are required");
                     exit;
                 }
+
+                // Escape the report field to handle special characters (like apostrophes)
+                $report = $conn->real_escape_string($report);
             
                 // Prepare the SQL query string directly
                 $sql = "INSERT INTO reports (employee_id, report, start_time, end_time, break_duration_in_minutes, total_working_hours, total_hours, created_at, updated_at) 
@@ -232,6 +237,7 @@ if (isset($action)) {
             if (isset($_GET['report_id']) && is_numeric($_GET['report_id']) && $_GET['report_id'] > 0) {
                 $id = $_GET['report_id'];
                 // Validate and get POST data
+                $note = $_POST['note'] ? $_POST['note'] : null;
                 $report = $_POST['report'];
                 $start_time = $_POST['start_time'];
                 $end_time = $_POST['end_time'];
@@ -241,14 +247,14 @@ if (isset($action)) {
                 $updated_at = date('Y-m-d H:i:s');
 
                 // Prepare the SQL update statement
-                $stmt = $conn->prepare("UPDATE reports SET report = ?, start_time = ?, end_time = ?, break_duration_in_minutes = ?, total_working_hours = ?, total_hours = ?, updated_at = ? WHERE id = ?");
+                $stmt = $conn->prepare("UPDATE reports SET note = ?, report = ?, start_time = ?, end_time = ?, break_duration_in_minutes = ?, total_working_hours = ?, total_hours = ?, updated_at = ? WHERE id = ?");
 
                 if (!$stmt) {
                     sendJsonResponse('error', null, 'Prepare failed: ' . $conn->error);
                     exit;
                 }
 
-                $stmt->bind_param("sssssssi", $report, $start_time, $end_time, $break_duration_in_minutes, $todays_working_hours, $todays_total_hours, $updated_at, $id);
+                $stmt->bind_param("ssssssssi", $note, $report, $start_time, $end_time, $break_duration_in_minutes, $todays_working_hours, $todays_total_hours, $updated_at, $id);
 
                 // Execute the statement and check for success
                 if ($stmt->execute()) {
@@ -256,6 +262,8 @@ if (isset($action)) {
                     $updatedReportData = [
                         'id' => $id,
                         'employee_id' => $employee_id,
+                        'note' => $note,
+                        'report' => $report,
                         'start_time' => $start_time,
                         'end_time' => $end_time,
                         'break_duration_in_minutes' => $break_duration_in_minutes,
