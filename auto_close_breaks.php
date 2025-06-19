@@ -81,12 +81,14 @@ if ($results && $results->num_rows > 0) {
                 // Convert durations to HH:MM:SS format
                 $todays_total_hours = secondsToTime($total_seconds);
                 $todays_working_hours = secondsToTime($working_seconds);
-                $start_time = secondsToTime($start_time);
-                $end_time = secondsToTime($end_time);
+                $sdt = new DateTime($start_time);
+                $start_time = $sdt->format('H:i:s');
+                $edt = new DateTime($end_time);
+                $end_time = $edt->format('H:i:s');
+    
                 $break_duration_in_minutes = $break_duration_in_minutes;
 
-                $created_at = date("Y-m-d H:i:s");
-                $updated_at = $created_at;
+                $created_at = $updated_at = $date . ' ' . date("H:i:s");
 
                 if (
                     empty($employee_id) ||
