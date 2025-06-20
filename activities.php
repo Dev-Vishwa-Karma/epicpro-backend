@@ -466,7 +466,8 @@ if (isset($action)) {
 
                 // Check if the employee already has an active break
                 $stmt = $conn->prepare("SELECT * FROM activities WHERE employee_id = ? AND activity_type = 'Punch' AND DATE(in_time) = ? AND deleted_at IS NULL LIMIT 1");
-                $stmt->bind_param("is", $employee_id, date('Y-m-d'));
+                $current_date = date('Y-m-d');
+                $stmt->bind_param("is", $employee_id, $current_date);
                 $stmt->execute();
                 $result = $stmt->get_result();
                 if ($result->num_rows > 0) {
