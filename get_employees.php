@@ -108,23 +108,37 @@ if (isset($action)) {
                 // Check if the role filter is passed via URL, e.g., role=employee or role=all
                 $roleFilter = isset($_GET['role']) ? $_GET['role'] : 'all';
                 if ($roleFilter == 'employee') {
-                    $status = !empty($status) ? 'AND status = '. $status : '';
-                    // If 'employee' role filter is passed, show only employees with role 'employee'
-                    $stmt = $conn->prepare("
+                    $year = isset($_GET['year']) ? intval($_GET['year']) : null;
+                    $month = isset($_GET['month']) ? intval($_GET['month']) : null;
+
+                    $query = "
                         SELECT e.*, 
                             d.department_name, 
                             d.department_head 
                         FROM employees e
                         LEFT JOIN departments d ON e.department_id = d.id
-                        WHERE e.role = 'employee' AND e.deleted_at IS NULL " .$status." 
+                        WHERE e.role = 'employee' 
+                        AND e.deleted_at IS NULL 
+                        AND e.status = 1
+                    ";
+
+
+                    if ($year && $month) {
+                        // Get last day of the selected month
+                        $endDate = date("Y-m-t", strtotime("$year-$month-01"));
+                        $query .= " AND e.joining_date <= '$endDate'";
+                    }
+
+                    $query .= "
                         ORDER BY 
-                            CASE 
-    							WHEN visibility_priority = 0 THEN 1 ELSE 0 
-  								END,
-  								visibility_priority ASC,
-                                first_name ASC
-                    ");
-                } else if ($roleFilter == 'admin') {
+                            CASE WHEN visibility_priority = 0 THEN 1 ELSE 0 END,
+                            visibility_priority ASC,
+                            first_name ASC
+                    ";
+
+                    $stmt = $conn->prepare($query);
+                }
+                else if ($roleFilter == 'admin') {
                     $stmt = $conn->prepare("
                         SELECT e.*, 
                             d.department_name, 
@@ -174,10 +188,10 @@ if (isset($action)) {
                 'email' => $_POST['email'] ?? "",
                 'role' => $_POST['selected_role'] ?? "",
                 'profile' => $_FILES['photo']['name'] ?? "",
-                'dob' => $_POST['dob'] ?? "",
-                'gender' => $_POST['gender'] ?? "",
+                'dob' => (!empty($_POST['dob'])) ? $_POST['dob'] : null,
+                'gender' => (!empty($_POST['gender'])) ? $_POST['gender'] : null,
                 'password' => $_POST['password'] ?? "",
-                'joining_date' => $_POST['joining_date'] ?? "",
+                'joining_date' => (!empty($_POST['joining_date'])) ? $_POST['joining_date'] : null,
                 'mobile_no1' => $_POST['mobile_no1'] ?? "",
                 'mobile_no2' => $_POST['mobile_no2'] ?? "",
                 'address_line1' => $_POST['address_line1'] ?? "",
@@ -206,6 +220,7 @@ if (isset($action)) {
                 'resume' => $_FILES['resume']['name'] ?? "",
                 'visibility_priority' => $_POST['visibility_priority'] ?? 0,
                 'status' => $_POST['status'] ?? 1,
+                'statistics_visibility_status' => $_POST['statistics_visibility_status'] ?? 0,
             ];
 
             // Upload profile image
@@ -287,13 +302,13 @@ if (isset($action)) {
                 "INSERT INTO employees 
                 (department_id, code, first_name, last_name, email, role, profile, dob, gender, password, joining_date, mobile_no1, mobile_no2, address_line1, address_line2, 
                 emergency_contact1, emergency_contact2, emergency_contact3, frontend_skills, backend_skills, account_holder_name, account_number, ifsc_code, bank_name, bank_address,
-                aadhar_card_number, aadhar_card_file, pan_card_number, pan_card_file, driving_license_number, driving_license_file, facebook_url, twitter_url, linkedin_url, instagram_url, upwork_profile_url, resume, visibility_priority, status, created_by) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                aadhar_card_number, aadhar_card_file, pan_card_number, pan_card_file, driving_license_number, driving_license_file, facebook_url, twitter_url, linkedin_url, instagram_url, upwork_profile_url, resume, visibility_priority, status, statistics_visibility_status, created_by) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
 
             // Bind parameters dynamically (use an array to store the data)
             $stmt->bind_param(
-                'issssssssssssssssssssssssssssssssssssiis',
+                'issssssssssssssssssssssssssssssssssssiiis',
                 $data['department_id'],
                 $next_user_code,
                 $data['first_name'],
@@ -333,6 +348,7 @@ if (isset($action)) {
                 $data['resume'],
                 $data['visibility_priority'],
                 $data['status'],
+                $data['statistics_visibility_status'],
                 $created_by
             );
 
@@ -559,6 +575,9 @@ if (isset($action)) {
                 if (isset($_POST['visibility_priority'])) {
                     $data['visibility_priority'] = $_POST['visibility_priority'];
                 }
+                if (isset($_POST['statistics_visibility_status'])) {
+                    $data['statistics_visibility_status'] = $_POST['statistics_visibility_status'];
+                }
 
 
                 if (isset($_POST['profileUrl'])) {
@@ -644,7 +663,7 @@ if (isset($action)) {
 
                 if ($conn->query($sql)) {
                     // Insert new profile image into the gallery
-                    if (!empty($data['profile'])) {
+                    if (!empty($data['profile']) && !isset($_POST['profileUrl'])) {
                         $created_at = date('Y-m-d H:i:s');
                         $gallerySql = "INSERT INTO gallery (employee_id, url, created_at, created_by) VALUES ($id, '$galleryPath', '$created_at', {$data['updated_by']})";
                         $conn->query($gallerySql);
