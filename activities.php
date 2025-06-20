@@ -1,4 +1,6 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', '1');
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, X-Requested-With");
@@ -29,6 +31,19 @@ function sendJsonResponse($status, $data = null, $message = null)
 function validateId($id)
 {
     return isset($id) && is_numeric($id) && $id > 0;
+}
+
+function calculateBreakDuration($in_time, $out_time) {
+
+        $in  = new DateTime($in_time);
+        $out = new DateTime($out_time);
+        $diff = $in->diff($out);
+
+        // Extract parts
+        return $diff->days * 24 * 60
+                + $diff->h * 60
+                + $diff->i;
+
 }
 
 $action = !empty($_GET['action']) ? $_GET['action'] : 'view';
@@ -168,6 +183,25 @@ if (isset($action)) {
             }
             break;
 
+        case 'break_calculation':
+            $user_id = $_GET['user_id'];
+            $sql = "SELECT * FROM activities where employee_id = $user_id AND activity_type = 'Break' AND status = 'completed' AND DATE(in_time) = '$date'";
+            $result = $conn->query($sql);
+
+            if ($result->num_rows > 0) {
+                $activities = $result->fetch_all(MYSQLI_ASSOC);
+                $break_duration = 0;
+                foreach($activities as $activity) {
+                    $minutes = calculateBreakDuration($activity['in_time'], $activity['out_time']);
+                    $break_duration += $minutes;
+                }
+
+                sendJsonResponse('success', ['break_duration' => $break_duration]);
+            } else {
+                sendJsonResponse('error', null, 'No records found');
+            }
+
+            break;
         case 'add-by-admin':
             // Capture POST data
             $employee_id = $_POST['employee_id'] ?? null; // required
@@ -420,8 +454,9 @@ if (isset($action)) {
                     $updateStmt = $conn->prepare("UPDATE activities SET out_time = ?, status = 'completed' WHERE employee_id = ? AND status = 'active' AND activity_type = 'Break' AND deleted_at IS NULL");
                     $updateStmt->bind_param('si', $currentTime, $employee_id);
                     $updateStmt->execute();
+                    $minutes = calculateBreakDuration($row['in_time'], $currentTime);
                     // Respond with success
-                    sendJsonResponse('success', ['breakIn' => $row['in_time'], 'breakOut' => $currentTime], 'Break has been completed!');
+                    sendJsonResponse('success', ['break_duration' => $minutes], 'Break has been completed!');
                 } else {
                     // No active break found
                     sendJsonResponse('error', null, 'No active break is currently recorded for this employee.');
