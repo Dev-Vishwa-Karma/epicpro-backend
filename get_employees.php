@@ -32,7 +32,7 @@ function validateId($id)
 }
 
 $action = !empty($_GET['action']) ? $_GET['action'] : 'view';
-$status = !empty($_GET['status']) ? $_GET['status'] : null;
+$statistics_visibility_status = !empty($_GET['statistics_visibility_status']) ? $_GET['statistics_visibility_status'] : null;
 
 // File upload helper function
 function uploadFile($file, $targetDir, $allowedTypes = [], $maxSize = 2 * 1024 * 1024)
@@ -118,10 +118,13 @@ if (isset($action)) {
                         FROM employees e
                         LEFT JOIN departments d ON e.department_id = d.id
                         WHERE e.role = 'employee' 
-                        AND e.deleted_at IS NULL 
-                        AND e.status = 1
+                        AND e.deleted_at IS NULL
                     ";
 
+
+                    if ($statistics_visibility_status) {
+                        $query .= " AND e.statistics_visibility_status = 1";
+                    }
 
                     if ($year && $month) {
                         // Get last day of the selected month
@@ -296,7 +299,7 @@ if (isset($action)) {
             }
 
             $role = !empty($data['role']) ? $data['role'] : 'employee';
-
+            $password =  md5($data['password']);
             // Insert into employees table
             $stmt = $conn->prepare(
                 "INSERT INTO employees 
@@ -318,7 +321,7 @@ if (isset($action)) {
                 $data['profile'],
                 $data['dob'],
                 $data['gender'],
-                md5($data['password']),
+                $password,
                 $data['joining_date'],
                 $data['mobile_no1'],
                 $data['mobile_no2'],
@@ -425,16 +428,16 @@ if (isset($action)) {
                     }
                 }
 
-                if (!empty($data['dob'])) {
-                    $event_name = "Birthday of " . $data['first_name'] . " " . $data['last_name'];
-                    $event_date = $data['dob'];
-                    $event_type = 'event';
-                    $created_at = date('Y-m-d H:i:s');
+                // if (!empty($data['dob'])) {
+                //     $event_name = "Birthday of " . $data['first_name'] . " " . $data['last_name'];
+                //     $event_date = $data['dob'];
+                //     $event_type = 'event';
+                //     $created_at = date('Y-m-d H:i:s');
 
-                    $event_stmt = $conn->prepare("INSERT INTO events (employee_id, event_type, event_date, event_name, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?)");
-                    $event_stmt->bind_param("issssi", $employee_id, $event_type, $event_date, $event_name, $created_at, $created_by);
-                    $event_stmt->execute();
-                }
+                //     $event_stmt = $conn->prepare("INSERT INTO events (employee_id, event_type, event_date, event_name, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?)");
+                //     $event_stmt->bind_param("issssi", $employee_id, $event_type, $event_date, $event_name, $created_at, $created_by);
+                //     $event_stmt->execute();
+                // }
 
                 sendJsonResponse('success', [
                     'id' => $employee_id,
