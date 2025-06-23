@@ -110,40 +110,40 @@ if (isset($action)) {
             }
             break;
 
-        // case 'edit':
-        //     if (isset($_GET['event_id']) && is_numeric($_GET['event_id']) && $_GET['event_id'] > 0) {
-        //         $id = $_GET['event_id'];
-        //         // Validate and get POST data
-        //         $event_name = $_POST['event_name'];
-        //         $event_date = $_POST['event_date'];
-        //         $event_type = $_POST['event_type'];
-        //         $updated_at = date('Y-m-d H:i:s');
-
-        //         // Prepare the SQL update statement
-        //         $stmt = $conn->prepare("UPDATE events SET event_name = ?, event_date = ?, event_type = ?, updated_at = ? WHERE id = ?");
-        //         $stmt->bind_param("issssi", $event_name, $event_date, $event_type, $updated_at, $id);
+        case 'edit':
+            if (isset($_GET['event_id']) && is_numeric($_GET['event_id']) && $_GET['event_id'] > 0) {
+                $id = $_GET['event_id'];
+                // Validate and get POST data
+                $event_name = $_POST['event_name'];
+                $event_date = $_POST['event_date'];
+                $event_type = $_POST['event_type'];
+                $updated_at = date('Y-m-d H:i:s');
+ 
+                // Prepare the SQL update statement
+                $stmt = $conn->prepare("UPDATE events SET event_name = ?, event_date = ?, event_type = ?, updated_at = ? WHERE id = ?");
+                $stmt->bind_param("ssssi", $event_name, $event_date, $event_type, $updated_at, $id);
     
-        //         // Execute the statement and check for success
-        //         if ($stmt->execute()) {
+                // Execute the statement and check for success
+                if ($stmt->execute()) {
 
-        //             $updatedEventData = [
-        //                 'id' => $id,
-        //                 'event_name' => $event_name,
-        //                 'event_date' => $event_date,
-        //                 'event_type' => $event_type,
-        //                 'updated_at' => $updated_at
-        //             ];
-        //             sendJsonResponse('success', $updatedEventData, 'Event updated successfully');
-        //         } else {
-        //             sendJsonResponse('error', null, 'Failed to update event');
-        //         }
-        //         exit;
-        //     } else {
-        //         http_response_code(400);
-        //         sendJsonResponse('error', null, 'Invalid Event ID');
-        //         exit;
-        //     }
-        //     break;
+                    $updatedEventData = [
+                        'id' => $id,
+                        'event_name' => $event_name,
+                        'event_date' => $event_date,
+                        'event_type' => $event_type,
+                        'updated_at' => $updated_at
+                    ];
+                    sendJsonResponse('success', $updatedEventData, 'Event updated successfully');
+                } else {
+                    sendJsonResponse('error', null, 'Failed to update event');
+                }
+                exit;
+            } else {
+                http_response_code(400);
+                sendJsonResponse('error', null, 'Invalid Event ID');
+                exit;
+            }
+            break;
 
         case 'delete':
             if (isset($_GET['event_id']) && is_numeric($_GET['event_id']) && $_GET['event_id'] > 0) {
