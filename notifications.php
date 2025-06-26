@@ -142,6 +142,8 @@ if (isset($action)) {
 
         case 'get_notifications':
             $employee_id = isset($_GET['user_id']) ? $_GET['user_id'] : null;
+            $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10; 
+            $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
 
             if ($employee_id === null) {
                 sendJsonResponse('error', null, 'User ID is required');
@@ -153,8 +155,9 @@ if (isset($action)) {
             $stmt = $conn->prepare("
                 SELECT id, employee_id, `read`, body, title, created_at 
                 FROM notifications 
-                WHERE `read` = 0 AND employee_id = $employee_id 
-                ORDER BY created_at DESC
+                WHERE employee_id = ? 
+                ORDER BY created_at DESC 
+                LIMIT ? OFFSET ?
             ");
 
             if (!$stmt) {
@@ -162,6 +165,7 @@ if (isset($action)) {
                 break;
             }
 
+            $stmt->bind_param('iii', $employee_id, $limit, $offset); 
             $stmt->execute();
             $result = $stmt->get_result();
 
