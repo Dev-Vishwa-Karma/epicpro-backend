@@ -454,9 +454,7 @@ if (isset($action)) {
                     $updateStmt = $conn->prepare("UPDATE activities SET out_time = ?, status = 'completed' WHERE employee_id = ? AND status = 'active' AND activity_type = 'Break' AND deleted_at IS NULL");
                     $updateStmt->bind_param('si', $currentTime, $employee_id);
                     $updateStmt->execute();
-                    $minutes = calculateBreakDuration($row['in_time'], $currentTime);
-                    // Respond with success
-                    sendJsonResponse('success', ['break_duration' => $minutes], 'Break has been completed!');
+                    sendJsonResponse('success', null, 'Break has been completed!');
                 } else {
                     // No active break found
                     sendJsonResponse('error', null, 'No active break is currently recorded for this employee.');
