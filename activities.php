@@ -53,133 +53,96 @@ $timeline = !empty($_GET['is_timeline']) ? $_GET['is_timeline'] : false;
 if (isset($action)) {
     switch ($action) {
         case 'view':
-            if (isset($_GET['user_id']) && is_numeric($_GET['user_id']) && $_GET['user_id'] > 0) {
-                $stmt_activities = $conn->prepare("
-            SELECT 
-                e.id AS employee_id,
-                e.first_name AS first_name,
-                e.last_name AS last_name,
-                e.address_line1 AS location,
-                ea.activity_type AS activity_type,
-                ea.description AS description,
-                ea.status AS status,
-                ea.created_by AS created_by,
-                ea.updated_by AS updated_by,
-                CONCAT(e.first_name, ' ', e.last_name) AS full_name,
-                ea.in_time as complete_in_time,
-                ea.out_time as complete_out_time,
-                ea.id as activity_id,
-                CASE 
-                WHEN DATE(ea.in_time) = CURDATE() 
-                    THEN CONCAT(DATE_FORMAT(ea.in_time, '%H:%i'), ' - Today')
-                WHEN DATE(ea.in_time) = CURDATE() - INTERVAL 1 DAY 
-                    THEN CONCAT(DATE_FORMAT(ea.in_time, '%H:%i'), ' - Yesterday')
-                ELSE DATE_FORMAT(ea.in_time, '%d-%M-%Y %h:%i %p')
-                END AS in_time,
+            $conditions = [];
+            $employee_id = (isset($_GET['user_id']) && is_numeric($_GET['user_id']) && $_GET['user_id'] > 0) ? (int)$_GET['user_id'] : null;
+            $start_date = isset($_GET['from_date']) ? $_GET['from_date'] : null;
+            $end_date = isset($_GET['to_date']) ? $_GET['to_date'] : null;
+            
+            // Validate the date range
+            if ($start_date && $end_date && strtotime($start_date) > strtotime($end_date)) {
+                sendJsonResponse('error', null, "Start date cannot be greater than end date.");
+                exit;
+            }
 
-                CASE 
-                WHEN DATE(ea.out_time) = CURDATE() 
-                    THEN CONCAT(DATE_FORMAT(ea.out_time, '%H:%i'), ' - Today')
-                WHEN DATE(ea.out_time) = CURDATE() - INTERVAL 1 DAY 
-                    THEN CONCAT(DATE_FORMAT(ea.out_time, '%H:%i'), ' - Yesterday')
-                ELSE DATE_FORMAT(ea.out_time, '%d-%M-%Y %h:%i %p')
-                END AS out_time,
+            // Collect conditions
+            if ($employee_id) {
+                $conditions[] = "ea.employee_id = $employee_id";
+            }
+            if ($start_date && $end_date) {
+                $conditions[] = "DATE(ea.in_time) BETWEEN '$start_date' AND '$end_date'";
+            } elseif ($start_date) {
+                $conditions[] = "DATE(ea.in_time) = '$start_date'";
+            } elseif ($end_date) {
+                $conditions[] = "DATE(ea.in_time) = '$end_date'";
+            }
 
-                CASE 
-                WHEN TIMESTAMPDIFF(SECOND, ea.in_time, ea.out_time) < 60 
-                    THEN CONCAT(TIMESTAMPDIFF(SECOND, ea.in_time, ea.out_time), ' seconds')
-                WHEN TIMESTAMPDIFF(MINUTE, ea.in_time, ea.out_time) < 60 
-                    THEN CONCAT(TIMESTAMPDIFF(MINUTE, ea.in_time, ea.out_time), ' minutes')
-                ELSE 
-                    CONCAT(
-                        FLOOR(TIMESTAMPDIFF(SECOND, ea.in_time, ea.out_time) / 3600), ' hours ',
-                        MOD(FLOOR(TIMESTAMPDIFF(SECOND, ea.in_time, ea.out_time) / 60), 60), ' minutes'
-                    )
-                END AS duration,
-                
-                ea.description
-            FROM activities ea
-            JOIN employees e ON ea.employee_id = e.id
-            WHERE ea.deleted_at IS NULL AND ea.employee_id = ?
-            ORDER BY ea.in_time DESC
-            ");
-                $stmt_activities->bind_param('i', $_GET['user_id']);
-                $stmt_activities->execute();
-                $result = $stmt_activities->get_result();
+            // Base query for fetching activities
+            $sql = "
+                SELECT 
+                    e.id AS employee_id,
+                    e.first_name AS first_name,
+                    e.last_name AS last_name,
+                    e.address_line1 AS location,
+                    ea.activity_type AS activity_type,
+                    ea.description AS description,
+                    ea.status AS status,
+                    ea.created_by AS created_by,
+                    ea.updated_by AS updated_by,
+                    CONCAT(e.first_name, ' ', e.last_name) AS full_name,
+                    ea.in_time as complete_in_time,
+                    ea.out_time as complete_out_time,
+                    ea.id as activity_id,
+                    CASE 
+                        WHEN DATE(ea.in_time) = CURDATE() 
+                            THEN DATE_FORMAT(ea.in_time, '%h:%i %p')
+                        WHEN DATE(ea.in_time) = CURDATE() - INTERVAL 1 DAY 
+                            THEN DATE_FORMAT(ea.in_time, '%h:%i %p')
+                        ELSE DATE_FORMAT(ea.in_time, '%h:%i %p')
+                    END AS in_time,
+            
+                    CASE 
+                        WHEN DATE(ea.out_time) = CURDATE() 
+                            THEN DATE_FORMAT(ea.out_time, '%h:%i %p')
+                        WHEN DATE(ea.out_time) = CURDATE() - INTERVAL 1 DAY 
+                            THEN DATE_FORMAT(ea.out_time, '%h:%i %p')
+                        ELSE DATE_FORMAT(ea.out_time, '%h:%i %p')
+                    END AS out_time,
+            
+                    CASE 
+                        WHEN TIMESTAMPDIFF(SECOND, ea.in_time, ea.out_time) < 60 
+                            THEN CONCAT(TIMESTAMPDIFF(SECOND, ea.in_time, ea.out_time), ' seconds')
+                        WHEN TIMESTAMPDIFF(MINUTE, ea.in_time, ea.out_time) < 60 
+                            THEN CONCAT(TIMESTAMPDIFF(MINUTE, ea.in_time, ea.out_time), ' minutes')
+                        ELSE 
+                            CONCAT(
+                                FLOOR(TIMESTAMPDIFF(SECOND, ea.in_time, ea.out_time) / 3600), ' hours ',
+                                MOD(FLOOR(TIMESTAMPDIFF(SECOND, ea.in_time, ea.out_time) / 60), 60), ' minutes'
+                            )
+                    END AS duration,
+                    
+                    ea.description
+                FROM activities ea
+                JOIN employees e ON ea.employee_id = e.id
+                WHERE ea.deleted_at IS NULL";
 
-                if ($result->num_rows > 0) {
-                    $activities = $result->fetch_all(MYSQLI_ASSOC);
-                    if ($timeline) {
-                        $activities = getActivities($activities);
-                    }
-                    sendJsonResponse('success', $activities);
-                } else {
-                    sendJsonResponse('error', null, 'No records found');
+            // Add conditions to the query if any are collected
+            if (!empty($conditions)) {
+                $sql .= ' AND ' . implode(' AND ', $conditions);
+            }
+
+            // Order the results by in_time
+            $sql .= " ORDER BY ea.in_time DESC";
+
+            $result = $conn->query($sql);
+
+            if ($result->num_rows > 0) {
+                $activities = $result->fetch_all(MYSQLI_ASSOC);
+                if ($timeline) {
+                    $activities = getActivities($activities);
                 }
+                sendJsonResponse('success', $activities);
             } else {
-                // If no user_id provided, fetch all users
-                $stmt_activities = $conn->prepare("
-            SELECT 
-                e.id AS employee_id,
-                e.first_name AS first_name,
-                e.last_name AS last_name,
-                e.address_line1 AS location,
-                ea.activity_type AS activity_type,
-                ea.description AS description,
-                ea.status AS status,
-                ea.created_by AS created_by,
-                ea.updated_by AS updated_by,
-                CONCAT(e.first_name, ' ', e.last_name) AS full_name,
-                ea.in_time as complete_in_time,
-                ea.out_time as complete_out_time,
-                ea.id as activity_id,
-                CASE 
-                WHEN DATE(ea.in_time) = CURDATE() 
-                    THEN CONCAT(DATE_FORMAT(ea.in_time, '%H:%i'), ' - Today')
-                WHEN DATE(ea.in_time) = CURDATE() - INTERVAL 1 DAY 
-                    THEN CONCAT(DATE_FORMAT(ea.in_time, '%H:%i'), ' - Yesterday')
-                ELSE DATE_FORMAT(ea.in_time, '%d-%M-%Y %h:%i %p')
-                END AS in_time,
-
-                CASE 
-                WHEN DATE(ea.out_time) = CURDATE() 
-                    THEN CONCAT(DATE_FORMAT(ea.out_time, '%H:%i'), ' - Today')
-                WHEN DATE(ea.out_time) = CURDATE() - INTERVAL 1 DAY 
-                    THEN CONCAT(DATE_FORMAT(ea.out_time, '%H:%i'), ' - Yesterday')
-                ELSE DATE_FORMAT(ea.out_time, '%d-%M-%Y %h:%i %p')
-                END AS out_time,
-
-                CASE 
-                WHEN TIMESTAMPDIFF(SECOND, ea.in_time, ea.out_time) < 60 
-                    THEN CONCAT(TIMESTAMPDIFF(SECOND, ea.in_time, ea.out_time), ' seconds')
-                WHEN TIMESTAMPDIFF(MINUTE, ea.in_time, ea.out_time) < 60 
-                    THEN CONCAT(TIMESTAMPDIFF(MINUTE, ea.in_time, ea.out_time), ' minutes')
-                ELSE 
-                    CONCAT(
-                        FLOOR(TIMESTAMPDIFF(SECOND, ea.in_time, ea.out_time) / 3600), ' hours ',
-                        MOD(FLOOR(TIMESTAMPDIFF(SECOND, ea.in_time, ea.out_time) / 60), 60), ' minutes'
-                    )
-                END AS duration,
-                
-                ea.description
-            FROM activities ea
-            JOIN employees e ON ea.employee_id = e.id
-            WHERE ea.deleted_at IS NULL
-            ORDER BY ea.in_time DESC
-            ");
-                $stmt_activities->execute();
-                $result = $stmt_activities->get_result();
-
-                if ($result->num_rows > 0) {
-                    $activities = $result->fetch_all(MYSQLI_ASSOC);
-                    if ($timeline) {
-                        $activities = getActivities($activities);
-                    }
-
-                    sendJsonResponse('success', $activities);
-                } else {
-                    sendJsonResponse('error', null, 'No records found');
-                }
+                sendJsonResponse('error', null, 'No records found');
             }
             break;
 
