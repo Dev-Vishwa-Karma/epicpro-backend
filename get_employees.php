@@ -477,7 +477,7 @@ if (isset($action)) {
 
                 // Capture and sanitize POST data for each field conditionally
                 if (isset($_POST['department_id'])) {
-                    $data['department_id'] = $_POST['department_id'];
+                    $data['department_id'] = $_POST['department_id'] != '' ? $_POST['department_id'] : null;
                 }
                 if (isset($_POST['first_name'])) {
                     $data['first_name'] = $_POST['first_name'];
@@ -732,14 +732,21 @@ if (isset($action)) {
 
                     $updatedData = [
                         'id' => $id,
+                        'department_id' => $data['department_id'] ?? null,
                         'first_name' => $data['first_name'] ?? null,
                         'last_name' => $data['last_name'] ?? null,
                         'profile' => $data['profile'] ?? null,
+                        'gender' => $data['gender'] ?? null,
                         'email' => $data['email'] ?? null,
                         'dob' => $data['dob'] ?? null,
                         'address_line1' => $data['address_line1'] ?? null,
+                        'address_line2' => $data['address_line2'] ?? null,
+                        'emergency_contact1' => $data['emergency_contact1'] ?? null,
+                        'emergency_contact2' => $data['emergency_contact2'] ?? null,
+                        'emergency_contact3' => $data['emergency_contact3'] ?? null,
                         'role' => $data['role'] ?? $logged_in_role,
                         'mobile_no1' => $data['mobile_no1'] ?? null,
+                        'mobile_no2' => $data['mobile_no2'] ?? null,
                         'about_me' => $data['about_me'] ?? null,
                         'joining_date' => $data['joining_date'] ?? null,
                         'job_role' => $data['job_role'] ?? null,
