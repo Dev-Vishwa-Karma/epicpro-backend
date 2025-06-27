@@ -202,7 +202,23 @@
                             'created_by' => $created_by
                         ];
 
-                        sendJsonResponse('success', $todosData, 'Todo added successfully');
+                    
+                        $notification_body = "New task assigned: $title due on $due_date.";
+                        $notification_title = "New Todo Assigned";
+                        $notification_type = "task"; 
+
+                        $stmt = $conn->prepare("INSERT INTO notifications (employee_id, body, title, `type`, created_by) VALUES (?, ?, ?, ?, ?)");
+                        $stmt->bind_param("isssi", $employee_id, $notification_body, $notification_title, $notification_type, $created_by);
+
+                        // Execute the statement to insert the notification
+                        if ($stmt->execute()) {
+                            $stmt->close();
+                            sendJsonResponse('success', $todosData, 'Todo added successfully');
+                        } else {
+                            $stmt->close();
+                            http_response_code(500);
+                            sendJsonResponse('error', 'Failed to send notification', ['details' => $stmt->error]);
+                        }
                     } else {
                         http_response_code(500);
                         sendJsonResponse('error', 'Failed to add todo', ['details' => $stmt->error]);
