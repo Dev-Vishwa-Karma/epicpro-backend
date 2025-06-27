@@ -82,6 +82,7 @@ if (isset($action)) {
                     e.id AS employee_id,
                     e.first_name AS first_name,
                     e.last_name AS last_name,
+                    e.profile AS profile,
                     e.address_line1 AS location,
                     ea.activity_type AS activity_type,
                     ea.description AS description,
