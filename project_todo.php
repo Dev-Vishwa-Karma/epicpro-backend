@@ -47,7 +47,8 @@
                             pt.deleted_at,
                             pt.deleted_by,
                             e.first_name,
-                            e.last_name
+                            e.last_name,
+                            e.profile
                         FROM project_todo pt
                         LEFT JOIN employees e ON pt.employee_id = e.id
                         WHERE pt.employee_id = ?
@@ -76,6 +77,7 @@
                                         'created_by' => $row['created_by'],
                                         'first_name' => $row['first_name'],
                                         'last_name' => $row['last_name'],
+                                        'profile' => $row['profile'],
                                     ];
                                 }
                             }
@@ -105,7 +107,8 @@
                             pt.deleted_at,
                             pt.deleted_by,
                             e.first_name,
-                            e.last_name
+                            e.last_name,
+                            e.profile
                         FROM project_todo pt
                         LEFT JOIN employees e ON pt.employee_id = e.id
                     ";
@@ -140,6 +143,7 @@
                                         'created_by' => $row['created_by'],
                                         'first_name' => $row['first_name'],
                                         'last_name' => $row['last_name'],
+                                        'profile' => $row['profile'],
                                     ];
                                 }
                             }

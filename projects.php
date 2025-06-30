@@ -34,7 +34,8 @@
                             c.location AS client_location,
                             e.id AS employee_id,
                             e.first_name,
-                            e.last_name
+                            e.last_name,
+                            e.profile
                         FROM projects p
                         LEFT JOIN clients c ON p.client_id = c.id
                         LEFT JOIN project_assignments pa ON p.id = pa.project_id
@@ -73,7 +74,8 @@
                                 $projects[$project_id]['team_members'][] = [
                                     'employee_id' => $row['employee_id'],
                                     'first_name' => $row['first_name'],
-                                    'last_name' => $row['last_name']
+                                    'last_name' => $row['last_name'],
+                                    'profile' => $row['profile'],
                                 ];
                             }
                         }
@@ -105,7 +107,8 @@
                             c.location AS client_location,
                             e.id AS employee_id,
                             e.first_name,
-                            e.last_name
+                            e.last_name,
+                            e.profile
                         FROM projects p
                         LEFT JOIN clients c ON p.client_id = c.id
                         LEFT JOIN project_assignments pa ON p.id = pa.project_id
@@ -153,7 +156,8 @@
                                 $projects[$project_id]['team_members'][] = [
                                     'employee_id' => $row['employee_id'],
                                     'first_name' => $row['first_name'],
-                                    'last_name' => $row['last_name']
+                                    'last_name' => $row['last_name'],
+                                    'profile' => $row['profile'],
                                 ];
                             }
                         }

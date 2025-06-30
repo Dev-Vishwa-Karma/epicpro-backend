@@ -581,6 +581,9 @@ if (isset($action)) {
                 if (isset($_POST['statistics_visibility_status'])) {
                     $data['statistics_visibility_status'] = $_POST['statistics_visibility_status'];
                 }
+                if (isset($_POST['password'])) {
+                    $data['password'] = $_POST['password'];
+                }
 
 
                 if (isset($_POST['profileUrl'])) {
