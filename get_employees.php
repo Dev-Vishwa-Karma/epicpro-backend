@@ -1,6 +1,6 @@
 <?php
-// error_reporting(E_ALL);
-// ini_set('display_errors', 1);
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, DELETE, PUT, OPTIONS");
@@ -33,6 +33,7 @@ function validateId($id)
 
 $action = !empty($_GET['action']) ? $_GET['action'] : 'view';
 $statistics_visibility_status = !empty($_GET['statistics_visibility_status']) ? $_GET['statistics_visibility_status'] : null;
+$search = !empty($_GET['search']) ? $_GET['search'] : null;
 
 // File upload helper function
 function uploadFile($file, $targetDir, $allowedTypes = [], $maxSize = 2 * 1024 * 1024)
@@ -142,16 +143,29 @@ if (isset($action)) {
                     $stmt = $conn->prepare($query);
                 }
                 else if ($roleFilter == 'admin') {
-                    $stmt = $conn->prepare("
-                        SELECT e.*, 
+                    $sql = "SELECT e.*, 
                             d.department_name, 
                             d.department_head 
                         FROM employees e
                         LEFT JOIN departments d ON e.department_id = d.id
                         WHERE (e.role = 'admin' OR e.role = 'super_admin') 
-                        AND e.deleted_at IS NULL
-                        ORDER BY e.id DESC
-                    ");
+                        AND e.deleted_at IS NULL";
+                    $params = [];
+                    $types = '';
+
+                    // Add search filter if provided
+                    if ($search) {
+                        $sql .= " AND (e.first_name LIKE ? OR e.email LIKE ?)";
+                        $like = "%$search%";
+                        $params[] = $like;
+                        $params[] = $like;
+                        $types = 'ss';
+                    }
+                    
+                    $stmt = $conn->prepare($sql);
+                    if ($params) {
+                        $stmt->bind_param($types, ...$params);
+                    }
                 } else {
                     // If no filter or 'all', show all employees
                     $stmt = $conn->prepare("
