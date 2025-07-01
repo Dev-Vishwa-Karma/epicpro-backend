@@ -83,7 +83,7 @@ if (isset($action)) {
             }, $birthday_employees);
             $birthday_names_string = implode(", ", $birthday_names);
 
-            $title = "Happy Birthday 🎉";
+            $title = "Happy Birthday";
             $body = "Wish Happy Birthday to " . $birthday_names_string;
 
             foreach ($all_employees as $all_employee) {
