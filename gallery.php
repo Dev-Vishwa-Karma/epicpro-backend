@@ -110,6 +110,22 @@ if (isset($action)) {
             // Send success response with uploaded images
             sendJsonResponse('success', $uploadedImages, "Images added successfully");
             break;
+        case 'view_image':
+                if (isset($_GET['img'])) {
+                    $imagePath = 'uploads/gallery/' . basename($_GET['img']); // Sanitize filename
+                    if (file_exists($imagePath)) {
+                        $mimeType = mime_content_type($imagePath);
+                        header('Content-Type: ' . $mimeType);
+                        readfile($imagePath);
+                    } else {
+                        http_response_code(404);
+                        echo "Image not found.";
+                    }
+                } else {
+                    http_response_code(400);
+                    echo "Image filename is required.";
+                }
+            break;
 
         default:
             http_response_code(400);
