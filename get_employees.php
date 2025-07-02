@@ -831,40 +831,6 @@ if (isset($action)) {
                 }
                 break;            
 
-        case 'check-login':
-            $email = $_POST['email'] ?? null;
-            $password = $_POST['password'] ?? null;
-
-            /** Validate */
-            if (!$email) {
-                sendJsonResponse('error', null, 'Email is required');
-            }
-            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                sendJsonResponse('error', null, 'Please enter a valid email address');
-            }
-            if (!$password) {
-                sendJsonResponse('error', null, 'Password is required');
-            }
-
-            $password = md5($password);
-            $stmt = $conn->prepare("SELECT id, first_name, last_name, email, role, dob, gender FROM employees WHERE email = ? AND password = ? AND deleted_at IS NULL LIMIT 1");
-            $stmt->bind_param("ss", $email, $password);
-            $stmt->execute();
-            $result = $stmt->get_result();
-
-            /** Validate email */
-            if ($result->num_rows == 0) {
-                sendJsonResponse('error', null, 'Please enter a valid registered email address and password.');
-            } else {
-                $result = $result->fetch_assoc();
-                if ($result['status'] === 0) {
-                    sendJsonResponse('error', null, 'Your account is deactivated. Please contact the administrator.');
-                }
-
-                sendJsonResponse('success', $result, 'Login successful!');
-            }
-
-            break;
         case 'profile-update':
             $employee_id = isset($_POST['employee_id']) ? $_POST['employee_id'] : null;
             $created_by = isset($_POST['created_by']) ? $_POST['created_by'] : null;
