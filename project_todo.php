@@ -232,7 +232,27 @@
                     sendJsonResponse('error', 'Missing required fields');
                 }
                 break;
+            case 'update':
+                // Validate and get POST data
+                $id = $_POST['id'] ?? null;
+                $status = $_POST['status'] ?? null;
+                $updated_at = date('Y-m-d H:i:s');
+                $updated_by = null;
 
+                if (!$id || !$status) {
+                    sendJsonResponse('error', null, 'Task id required');
+                }
+
+                $stmt = $conn->prepare("UPDATE project_todo SET status = ?,  updated_at = ?, updated_by = ? WHERE id = ?");
+                $stmt->bind_param("ssii", $status, $updated_at, $updated_by, $id);
+                if ($stmt->execute()) {
+                    $stmt->close();
+                    sendJsonResponse('success', 'Todo status updated successfully');
+                }  else {
+                    http_response_code(500);
+                    sendJsonResponse('error', 'Failed to add todo', ['details' => $stmt->error]);
+                }
+                break;
             default:
                 http_response_code(400);
                 echo json_encode(['error' => 'Invalid action']);
