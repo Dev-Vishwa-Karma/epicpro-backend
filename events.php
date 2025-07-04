@@ -1,12 +1,16 @@
 <?php
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
+header("Access-Control-Allow-Headers: Authorization, Content-Type");
 header("Access-Control-Allow-Credentials: true");
+
+if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+  exit;
+}
 
 // Include the database connection
 include 'db_connection.php';
-
+// include 'auth_validate.php';
 // Set the header for JSON response
 header('Content-Type: application/json');
 
@@ -74,40 +78,40 @@ if (isset($action)) {
             break;
 
         case 'add':
-            // Get form data
-            $event_name = $_POST['event_name'];
-            $event_date = $_POST['event_date'];
-            $event_type = $_POST['event_type'];
-            $created_by = isset($_POST['created_by']) ? $_POST['created_by'] : null;
+                // Get form data
+                $event_name = $_POST['event_name'];
+                $event_date = $_POST['event_date'];
+                $event_type = $_POST['event_type'];
+                $created_by = isset($_POST['created_by']) ? $_POST['created_by'] : null;
 
-            // Validate the data (you can add additional validation as needed)
-            if (empty($event_name) || empty($event_date) || empty($event_type)) {
-                sendJsonResponse('error', null, "All fields are required");
-                exit;
-            }
+                // Validate the data (you can add additional validation as needed)
+                if (empty($event_name) || empty($event_date) || empty($event_type)) {
+                    sendJsonResponse('error', null, "All fields are required");
+                    exit;
+                }
 
-            // Prepare the insert query
-            $stmt = $conn->prepare("INSERT INTO events (event_name, event_date, event_type, created_by) VALUES (?, ?, ?, ?)");
-            
-            // Bind the parameters
-            $stmt->bind_param("sssi", $event_name, $event_date, $event_type, $created_by);
+                // Prepare the insert query
+                $stmt = $conn->prepare("INSERT INTO events (event_name, event_date, event_type, created_by) VALUES (?, ?, ?, ?)");
+                
+                // Bind the parameters
+                $stmt->bind_param("sssi", $event_name, $event_date, $event_type, $created_by);
 
-            // Execute the query
-            if ($stmt->execute()) {
-                $id = $conn->insert_id;
+                // Execute the query
+                if ($stmt->execute()) {
+                    $id = $conn->insert_id;
 
-                $addEventData = [
-                    'id' => $id,
-                    'event_name' => $event_name,
-                    'event_date' => $event_date,  
-                    'event_type' => $event_type,
-                    'created_by' => $created_by
-                ];
-                // If successful, send success response
-                sendJsonResponse('success', $addEventData, "Event added successfully");
-            } else {
-                sendJsonResponse('error', null, "Failed to add Event $stmt->error");
-            }
+                    $addEventData = [
+                        'id' => $id,
+                        'event_name' => $event_name,
+                        'event_date' => $event_date,  
+                        'event_type' => $event_type,
+                        'created_by' => $created_by
+                    ];
+                    // If successful, send success response
+                    sendJsonResponse('success', $addEventData, "Event added successfully");
+                } else {
+                    sendJsonResponse('error', null, "Failed to add Event $stmt->error");
+                }
             break;
 
         case 'edit':
