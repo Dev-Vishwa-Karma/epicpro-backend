@@ -596,7 +596,7 @@ if (isset($action)) {
                     $data['statistics_visibility_status'] = $_POST['statistics_visibility_status'];
                 }
                 if (isset($_POST['password'])) {
-                    $data['password'] = $_POST['password'];
+                    $data['password'] = md5($_POST['password']);
                 }
 
 
