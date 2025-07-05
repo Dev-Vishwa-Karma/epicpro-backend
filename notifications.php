@@ -39,9 +39,16 @@ if (isset($action)) {
     switch ($action) {
         case 'birthday_notify':
             $today = date('Y-m-d');
+            $current_month = date('m');
+            $current_day = date('d');
 
             // Fetch today's birthday employees
-            $employee_sql = "SELECT id, first_name, last_name, email FROM employees WHERE DATE(dob) = '$today'";
+            $employee_sql = "
+                SELECT id, first_name, last_name, email 
+                FROM employees 
+                WHERE MONTH(dob) = '$current_month' AND DAY(dob) = '$current_day'
+            ";
+           
             $employee_result = $conn->query($employee_sql);
 
             if (!$employee_result) {
