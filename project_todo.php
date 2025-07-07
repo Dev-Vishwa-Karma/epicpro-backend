@@ -1,4 +1,6 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', '1');
     header("Access-Control-Allow-Origin: *");
     header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
     header("Access-Control-Allow-Headers: Content-Type, Authorization");
@@ -253,6 +255,51 @@
                     sendJsonResponse('error', 'Failed to add todo', ['details' => $stmt->error]);
                 }
                 break;
+            case 'due_today_check':
+                $employee_id = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;
+
+                if (!$employee_id) {
+                    sendJsonResponse('error', null, 'Employee ID is required');
+                }
+
+                $today = date('Y-m-d');
+
+                $query = "
+                    SELECT 
+                        id, title, due_date, priority, status, created_at 
+                    FROM project_todo 
+                    WHERE employee_id = $employee_id 
+                    AND DATE(due_date) = '$today'
+                    AND status = 'pending'
+                    AND deleted_at IS NULL
+                    ORDER BY due_date ASC
+                ";
+
+                $result = $conn->query($query);
+
+                if ($result) {
+                    $tasks = [];
+                    while ($row = $result->fetch_assoc()) {
+                        $tasks[] = [
+                            'id' => $row['id'],
+                            'title' => $row['title'],
+                            'due_date' => $row['due_date'],
+                            'priority' => $row['priority'],
+                            'status' => $row['status'],
+                            'created_at' => $row['created_at']
+                        ];
+                    }
+
+
+
+                    sendJsonResponse('success', [
+                        'tasks' => $tasks
+                    ], $has_due_today ? 'Employee has tasks due today.' : 'No tasks due today.');
+                } else {
+                    sendJsonResponse('error', null, 'Query failed: ' . $conn->error);
+                }
+                break;
+
             default:
                 http_response_code(400);
                 echo json_encode(['error' => 'Invalid action']);
