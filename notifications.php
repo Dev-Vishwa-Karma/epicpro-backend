@@ -160,7 +160,7 @@ if (isset($action)) {
             $employee_id = (int)$employee_id;
 
             $stmt = $conn->prepare("
-                SELECT id, employee_id, `read`, body, title, created_at 
+                SELECT id, employee_id, `read`, body, title, `type`, created_at 
                 FROM notifications 
                 WHERE employee_id = ? 
                 ORDER BY created_at DESC 

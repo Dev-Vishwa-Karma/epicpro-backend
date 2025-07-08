@@ -1,4 +1,6 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', '1');
     header("Access-Control-Allow-Origin: *");
     header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
     header("Access-Control-Allow-Headers: Content-Type, Authorization");
@@ -30,6 +32,13 @@
     if (isset($action)) {
         switch ($action) {
             case 'view':
+                // Get status filter from query, default to 'pending'
+                $status = isset($_GET['status']) ? strtolower(trim($_GET['status'])) : 'pending';
+                $validStatuses = ['pending', 'completed']; // Extend if needed
+                if (!in_array($status, $validStatuses)) {
+                    $status = 'pending';
+                }
+
                 if (isset($_GET['employee_id']) && is_numeric($_GET['employee_id']) && $_GET['employee_id'] > 0) {
                     $employee_id = $_GET['employee_id'];
                     $query = "
@@ -51,12 +60,19 @@
                             e.profile
                         FROM project_todo pt
                         LEFT JOIN employees e ON pt.employee_id = e.id
-                        WHERE pt.employee_id = ?
-                        ORDER BY pt.created_at DESC
+                        WHERE pt.employee_id = ? AND pt.status = ?
+                        ORDER BY 
+                            ABS(DATEDIFF(pt.due_date, CURDATE())) ASC,
+                            CASE 
+                                WHEN pt.priority = 'high' THEN 1
+                                WHEN pt.priority = 'medium' THEN 2
+                                WHEN pt.priority = 'low' THEN 3
+                                ELSE 4
+                            END ASC
                     ";
 
                     $stmt = $conn->prepare($query);
-                    $stmt->bind_param("i", $employee_id);
+                    $stmt->bind_param("is", $employee_id, $status);
 
                     if ($stmt->execute()) {
                         $result = $stmt->get_result();
@@ -64,7 +80,6 @@
                             $projectTodos = [];
                             while ($row = $result->fetch_assoc()) {
                                 $todo_id = $row['todo_id'];
-
                                 if (!isset($projectTodos[$todo_id])) {
                                     $projectTodos[$todo_id] = [
                                         'id' => $row['todo_id'],
@@ -111,17 +126,30 @@
                             e.profile
                         FROM project_todo pt
                         LEFT JOIN employees e ON pt.employee_id = e.id
+                        WHERE pt.status = ?
                     ";
 
                     if ($role === 'employee') {
-                        $query .= " WHERE pt.employee_id = ?";  // Restrict to logged-in employee
+                        $query .= " AND pt.employee_id = ?";
                     }
 
-                    $query .= " ORDER BY pt.created_at DESC";
+                    $query .= "
+                        ORDER BY 
+                            ABS(DATEDIFF(pt.due_date, CURDATE())) ASC,
+                            CASE 
+                                WHEN LOWER(pt.priority) = 'high' THEN 1
+                                WHEN LOWER(pt.priority) = 'medium' THEN 2
+                                WHEN LOWER(pt.priority) = 'low' THEN 3
+                                ELSE 4
+                            END ASC
+                    ";
+
                     $stmt = $conn->prepare($query);
 
                     if ($role === 'employee') {
-                        $stmt->bind_param("i", $logged_in_employee_id);
+                        $stmt->bind_param("si", $status, $logged_in_employee_id);
+                    } else {
+                        $stmt->bind_param("s", $status);
                     }
 
                     if ($stmt->execute()) {
@@ -130,7 +158,6 @@
                             $projectTodos = [];
                             while ($row = $result->fetch_assoc()) {
                                 $todo_id = $row['todo_id'];
-
                                 if (!isset($projectTodos[$todo_id])) {
                                     $projectTodos[$todo_id] = [
                                         'id' => $row['todo_id'],
@@ -253,6 +280,83 @@
                     sendJsonResponse('error', 'Failed to add todo', ['details' => $stmt->error]);
                 }
                 break;
+            case 'due_today_check':
+                $employee_id = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;
+
+                if (!$employee_id) {
+                    sendJsonResponse('error', null, 'Employee ID is required');
+                }
+
+                $today = date('Y-m-d');
+
+                $query = "
+                    SELECT 
+                        id, title, due_date, priority, status, created_at 
+                    FROM project_todo 
+                    WHERE employee_id = $employee_id 
+                    AND DATE(due_date) = '$today'
+                    AND status = 'pending'
+                    AND deleted_at IS NULL
+                    ORDER BY due_date ASC
+                ";
+
+                $result = $conn->query($query);
+
+                if ($result) {
+                    $tasks = [];
+                    while ($row = $result->fetch_assoc()) {
+                        $tasks[] = [
+                            'id' => $row['id'],
+                            'title' => $row['title'],
+                            'due_date' => $row['due_date'],
+                            'priority' => $row['priority'],
+                            'status' => $row['status'],
+                            'created_at' => $row['created_at']
+                        ];
+                    }
+
+                    $has_due_today = count($tasks) > 0;
+
+                    if ($has_due_today) {
+                        $created_by = 0; // System or admin ID
+
+                        foreach ($tasks as $task) {
+                            $title = $conn->real_escape_string($task['title']);
+                            $due_date = $conn->real_escape_string($task['due_date']);
+
+                            $notification_body = $conn->real_escape_string("Task due on: $title (Due: $due_date)");
+                            $notification_title = $conn->real_escape_string("Task Due");
+                            $notification_type = $conn->real_escape_string("task_due");
+
+                            // Check for duplicate notification
+                            $checkQuery = "
+                                SELECT * FROM notifications 
+                                WHERE employee_id = $employee_id 
+                                AND body = '$notification_body'
+                                AND DATE(created_at) = CURDATE()
+                                LIMIT 1
+                            ";
+                            $checkResult = $conn->query($checkQuery);
+
+                            if ($checkResult && $checkResult->num_rows == 0) {
+                                $insertQuery = "
+                                    INSERT INTO notifications (employee_id, body, title, `type`, created_by)
+                                    VALUES ($employee_id, '$notification_body', '$notification_title', '$notification_type', $created_by)
+                                ";
+                                $conn->query($insertQuery);
+                            }
+                        }
+                    }
+
+                    sendJsonResponse('success', [
+                        'has_due_today' => $has_due_today,
+                        'tasks' => $tasks
+                    ], $has_due_today ? 'Employee has tasks due today.' : 'No tasks due today.');
+                } else {
+                    sendJsonResponse('error', null, 'Query failed: ' . $conn->error);
+                }
+                break;
+
             default:
                 http_response_code(400);
                 echo json_encode(['error' => 'Invalid action']);
