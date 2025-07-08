@@ -182,84 +182,201 @@ ini_set('display_errors', '1');
                         sendJsonResponse('error', 'Failed to execute query', ['query_error' => $stmt->error]);
                     }
                 }
-                break;
-
+                break;  
             case 'add':
-                // Validate and get POST data
                 $logged_in_employee_id = isset($_POST['logged_in_employee_id']) ? (int)$_POST['logged_in_employee_id'] : '';
                 $logged_in_user_role = $_POST['logged_in_employee_role'] ?? "";
-                $employee_id = isset($_POST['employee_id']) ? (int)$_POST['employee_id'] : '';
-                $title = $_POST['title'] ?? '';
-                $due_date = $_POST['due_date'] ?? '';
-                $priority = $_POST['priority'] ?? '';
-                $status = $_POST['status'] ?? '';
+                $employee_id = $_POST['employee_id'] ?? '';  // could be 'all'
+                $title = $conn->real_escape_string($_POST['title'] ?? '');
+                $due_date = $conn->real_escape_string($_POST['due_date'] ?? '');
+                $priority = $conn->real_escape_string($_POST['priority'] ?? '');
                 $created_at = date('Y-m-d H:i:s');
 
                 if (in_array(strtolower($logged_in_user_role), ['admin', 'super_admin'])) {
-                    $created_by = $logged_in_employee_id;
+                    $created_by = (int)$logged_in_employee_id;
                 }
-            
+              
                 if ($title && $due_date) {
-                    // Prepare the SQL insert statement
-                    $stmt = $conn->prepare("INSERT INTO project_todo (employee_id, title, due_date, priority, status, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                    $stmt->bind_param("isssssi", $employee_id, $title, $due_date, $priority, $status, $created_at, $created_by);
-            
-                    // Execute the statement and check for success
-                    if ($stmt->execute()) {
-                        $todo_id = $stmt->insert_id;
-                        $stmt->close(); 
-                        // Fetch the employee's first and last name
-                        $stmt = $conn->prepare("
-                            SELECT first_name, last_name 
-                            FROM employees 
-                            WHERE id = ?
-                        ");
+                    if ($employee_id === 'all') {
+                        //ACTIVE USERS ONLY
+                        $result = $conn->query("SELECT id, first_name, last_name FROM employees WHERE role ='employee'");
+                         
+                        if ($result && $result->num_rows > 0) {
+                            $todosCreated = [];
+                            while ($employee = $result->fetch_assoc()) {
+                                
+                                $emp_id = (int)$employee['id'];
 
-                        $stmt->bind_param("i", $employee_id);
-                        $stmt->execute();
-                        $result = $stmt->get_result();
-                        $employee = $result->fetch_assoc();
-                        $stmt->close();
-                        $todosData = [
-                            'id' => $todo_id,
-                            'employee_id' => $employee_id,
-                            'first_name' => $employee['first_name'] ?? '',
-                            'last_name' => $employee['last_name'] ?? '',
-                            'title' => $title,
-                            'due_date' => $due_date,
-                            'priority' => $priority,
-                            'todoStatus' => $status,
-                            'created_at' => $created_at,
-                            'created_by' => $created_by
-                        ];
+                                // Insert into project_todo
+                                $sql = "
+                                    INSERT INTO project_todo 
+                                    (employee_id, title, due_date, priority, created_at, created_by) 
+                                    VALUES ($emp_id, '$title', '$due_date', '$priority', '$created_at', '$created_by')
+                                ";
+                             
+                                if ($conn->query($sql)) {
+                                    $todo_id = $conn->insert_id;
 
-                    
-                        $notification_body = "New task assigned: $title due on $due_date.";
-                        $notification_title = "New Todo Assigned";
-                        $notification_type = "task"; 
+                                    // Insert notification
+                                    $notification_body = $conn->real_escape_string("New task assigned: $title due on $due_date.");
+                                    $notification_title = "New Todo Assigned";
+                                    $notification_type = "task";
+                                    
+                                    $notif_sql = "
+                                        INSERT INTO notifications 
+                                        (employee_id, body, title, `type`, created_by) 
+                                        VALUES ($emp_id, '$notification_body', '$notification_title', '$notification_type', $created_by)
+                                    ";
+                                    $conn->query($notif_sql);
 
-                        $stmt = $conn->prepare("INSERT INTO notifications (employee_id, body, title, `type`, created_by) VALUES (?, ?, ?, ?, ?)");
-                        $stmt->bind_param("isssi", $employee_id, $notification_body, $notification_title, $notification_type, $created_by);
+                                    $todosCreated[] = [
+                                        'id' => $todo_id,
+                                        'employee_id' => $emp_id,
+                                        'first_name' => $employee['first_name'] ?? '',
+                                        'last_name' => $employee['last_name'] ?? '',
+                                        'title' => $title,
+                                        'due_date' => $due_date,
+                                        'priority' => $priority,
+                                        'created_at' => $created_at,
+                                        'created_by' => $created_by
+                                    ];
+                                }
+                            }
 
-                        // Execute the statement to insert the notification
-                        if ($stmt->execute()) {
-                            $stmt->close();
-                            sendJsonResponse('success', $todosData, 'Todo added successfully');
+                            sendJsonResponse('success', $todosCreated, 'Todo added for all employees successfully');
                         } else {
-                            $stmt->close();
                             http_response_code(500);
-                            sendJsonResponse('error', 'Failed to send notification', ['details' => $stmt->error]);
+                            sendJsonResponse('error', 'No employees found');
                         }
+
                     } else {
-                        http_response_code(500);
-                        sendJsonResponse('error', 'Failed to add todo', ['details' => $stmt->error]);
+                        $employee_id = (int)$employee_id;
+
+                        // Insert single todo
+                        $sql = "
+                            INSERT INTO project_todo 
+                            (employee_id, title, due_date, priority, created_at, created_by) 
+                            VALUES ($employee_id, '$title', '$due_date', '$priority', '$created_at', $created_by)
+                        ";
+                        if ($conn->query($sql)) {
+                            $todo_id = $conn->insert_id;
+
+                            // Get employee name
+                            $emp_result = $conn->query("SELECT first_name, last_name FROM employees WHERE id = $employee_id");
+                            $employee = $emp_result ? $emp_result->fetch_assoc() : [];
+
+                            // Insert notification
+                            $notification_body = $conn->real_escape_string("New task assigned: $title due on $due_date.");
+                            $notification_title = "New Todo Assigned";
+                            $notification_type = "task";
+
+                            $notif_sql = "
+                                INSERT INTO notifications 
+                                (employee_id, body, title, `type`, created_by) 
+                                VALUES ($employee_id, '$notification_body', '$notification_title', '$notification_type', $created_by)
+                            ";
+                            if ($conn->query($notif_sql)) {
+                                $todosData = [
+                                    'id' => $todo_id,
+                                    'employee_id' => $employee_id,
+                                    'first_name' => $employee['first_name'] ?? '',
+                                    'last_name' => $employee['last_name'] ?? '',
+                                    'title' => $title,
+                                    'due_date' => $due_date,
+                                    'priority' => $priority,
+                                    'created_at' => $created_at,
+                                    'created_by' => $created_by
+                                ];
+                                sendJsonResponse('success', $todosData, 'Todo added successfully');
+                            } else {
+                                http_response_code(500);
+                                sendJsonResponse('error', 'Failed to send notification');
+                            }
+                        } else {
+                            http_response_code(500);
+                            sendJsonResponse('error', 'Failed to add todo');
+                        }
                     }
                 } else {
                     http_response_code(400);
                     sendJsonResponse('error', 'Missing required fields');
                 }
                 break;
-            case 'update':
+                
+            case 'edit':
+                $logged_in_employee_id = isset($_POST['logged_in_employee_id']) ? (int)$_POST['logged_in_employee_id'] : '';
+                $logged_in_user_role = $_POST['logged_in_employee_role'] ?? "";
+                $todo_id = isset($_POST['todo_id']) ? (int)$_POST['todo_id'] : '';
+                $employee_id = isset($_POST['employee_id']) ? (int)$_POST['employee_id'] : '';
+                $title = $conn->real_escape_string($_POST['title'] ?? '');
+                $due_date = $conn->real_escape_string($_POST['due_date'] ?? '');
+                $priority = $conn->real_escape_string($_POST['priority'] ?? '');
+                $updated_at = date('Y-m-d H:i:s');
+
+                if (!$todo_id || !$employee_id || !$title || !$due_date) {
+                    http_response_code(400);
+                    sendJsonResponse('error', 'Missing required fields');
+                    break;
+                }
+
+                // Make sure the todo belongs to the given employee
+                $check_sql = "SELECT id FROM project_todo WHERE id = $todo_id AND employee_id = $employee_id";
+                $check_result = $conn->query($check_sql);
+
+                if (!$check_result || $check_result->num_rows === 0) {
+                    http_response_code(404);
+                    sendJsonResponse('error', 'Todo not found for this employee');
+                    break;
+                }
+
+                $update_sql = "
+                    UPDATE project_todo 
+                    SET 
+                        title = '$title',
+                        due_date = '$due_date',
+                        priority = '$priority',
+                        updated_at = '$updated_at'
+                    WHERE id = $todo_id AND employee_id = $employee_id
+                ";
+
+                if ($conn->query($update_sql)) {
+                    // Optional: Update notification or send a new one
+                    $notification_body = $conn->real_escape_string("Task updated: $title now due on $due_date.");
+                    $notification_title = "Todo Updated";
+                    $notification_type = "task";
+
+                    $notif_sql = "
+                        INSERT INTO notifications 
+                        (employee_id, body, title, type, created_by) 
+                        VALUES ($employee_id, '$notification_body', '$notification_title', '$notification_type', $logged_in_employee_id)
+                    ";
+                    $conn->query($notif_sql);
+
+                    // Fetch updated employee name
+                    $emp_result = $conn->query("SELECT first_name, last_name FROM employees WHERE id = $employee_id");
+                    $employee = $emp_result ? $emp_result->fetch_assoc() : [];
+
+                    $updatedData = [
+                        'id' => $todo_id,
+                        'employee_id' => $employee_id,
+                        'first_name' => $employee['first_name'] ?? '',
+                        'last_name' => $employee['last_name'] ?? '',
+                        'title' => $title,
+                        'due_date' => $due_date,
+                        'priority' => $priority,
+                        'updated_at' => $updated_at,
+                        'updated_by' => $logged_in_employee_id
+                    ];
+
+                    sendJsonResponse('success', $updatedData, 'Todo updated successfully');
+                } else {
+                    http_response_code(500);
+                    sendJsonResponse('error', 'Failed to update todo');
+                }
+
+                break;
+                
+            case 'update_status':
                 // Validate and get POST data
                 $id = $_POST['id'] ?? null;
                 $status = $_POST['status'] ?? null;
@@ -355,6 +472,33 @@ ini_set('display_errors', '1');
                 } else {
                     sendJsonResponse('error', null, 'Query failed: ' . $conn->error);
                 }
+                break;
+                
+            case 'delete':
+                if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
+                    $todo_id = (int)$_GET['id'];
+
+                    // Optional: Check if the todo exists before deleting
+                    $checkSql = "SELECT id FROM project_todo WHERE id = $todo_id";
+                    $checkResult = $conn->query($checkSql);
+
+                    if ($checkResult && $checkResult->num_rows > 0) {
+                        $deleteSql = "DELETE FROM project_todo WHERE id = $todo_id";
+                        if ($conn->query($deleteSql)) {
+                            sendJsonResponse('success', null, 'Todo deleted successfully');
+                        } else {
+                            http_response_code(500);
+                            sendJsonResponse('error', null, 'Failed to delete todo: ' . $conn->error);
+                        }
+                    } else {
+                        http_response_code(404);
+                        sendJsonResponse('error', null, 'Todo not found');
+                    }
+                } else {
+                    http_response_code(400);
+                    sendJsonResponse('error', null, 'Invalid todo ID');
+                }
+                exit;
                 break;
 
             default:
