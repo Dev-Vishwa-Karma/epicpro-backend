@@ -397,12 +397,6 @@
             case 'delete':
                 if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
                     $project_id = (int)$_GET['id'];
-
-                    // Optional: Check if the todo exists before deleting
-                    $checkSql = "SELECT id FROM projects WHERE id = $project_id";
-                    $checkResult = $conn->query($checkSql);
-
-                    if ($checkResult && $checkResult->num_rows > 0) {
                         $deleteSql = "DELETE FROM projects WHERE id = $project_id";
                         if ($conn->query($deleteSql)) {
                             sendJsonResponse('success', null, 'Project deleted successfully');
@@ -414,10 +408,6 @@
                         http_response_code(404);
                         sendJsonResponse('error', null, 'Project not found');
                     }
-                } else {
-                    http_response_code(400);
-                    sendJsonResponse('error', null, 'Invalid project ID');
-                }
                 exit;
                 break;
             
