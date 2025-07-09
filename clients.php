@@ -47,6 +47,88 @@
                 }
                 break;
 
+            case 'view_client':
+                $conditions = [];
+
+                if (isset($_GET['client_id']) && is_numeric($_GET['client_id']) && $_GET['client_id'] > 0) {
+                    $client_id = intval($_GET['client_id']);
+                    $conditions[] = "c.id = $client_id";
+                }
+
+                if (isset($_GET['client_name']) && !empty(trim($_GET['client_name']))) {
+                    $client_name = $conn->real_escape_string(trim($_GET['client_name']));
+                    $conditions[] = "c.name LIKE '%$client_name%'";
+                }
+
+                // Combine conditions
+                $client_condition = "";
+                if (!empty($conditions)) {
+                    $client_condition = "WHERE " . implode(" AND ", $conditions);
+                }
+
+                $query = "
+                    SELECT 
+                        c.id AS client_id,
+                        c.name AS client_name,
+                        c.email AS client_email,
+                        c.country AS client_country,
+                        COUNT(p.id) AS project_count
+                    FROM clients c
+                    LEFT JOIN projects p ON c.id = p.client_id
+                    $client_condition
+                    GROUP BY c.id
+                ";
+
+                $result = $conn->query($query);
+
+                if ($result) {
+                    $clients = [];
+
+                    while ($row = $result->fetch_assoc()) {
+                        $client_id = $row['client_id'];
+
+                        // Fetch all projects for this client to get team_member_ids
+                        $project_query = "SELECT team_member_ids FROM projects WHERE client_id = $client_id";
+                        $project_result = $conn->query($project_query);
+
+                        $all_team_ids = [];
+                        while ($project = $project_result->fetch_assoc()) {
+                            $team_ids = json_decode($project['team_member_ids'], true);
+                            if (is_array($team_ids)) {
+                                $all_team_ids = array_merge($all_team_ids, $team_ids);
+                            }
+                        }
+
+                        $unique_ids = array_unique($all_team_ids);
+                        $team_member_details = [];
+
+                        if (!empty($unique_ids)) {
+                            $escaped_ids = implode(",", array_map('intval', $unique_ids));
+                            $empl_query = "SELECT id, first_name, last_name, profile FROM employees WHERE id IN ($escaped_ids)";
+                            $empl_result = $conn->query($empl_query);
+                            while ($member = $empl_result->fetch_assoc()) {
+                                $team_member_details[] = [
+                                    'employee_id' => $member['id'],
+                                    'first_name' => $member['first_name'],
+                                    'last_name' => $member['last_name'],
+                                    'profile' => $member['profile'],
+                                ];
+                            }
+                        }
+
+                        // Add team member info and employee count
+                        $row['team_members'] = $team_member_details;
+                        $row['employee_count'] = count($unique_ids);
+
+                        $clients[] = $row;
+                    }
+
+                    sendJsonResponse('success', $clients);
+                } else {
+                    sendJsonResponse('error', null, "Query failed: " . $conn->error);
+                }
+                break;
+
             default:
                 http_response_code(400);
                 echo json_encode(['error' => 'Invalid action']);
@@ -54,6 +136,6 @@
         }
     }
 
-    // Close the connection
+   
     $conn->close();
 ?>

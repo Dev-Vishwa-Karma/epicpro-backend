@@ -33,7 +33,6 @@
                             p.created_at,
                             p.created_by,
                             c.name AS client_name,
-                            c.location AS client_location,
                             p.team_member_ids
                         FROM projects p
                         LEFT JOIN clients c ON p.client_id = c.id
@@ -64,7 +63,6 @@
                                 'created_at' => $row['created_at'],
                                 'created_by' => $row['created_by'],
                                 'client_name' => $row['client_name'],
-                                'client_location' => $row['client_location'],
                                 'team_members' => []
                             ];
 
@@ -121,7 +119,6 @@
                             p.created_at,
                             p.created_by,
                             c.name AS client_name,
-                            c.location AS client_location,
                             p.team_member_ids
                         FROM projects p
                         LEFT JOIN clients c ON p.client_id = c.id
@@ -162,7 +159,6 @@
                                     'created_at' => $row['created_at'],
                                     'created_by' => $row['created_by'],
                                     'client_name' => $row['client_name'],
-                                    'client_location' => $row['client_location'],
                                     'team_members' => []
                                 ];
                             }
@@ -238,7 +234,7 @@
                         }
 
                         // Fetch client details
-                        $client_query = "SELECT name, location FROM clients WHERE id = '$client_id'";
+                        $client_query = "SELECT name FROM clients WHERE id = '$client_id'";
                         $client_result = mysqli_query($conn, $client_query);
                         $client_data = mysqli_fetch_assoc($client_result);
                         $client_name = $client_data['name'] ?? null;
@@ -325,7 +321,7 @@
                         $project_data = mysqli_fetch_assoc($project_result);
 
                         // Fetch client details
-                        $client_query = "SELECT name, location FROM clients WHERE id = '$client_id'";
+                        $client_query = "SELECT name FROM clients WHERE id = '$client_id'";
                         $client_result = mysqli_query($conn, $client_query);
                         $client_data = mysqli_fetch_assoc($client_result);
                         $client_name = $client_data['name'] ?? null;
