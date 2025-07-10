@@ -369,25 +369,28 @@
                 break;
             
             case 'update_active_status':
-                // Get POST data
-                $id = $_POST['id'] ?? null;
-                $is_active = $_POST['is_active'] ?? null; // expecting 1 or 0
-                $updated_at = date('Y-m-d H:i:s');
-                $updated_by = null;
+                $json = file_get_contents('php://input');
+                $data = json_decode($json, true);
 
-                if (!isset($id) || !isset($is_active)) {
+                if (!$data || !isset($data['id']) || !isset($data['is_active'])) {
                     sendJsonResponse('error', null, 'Project id and active status are required');
+                    exit;
                 }
+
+                $id = (int)$data['id'];
+                $is_active = (int)$data['is_active'];
+                $updated_at = date('Y-m-d H:i:s');
+                $updated_by = isset($data['logged_in_employee_id']) ? (int)$data['logged_in_employee_id'] : null;
 
                 $stmt = $conn->prepare("UPDATE projects SET is_active = ?, updated_at = ?, updated_by = ? WHERE id = ?");
                 $stmt->bind_param("isii", $is_active, $updated_at, $updated_by, $id);
+
                 if ($stmt->execute()) {
-                    $stmt->close();
-                    sendJsonResponse('success', 'Project status updated successfully');
+                    sendJsonResponse('success', ['is_active' => $is_active], 'Status updated');
                 } else {
-                    http_response_code(500);
-                    sendJsonResponse('error', 'Failed to update project status', ['details' => $stmt->error]);
+                    sendJsonResponse('error', null, 'Update failed: ' . $stmt->error);
                 }
+                exit;
                 break;
 
             case 'delete':
