@@ -332,7 +332,6 @@
 
                         // Decode the team member IDs from JSON
                         $team_member_ids = json_decode($project_data['team_member_ids'], true); // Returns an array
-                        var_dump($team_member_ids);die;
                         // Fetch team member details
                         $team_members = [];
                         if (!empty($team_member_ids)) {
