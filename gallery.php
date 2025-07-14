@@ -27,19 +27,27 @@ if (isset($action)) {
     switch ($action) {
         case 'view':
             if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
-                // Prepare SELECT statement with WHERE clause using parameter binding
-                $stmt = $conn->prepare("SELECT * FROM gallery WHERE employee_id = ?");
-                $stmt->bind_param("i", $_GET['id']);
+                $employeeId = (int)$_GET['id'];
+
+                // Handle pagination inputs
+                $page = isset($_GET['page']) && is_numeric($_GET['page']) && $_GET['page'] > 0 ? (int)$_GET['page'] : 1;
+                $limit = isset($_GET['limit']) && is_numeric($_GET['limit']) && $_GET['limit'] > 0 ? (int)$_GET['limit'] : 10;
+                $offset = ($page - 1) * $limit;
+
+                // Prepare SELECT statement with LIMIT and OFFSET
+                $stmt = $conn->prepare("SELECT * FROM gallery WHERE employee_id = ? LIMIT ? OFFSET ?");
+                $stmt->bind_param("iii", $employeeId, $limit, $offset);
+
                 if ($stmt->execute()) {
                     $result = $stmt->get_result();
                     if ($result) {
                         $events = $result->fetch_all(MYSQLI_ASSOC);
                         sendJsonResponse('success', $events, null);
                     } else {
-                        sendJsonResponse('error', null, "No leaves found : $conn->error");
+                        sendJsonResponse('error', null, "No records found: $conn->error");
                     }
                 } else {
-                    sendJsonResponse('error', null, "Failed to execute query : $stmt->error");
+                    sendJsonResponse('error', null, "Failed to execute query: $stmt->error");
                 }
             } else {
                 $result = $conn->query("SELECT * FROM gallery");
@@ -47,10 +55,10 @@ if (isset($action)) {
                     $events = $result->fetch_all(MYSQLI_ASSOC);
                     sendJsonResponse('success', $events);
                 } else {
-                    sendJsonResponse('error', null, "No records found $conn->error");
+                    sendJsonResponse('error', null, "No records found: $conn->error");
                 }
             }
-            break;
+
 
         case 'add':
             // Get form data
