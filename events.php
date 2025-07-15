@@ -3,6 +3,13 @@ header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type");
 header("Access-Control-Allow-Credentials: true");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
+
+if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
+
 
 // Include the database connection
 include 'db_connection.php';
@@ -27,11 +34,11 @@ if (isset($action)) {
     switch ($action) {
         case 'view':
             $id = isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0 ? (int)$_GET['id'] : null;
-            $start_date = isset($_GET['start_date']) ? $_GET['start_date'] : null;
-            $end_date = isset($_GET['end_date']) ? $_GET['end_date'] : null;
-        
-            if ($start_date && $end_date && strtotime($start_date) > strtotime($end_date)) {
-                sendJsonResponse('error', null, "Start date cannot be greater than end date.");
+            $from_date = isset($_GET['from_date']) ? $_GET['from_date'] : null;
+            $to_date = isset($_GET['to_date']) ? $_GET['to_date'] : null;
+
+            if ($from_date && $to_date && strtotime($from_date) > strtotime($to_date)) {
+                sendJsonResponse('error', null, "From date cannot be greater than to date.");
                 exit;
             }
 
@@ -47,12 +54,12 @@ if (isset($action)) {
             if ($event_type !== null) {
                 $conditions[] = "event_type = '$event_type'";
             }
-            if ($start_date && $end_date) {
-                $conditions[] = "DATE(events.event_date) BETWEEN '$start_date' AND '$end_date'";
-            } elseif ($start_date) {
-                $conditions[] = "DATE(events.event_date) = '$start_date'";
-            } elseif ($end_date) {
-                $conditions[] = "DATE(events.event_date) = '$end_date'";
+            if ($from_date && $to_date) {
+                $conditions[] = "DATE(events.event_date) BETWEEN '$from_date' AND '$to_date'";
+            } elseif ($from_date) {
+                $conditions[] = "DATE(events.event_date) = '$from_date'";
+            } elseif ($to_date) {
+                $conditions[] = "DATE(events.event_date) = '$to_date'";
             }
             
             $whereClause = '';
@@ -60,7 +67,6 @@ if (isset($action)) {
                 $whereClause = "WHERE " . implode(" AND ", $conditions);
             }
 
-            
             $sql = "SELECT * FROM events $whereClause";
             $result = $conn->query($sql);
             
@@ -111,8 +117,8 @@ if (isset($action)) {
             break;
 
         case 'edit':
-            if (isset($_GET['event_id']) && is_numeric($_GET['event_id']) && $_GET['event_id'] > 0) {
-                $id = $_GET['event_id'];
+            if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
+                $id = $_GET['id'];
                 // Validate and get POST data
                 $event_name = $_POST['event_name'];
                 $event_date = $_POST['event_date'];
@@ -146,10 +152,10 @@ if (isset($action)) {
             break;
 
         case 'delete':
-            if (isset($_GET['event_id']) && is_numeric($_GET['event_id']) && $_GET['event_id'] > 0) {
+            if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
                 // Prepare DELETE statement
                 $stmt = $conn->prepare("DELETE FROM events WHERE id = ?");
-                $stmt->bind_param('i', $_GET['event_id']);
+                $stmt->bind_param('i', $_GET['id']);
                 if ($stmt->execute()) {
                     sendJsonResponse('success', null, 'Holiday deleted successfully');
                 } else {

@@ -2,6 +2,14 @@
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, X-Requested-With");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
+
+// Handle preflight (OPTIONS) requests
+if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+    // Respond with 200 status code for OPTIONS requests
+    header("HTTP/1.1 200 OK");
+    exit();
+}
 
 // Include the database connection
 include 'db_connection.php';
@@ -234,8 +242,8 @@ if (isset($action)) {
             
         case 'update-report-by-user';
             // Capture POST data
-            if (isset($_GET['report_id']) && is_numeric($_GET['report_id']) && $_GET['report_id'] > 0) {
-                $id = $_GET['report_id'];
+            if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
+                $id = $_GET['id'];
                 // Validate and get POST data
                 $note = $_POST['note'] ? $_POST['note'] : null;
                 $report = $_POST['report'];
