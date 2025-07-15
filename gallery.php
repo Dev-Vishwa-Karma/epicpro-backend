@@ -3,6 +3,12 @@ header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type");
 header("Access-Control-Allow-Credentials: true");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
+
+if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
 
 // Include the database connection
 include 'db_connection.php';
@@ -26,10 +32,10 @@ $action = !empty($_GET['action']) ? $_GET['action'] : 'view';
 if (isset($action)) {
     switch ($action) {
         case 'view':
-            if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
+            if (isset($_GET['employee_id']) && is_numeric($_GET['employee_id']) && $_GET['employee_id'] > 0) {
                 // Prepare SELECT statement with WHERE clause using parameter binding
                 $stmt = $conn->prepare("SELECT * FROM gallery WHERE employee_id = ?");
-                $stmt->bind_param("i", $_GET['id']);
+                $stmt->bind_param("i", $_GET['employee_id']);
                 if ($stmt->execute()) {
                     $result = $stmt->get_result();
                     if ($result) {
@@ -86,10 +92,10 @@ if (isset($action)) {
                         $uploadedImageId = $conn->insert_id;
 
                         // Update the employee's profile field with the latest uploaded image
-                        $updateStmt = $conn->prepare("UPDATE employees SET profile = ? WHERE id = ?");
-                        $updateStmt->bind_param("si", $imagePath, $employee_id);
-                        $updateStmt->execute();
-                        $updateStmt->close();
+                        // $updateStmt = $conn->prepare("UPDATE employees SET profile = ? WHERE id = ?");
+                        // $updateStmt->bind_param("si", $imagePath, $employee_id);
+                        // $updateStmt->execute();
+                        // $updateStmt->close();
 
                         $uploadedImages[] = [
                             'id' => $uploadedImageId,

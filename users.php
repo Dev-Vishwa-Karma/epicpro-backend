@@ -106,7 +106,7 @@ if (isset($action)) {
 
         // Edit existing user case
         case 'edit':
-            if (isset($_GET['user_id']) && validateId($_GET['user_id'])) {
+            if (isset($_GET['user_id'])) {
                 $id = $_GET['user_id'];
 
                 $first_name = isset($_POST['first_name']) ? $_POST['first_name'] : null;

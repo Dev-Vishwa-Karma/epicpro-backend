@@ -1,9 +1,9 @@
 <?php
 
 header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
-header("Access-Control-Allow-Credentials: true");
+header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, X-Requested-With, Authorization");
+
 
 // Handle preflight (OPTIONS) requests
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
@@ -38,9 +38,16 @@ if (isset($action)) {
     switch ($action) {
         case 'birthday_notify':
             $today = date('Y-m-d');
+            $current_month = date('m');
+            $current_day = date('d');
 
             // Fetch today's birthday employees
-            $employee_sql = "SELECT id, first_name, last_name, email FROM employees WHERE DATE(dob) = '$today'";
+            $employee_sql = "
+                SELECT id, first_name, last_name, email 
+                FROM employees 
+                WHERE MONTH(dob) = '$current_month' AND DAY(dob) = '$current_day'
+            ";
+           
             $employee_result = $conn->query($employee_sql);
 
             if (!$employee_result) {
@@ -152,7 +159,7 @@ if (isset($action)) {
             $employee_id = (int)$employee_id;
 
             $stmt = $conn->prepare("
-                SELECT id, employee_id, `read`, body, title, created_at 
+                SELECT id, employee_id, `read`, body, title, `type`, created_at 
                 FROM notifications 
                 WHERE employee_id = ? 
                 ORDER BY created_at DESC 

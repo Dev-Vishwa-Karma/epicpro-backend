@@ -6,6 +6,12 @@ header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, DELETE, PUT, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
 header("Access-Control-Allow-Credentials: true");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
+
+if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
 
 // Include the database connection
 include 'db_connection.php';
@@ -596,7 +602,7 @@ if (isset($action)) {
                     $data['statistics_visibility_status'] = $_POST['statistics_visibility_status'];
                 }
                 if (isset($_POST['password'])) {
-                    $data['password'] = $_POST['password'];
+                    $data['password'] = md5($_POST['password']);
                 }
 
 
@@ -785,25 +791,26 @@ if (isset($action)) {
 
 
             case 'delete':
-                // Get request body
-                $json = file_get_contents('php://input');
-                $data = json_decode($json, true);
-            
-                if (isset($data['user_id']) && validateId($data['user_id'])) {
-                    $id = $data['user_id'];
+                // Get data from $_GET instead of php://input (which is used for JSON)
+                $user_id = isset($_GET['user_id']) ? $_GET['user_id'] : null;
+                $logged_in_employee_id = isset($_GET['logged_in_employee_id']) ? $_GET['logged_in_employee_id'] : null;
+                $logged_in_employee_role = isset($_GET['logged_in_employee_role']) ? $_GET['logged_in_employee_role'] : null;
+
+                if ($user_id && validateId($user_id)) {
+                    $id = $user_id;
                     $deleted_by = null;
-            
+
                     // Check if logged-in user ID and role are provided
-                    if (isset($data['logged_in_employee_id']) && isset($data['logged_in_employee_role'])) {
-                        $logged_in_user_id = $data['logged_in_employee_id'];
-                        $logged_in_user_role = strtolower($data['logged_in_employee_role']);
-            
+                    if ($logged_in_employee_id && $logged_in_employee_role) {
+                        $logged_in_user_id = $logged_in_employee_id;
+                        $logged_in_user_role = strtolower($logged_in_employee_role);
+
                         // Allow only admin and super admin to set deleted_by
                         if ($logged_in_user_role === 'admin' || $logged_in_user_role === 'super_admin') {
                             $deleted_by = $logged_in_user_id;
                         }
                     }
-            
+
                     // Prepare the SQL query based on role condition
                     if ($deleted_by) {
                         $stmt = $conn->prepare("UPDATE employees SET deleted_at = NOW(), deleted_by = ? WHERE id = ?");
@@ -812,7 +819,7 @@ if (isset($action)) {
                         $stmt = $conn->prepare("UPDATE employees SET deleted_at = NOW() WHERE id = ?");
                         $stmt->bind_param('i', $id);
                     }
-            
+
                     if ($stmt->execute()) {
                         // Soft delete from salary_details table
                         $stmt = $conn->prepare("UPDATE salary_details SET deleted_at = NOW() WHERE employee_id = ?");
