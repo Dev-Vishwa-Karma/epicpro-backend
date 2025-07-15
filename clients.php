@@ -56,9 +56,9 @@ ini_set('display_errors', '1');
                     $conditions[] = "c.id = $client_id";
                 }
 
-                if (isset($_GET['client_name']) && !empty(trim($_GET['client_name']))) {
-                    $client_name = $conn->real_escape_string(trim($_GET['client_name']));
-                    $conditions[] = "c.name LIKE '%$client_name%'";
+                if (isset($_GET['search']) && !empty(trim($_GET['search']))) {
+                    $search = $conn->real_escape_string(trim($_GET['search']));
+                    $conditions[] = "c.name LIKE '%$search%'";
                 }
 
                 // Combine conditions

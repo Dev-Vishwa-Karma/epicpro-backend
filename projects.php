@@ -16,7 +16,7 @@
         switch ($action) {
             case 'view':
                 // Get project_name filter from GET parameters if provided
-                $project_name_filter = isset($_GET['project_name']) ? trim($_GET['project_name']) : '';
+                $project_name_filter = isset($_GET['search']) ? trim($_GET['search']) : '';
 
                 if (isset($_GET['project_id']) && is_numeric($_GET['project_id']) && $_GET['project_id'] > 0) {
                     $project_id = (int) $_GET['project_id'];
