@@ -33,9 +33,13 @@ $action = !empty($_GET['action']) ? $_GET['action'] : 'view';
 if (isset($action)) {
     switch ($action) {
         case 'view':
+            $sortOrder = 'DESC'; // Default to newest
+            if (isset($_GET['sortOrder']) && in_array(strtoupper($_GET['sortOrder']), ['ASC', 'DESC'])) {
+                $sortOrder = strtoupper($_GET['sortOrder']);
+            }
+
             if (isset($_GET['employee_id']) && is_numeric($_GET['employee_id']) && $_GET['employee_id'] > 0) {
-                // Prepare SELECT statement with WHERE clause using parameter binding
-                $stmt = $conn->prepare("SELECT * FROM gallery WHERE employee_id = ?");
+                $stmt = $conn->prepare("SELECT * FROM gallery WHERE employee_id = ? ORDER BY created_at $sortOrder");
                 $stmt->bind_param("i", $_GET['employee_id']);
                 if ($stmt->execute()) {
                     $result = $stmt->get_result();
@@ -49,7 +53,7 @@ if (isset($action)) {
                     sendJsonResponse('error', null, "Failed to execute query : $stmt->error");
                 }
             } else {
-                $result = $conn->query("SELECT * FROM gallery");
+                $result = $conn->query("SELECT * FROM gallery ORDER BY created_at $sortOrder");
                 if ($result) {
                     $events = $result->fetch_all(MYSQLI_ASSOC);
                     sendJsonResponse('success', $events);
