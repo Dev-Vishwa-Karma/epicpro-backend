@@ -12,6 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
 
 // Include the database connection
 include 'db_connection.php';
+include 'auth_validate.php';
 
 // Set the header for JSON response
 header('Content-Type: application/json');
@@ -132,6 +133,40 @@ if (isset($action)) {
                     echo "Image filename is required.";
                 }
             break;
+        case 'delete':
+            if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
+                $imageId = intval($_GET['id']);
+               
+                // Escape the ID just in case (although intval already safe)
+                $imageIdEscaped = $conn->real_escape_string($imageId);
+
+                // Fetch image path from DB
+                $result = $conn->query("SELECT url FROM gallery WHERE id = $imageIdEscaped");
+
+                if ($result && $result->num_rows > 0) {
+                    $row = $result->fetch_assoc();
+                    $imagePath = $row['url'];
+
+                    $absolutePath = __DIR__ . '/' . $imagePath;
+                     
+                    if (file_exists($absolutePath)) {
+                        unlink($absolutePath);
+                    }
+
+                    // Delete the DB record
+                    if ($conn->query("DELETE FROM gallery WHERE id = $imageIdEscaped")) {
+                        sendJsonResponse('success', null, "Image deleted successfully");
+                    } else {
+                        sendJsonResponse('error', null, "Failed to delete image record: " . $conn->error);
+                    }
+                } else {
+                    sendJsonResponse('error', null, "Image not found");
+                }
+            } else {
+                sendJsonResponse('error', null, "Valid image ID required");
+            }
+            break;
+
 
         default:
             http_response_code(400);

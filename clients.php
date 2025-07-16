@@ -14,6 +14,7 @@ ini_set('display_errors', '1');
     header('Content-Type: application/json');
 
     include 'db_connection.php';
+    include 'auth_validate.php';
     require_once 'helpers.php';
 
     $action = !empty($_GET['action']) ? $_GET['action'] : 'view';

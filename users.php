@@ -12,6 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
 
 // Include the database connection
 include 'db_connection.php';
+include 'auth_validate.php';
 
 // Helper function to send JSON response
 function sendJsonResponse($status, $data = null, $message = null) {
