@@ -44,7 +44,7 @@
                             p.team_member_ids
                         FROM projects p
                         LEFT JOIN clients c ON p.client_id = c.id
-                        WHERE p.id = $project_id
+                        WHERE p.id = $project_id AND c.status = 1
                     ";
 
                     // Add project name filter if set (case-insensitive partial match)
@@ -132,7 +132,7 @@
                             p.team_member_ids
                         FROM projects p
                         LEFT JOIN clients c ON p.client_id = c.id
-                        WHERE 1=1
+                        WHERE c.status = 1
                     ";
 
                     // Role-based filtering
