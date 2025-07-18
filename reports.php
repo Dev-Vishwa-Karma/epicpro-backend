@@ -214,9 +214,9 @@ if (isset($action)) {
                 $report = $conn->real_escape_string($report);
             
                 // Prepare the SQL query string directly
-                $sql = "INSERT INTO reports (employee_id, report, start_time, end_time, break_duration_in_minutes, total_working_hours, total_hours, created_at, updated_at) 
-                        VALUES ('$employee_id', '$report', '$start_time', '$end_time', '$break_duration_in_minutes', '$todays_working_hours', '$todays_total_hours', '$created_at', '$updated_at')";
-            
+                $sql = "INSERT INTO reports (employee_id, report, start_time, end_time, break_duration_in_minutes, total_working_hours, total_hours) 
+                        VALUES ('$employee_id', '$report', '$start_time', '$end_time', '$break_duration_in_minutes', '$todays_working_hours', '$todays_total_hours')";
+                
                 // Execute the query
                 if ($conn->query($sql) === TRUE) {
                     $id = $conn->insert_id;
