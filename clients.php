@@ -95,11 +95,21 @@ ini_set('display_errors', '1');
                         $client_id = $row['client_id'];
 
                         // Fetch all projects for this client to get team_member_ids
-                        $project_query = "SELECT team_member_ids FROM projects WHERE client_id = $client_id";
+                        $project_query = "SELECT name, start_date, technology, team_member_ids FROM projects WHERE client_id = $client_id";
                         $project_result = $conn->query($project_query);
 
                         $all_team_ids = [];
+                        $projects_details = [];
+
                         while ($project = $project_result->fetch_assoc()) {
+                            // Collect project details (name, start_date, technology)
+                            $projects_details[] = [
+                                'project_name' => $project['name'],
+                                'start_date' => $project['start_date'],
+                                'technology' => $project['technology']
+                            ];
+
+                            // Collect all team member IDs
                             $team_ids = json_decode($project['team_member_ids'], true);
                             if (is_array($team_ids)) {
                                 $all_team_ids = array_merge($all_team_ids, $team_ids);
@@ -127,6 +137,9 @@ ini_set('display_errors', '1');
                         $row['team_members'] = $team_member_details;
                         $row['employee_count'] = count($unique_ids);
 
+                        // Add project details
+                        $row['projects'] = $projects_details;
+
                         $clients[] = $row;
                     }
 
@@ -134,6 +147,7 @@ ini_set('display_errors', '1');
                 } else {
                     sendJsonResponse('error', null, "Query failed: " . $conn->error);
                 }
+
                 break;
 
             case 'add':
