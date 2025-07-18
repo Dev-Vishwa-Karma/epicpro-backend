@@ -10,7 +10,6 @@ if ($_SERVER["REQUEST_METHOD"] == "OPTIONS") {
 }
 
 include "db_connection.php";
-include 'auth_validate.php';
 require_once "helpers.php";
 header("Content-Type: application/json");
 
