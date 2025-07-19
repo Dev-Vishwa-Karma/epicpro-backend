@@ -102,15 +102,34 @@ ini_set('display_errors', '1');
                         $projects_details = [];
 
                         while ($project = $project_result->fetch_assoc()) {
-                            // Collect project details (name, start_date, technology)
+                            // Decode team member IDs for this project
+                            $team_ids = json_decode($project['team_member_ids'], true);
+                            $team_member_names = [];
+
+                            if (is_array($team_ids) && count($team_ids) > 0) {
+                                // Sanitize IDs for query
+                                $escaped_ids = implode(",", array_map('intval', $team_ids));
+
+                                // Fetch team member names
+                                $name_query = "SELECT first_name, last_name FROM employees WHERE id IN ($escaped_ids)";
+                                $name_result = $conn->query($name_query);
+
+                                if ($name_result) {
+                                    while ($name_row = $name_result->fetch_assoc()) {
+                                        $team_member_names[] = $name_row['first_name'] . ' ' . $name_row['last_name'];
+                                    }
+                                }
+                            }
+
+                            // Add project details including team member names
                             $projects_details[] = [
+                                'team_member_names' => $team_member_names,
                                 'project_name' => $project['name'],
                                 'start_date' => $project['start_date'],
                                 'technology' => $project['technology']
                             ];
 
-                            // Collect all team member IDs
-                            $team_ids = json_decode($project['team_member_ids'], true);
+                            // Collect all team member IDs for counting unique members
                             if (is_array($team_ids)) {
                                 $all_team_ids = array_merge($all_team_ids, $team_ids);
                             }
