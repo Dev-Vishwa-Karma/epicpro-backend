@@ -3,7 +3,7 @@ error_reporting(E_ALL);
 ini_set('display_errors', '1');
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, X-Requested-With");
+header("Access-Control-Allow-Headers: Content-Type, X-Requested-With,Authorization");
 
 // Handle preflight (OPTIONS) requests
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
@@ -13,6 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
 
 // Include the database connection
 include 'db_connection.php';
+include 'auth_validate.php';
 
 $date = date('Y-m-d');
 // Helper function to send JSON response

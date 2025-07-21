@@ -1,10 +1,18 @@
 <?php
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, X-Requested-With");
+header("Access-Control-Allow-Headers: Content-Type, X-Requested-With, Authorization");
+
+// Handle preflight (OPTIONS) requests
+if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+    // Respond with 200 status code for OPTIONS requests
+    header("HTTP/1.1 200 OK");
+    exit();
+}
 
 // Include the database connection
 include 'db_connection.php';
+include 'auth_validate.php';
 
 // Helper function to send JSON response
 function sendJsonResponse($status, $data = null, $message = null)
@@ -206,9 +214,9 @@ if (isset($action)) {
                 $report = $conn->real_escape_string($report);
             
                 // Prepare the SQL query string directly
-                $sql = "INSERT INTO reports (employee_id, report, start_time, end_time, break_duration_in_minutes, total_working_hours, total_hours, created_at, updated_at) 
-                        VALUES ('$employee_id', '$report', '$start_time', '$end_time', '$break_duration_in_minutes', '$todays_working_hours', '$todays_total_hours', '$created_at', '$updated_at')";
-            
+                $sql = "INSERT INTO reports (employee_id, report, start_time, end_time, break_duration_in_minutes, total_working_hours, total_hours) 
+                        VALUES ('$employee_id', '$report', '$start_time', '$end_time', '$break_duration_in_minutes', '$todays_working_hours', '$todays_total_hours')";
+                
                 // Execute the query
                 if ($conn->query($sql) === TRUE) {
                     $id = $conn->insert_id;
@@ -234,8 +242,8 @@ if (isset($action)) {
             
         case 'update-report-by-user';
             // Capture POST data
-            if (isset($_GET['report_id']) && is_numeric($_GET['report_id']) && $_GET['report_id'] > 0) {
-                $id = $_GET['report_id'];
+            if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
+                $id = $_GET['id'];
                 // Validate and get POST data
                 $note = $_POST['note'] ? $_POST['note'] : null;
                 $report = $_POST['report'];

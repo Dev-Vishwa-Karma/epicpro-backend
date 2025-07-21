@@ -1,4 +1,5 @@
 <?php
+ini_set('display_errors', '1');
     header("Access-Control-Allow-Origin: *");
     header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
     header("Access-Control-Allow-Headers: Content-Type, Authorization");
@@ -13,6 +14,7 @@
     header('Content-Type: application/json');
 
     include 'db_connection.php';
+    include 'auth_validate.php';
     require_once 'helpers.php';
 
     $action = !empty($_GET['action']) ? $_GET['action'] : 'view';
@@ -55,9 +57,9 @@
                     $conditions[] = "c.id = $client_id";
                 }
 
-                if (isset($_GET['client_name']) && !empty(trim($_GET['client_name']))) {
-                    $client_name = $conn->real_escape_string(trim($_GET['client_name']));
-                    $conditions[] = "c.name LIKE '%$client_name%'";
+                if (isset($_GET['search']) && !empty(trim($_GET['search']))) {
+                    $search = $conn->real_escape_string(trim($_GET['search']));
+                    $conditions[] = "c.name LIKE '%$search%'";
                 }
 
                 // Combine conditions
@@ -93,12 +95,44 @@
                         $client_id = $row['client_id'];
 
                         // Fetch all projects for this client to get team_member_ids
-                        $project_query = "SELECT team_member_ids FROM projects WHERE client_id = $client_id";
+                        $project_query = "SELECT name, start_date, technology, team_member_ids FROM projects WHERE client_id = $client_id";
                         $project_result = $conn->query($project_query);
 
                         $all_team_ids = [];
+                        $projects_details = [];
+
                         while ($project = $project_result->fetch_assoc()) {
+                            // Decode team member IDs for this project
                             $team_ids = json_decode($project['team_member_ids'], true);
+                            $team_member_details = [];
+
+                            if (is_array($team_ids) && count($team_ids) > 0) {
+                                // Sanitize IDs for query
+                                $escaped_ids = implode(",", array_map('intval', $team_ids));
+
+                                // Fetch team member names
+                                $name_query = "SELECT first_name, last_name, profile FROM employees WHERE id IN ($escaped_ids)";
+                                $name_result = $conn->query($name_query);
+
+                                if ($name_result) {
+                                    while ($name_row = $name_result->fetch_assoc()) {
+                                        $team_member_details[] = [
+                                            'full_name' => $name_row['first_name'] . ' ' . $name_row['last_name'],
+                                            'profile' => $name_row['profile']
+                                        ];
+                                    }
+                                }
+                            }
+
+                            // Add project details including team member names
+                            $projects_details[] = [
+                                'team_member_details' => $team_member_details,
+                                'project_name' => $project['name'],
+                                'start_date' => $project['start_date'],
+                                'technology' => $project['technology']
+                            ];
+
+                            // Collect all team member IDs for counting unique members
                             if (is_array($team_ids)) {
                                 $all_team_ids = array_merge($all_team_ids, $team_ids);
                             }
@@ -125,6 +159,9 @@
                         $row['team_members'] = $team_member_details;
                         $row['employee_count'] = count($unique_ids);
 
+                        // Add project details
+                        $row['projects'] = $projects_details;
+
                         $clients[] = $row;
                     }
 
@@ -132,6 +169,7 @@
                 } else {
                     sendJsonResponse('error', null, "Query failed: " . $conn->error);
                 }
+
                 break;
 
             case 'add':

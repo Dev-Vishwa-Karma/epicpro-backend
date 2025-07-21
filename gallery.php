@@ -3,9 +3,16 @@ header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type");
 header("Access-Control-Allow-Credentials: true");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
+
+if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
 
 // Include the database connection
 include 'db_connection.php';
+//include 'auth_validate.php';
 
 // Set the header for JSON response
 header('Content-Type: application/json');
@@ -26,40 +33,45 @@ $action = !empty($_GET['action']) ? $_GET['action'] : 'view';
 if (isset($action)) {
     switch ($action) {
         case 'view':
-            if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
+            // Determine the employee ID
+            if (isset($_GET['employee_id']) && is_numeric($_GET['employee_id']) && $_GET['employee_id'] > 0) {
+                $employeeId = (int)$_GET['employee_id'];
+            } elseif (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
                 $employeeId = (int)$_GET['id'];
-
-                // Handle pagination inputs
-                $page = isset($_GET['page']) && is_numeric($_GET['page']) && $_GET['page'] > 0 ? (int)$_GET['page'] : 1;
-                $limit = isset($_GET['limit']) && is_numeric($_GET['limit']) && $_GET['limit'] > 0 ? (int)$_GET['limit'] : 10;
-                $offset = ($page - 1) * $limit;
-
-                // Prepare SELECT statement with LIMIT and OFFSET
-                $stmt = $conn->prepare("SELECT * FROM gallery WHERE employee_id = ? LIMIT ? OFFSET ?");
-                $stmt->bind_param("iii", $employeeId, $limit, $offset);
-
-                if ($stmt->execute()) {
-                    $result = $stmt->get_result();
-                    if ($result) {
-                        $events = $result->fetch_all(MYSQLI_ASSOC);
-                        sendJsonResponse('success', $events, null);
-                    } else {
-                        sendJsonResponse('error', null, "No records found: $conn->error");
-                    }
-                } else {
-                    sendJsonResponse('error', null, "Failed to execute query: $stmt->error");
-                }
             } else {
-                $result = $conn->query("SELECT * FROM gallery");
+                sendJsonResponse('error', null, 'Invalid or missing employee ID');
+                break;
+            }
+
+            // Handle pagination inputs
+            $page = isset($_GET['page']) && is_numeric($_GET['page']) && $_GET['page'] > 0 ? (int)$_GET['page'] : 1;
+            $limit = isset($_GET['limit']) && is_numeric($_GET['limit']) && $_GET['limit'] > 0 ? (int)$_GET['limit'] : 10;
+            $offset = ($page - 1) * $limit;
+
+            // Handle sort order
+            $sortOrder = 'DESC'; // Default to newest
+            if (isset($_GET['sortOrder']) && in_array(strtoupper($_GET['sortOrder']), ['ASC', 'DESC'])) {
+                $sortOrder = strtoupper($_GET['sortOrder']);
+            }
+
+            // Prepare SELECT statement with ORDER, LIMIT, OFFSET
+            $query = "SELECT * FROM gallery WHERE employee_id = ? ORDER BY created_at $sortOrder LIMIT ? OFFSET ?";
+            $stmt = $conn->prepare($query);
+            $stmt->bind_param("iii", $employeeId, $limit, $offset);
+
+            if ($stmt->execute()) {
+                $result = $stmt->get_result();
                 if ($result) {
                     $events = $result->fetch_all(MYSQLI_ASSOC);
-                    sendJsonResponse('success', $events);
+                    sendJsonResponse('success', $events, null);
                 } else {
                     sendJsonResponse('error', null, "No records found: $conn->error");
                 }
+            } else {
+                sendJsonResponse('error', null, "Failed to execute query: $stmt->error");
             }
-
-
+            break;
+            
         case 'add':
             // Get form data
             $employee_id = isset($_POST['employee_id']) ? $_POST['employee_id'] : null;
@@ -134,6 +146,40 @@ if (isset($action)) {
                     echo "Image filename is required.";
                 }
             break;
+        case 'delete':
+            if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
+                $imageId = intval($_GET['id']);
+               
+                // Escape the ID just in case (although intval already safe)
+                $imageIdEscaped = $conn->real_escape_string($imageId);
+
+                // Fetch image path from DB
+                $result = $conn->query("SELECT url FROM gallery WHERE id = $imageIdEscaped");
+
+                if ($result && $result->num_rows > 0) {
+                    $row = $result->fetch_assoc();
+                    $imagePath = $row['url'];
+
+                    $absolutePath = __DIR__ . '/' . $imagePath;
+                     
+                    if (file_exists($absolutePath)) {
+                        unlink($absolutePath);
+                    }
+
+                    // Delete the DB record
+                    if ($conn->query("DELETE FROM gallery WHERE id = $imageIdEscaped")) {
+                        sendJsonResponse('success', null, "Image deleted successfully");
+                    } else {
+                        sendJsonResponse('error', null, "Failed to delete image record: " . $conn->error);
+                    }
+                } else {
+                    sendJsonResponse('error', null, "Image not found");
+                }
+            } else {
+                sendJsonResponse('error', null, "Valid image ID required");
+            }
+            break;
+
 
         default:
             http_response_code(400);

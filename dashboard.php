@@ -10,6 +10,7 @@
     }
 
     include 'db_connection.php';
+    include 'auth_validate.php';
 
     // Set the header for JSON response
     header('Content-Type: application/json');

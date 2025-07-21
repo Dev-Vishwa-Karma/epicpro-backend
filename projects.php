@@ -3,8 +3,15 @@
     header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
     header("Access-Control-Allow-Headers: Content-Type, Authorization");
     header("Access-Control-Allow-Credentials: true");
+    
+    if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+        http_response_code(200);
+        exit;
+    }
+
 
     include 'db_connection.php';
+    include 'auth_validate.php';
     require_once 'helpers.php';
 
     // Set the header for JSON response
@@ -16,7 +23,7 @@
         switch ($action) {
             case 'view':
                 // Get project_name filter from GET parameters if provided
-                $project_name_filter = isset($_GET['project_name']) ? trim($_GET['project_name']) : '';
+                $project_name_filter = isset($_GET['search']) ? trim($_GET['search']) : '';
 
                 if (isset($_GET['project_id']) && is_numeric($_GET['project_id']) && $_GET['project_id'] > 0) {
                     $project_id = (int) $_GET['project_id'];
@@ -37,8 +44,11 @@
                             p.team_member_ids
                         FROM projects p
                         LEFT JOIN clients c ON p.client_id = c.id
-                        WHERE p.id = $project_id
+                        WHERE p.id = $project_id AND c.status = 1
                     ";
+                    if (!isAdminCheck()) {
+                        $query .= " AND c.status = 1";
+                    }
 
                     // Add project name filter if set (case-insensitive partial match)
                     if (!empty($project_name_filter)) {
@@ -125,12 +135,15 @@
                             p.team_member_ids
                         FROM projects p
                         LEFT JOIN clients c ON p.client_id = c.id
-                        WHERE 1=1
                     ";
 
+                    if (!isAdminCheck()) {
+                        $query .= "  WHERE c.status = 1";
+                    }
+
                     // Role-based filtering
-                    if ($role === 'employee' && !empty($logged_in_employee_id)) {
-                        $query .= " AND p.id IN (SELECT project_id FROM project_assignments WHERE employee_id = $logged_in_employee_id)";
+                   if ($role === 'employee' && !empty($logged_in_employee_id)) {
+                        $query .= " AND p.is_active = 1 AND JSON_CONTAINS(p.team_member_ids, '\"$logged_in_employee_id\"')";
                     }
 
                     // Add project name filter if set
@@ -205,7 +218,7 @@
                 break;
                 
             case 'add':
-                // Validate and get POST data
+                // Ensure that the required variables are set
                 $logged_in_employee_id = $_POST['logged_in_employee_id'] ?? '';
                 $project_name = $_POST['project_name'] ?? '';
                 $project_description = $_POST['project_description'] ?? '';
@@ -216,70 +229,99 @@
                 $project_end_date = !empty($_POST['project_end_date']) ? $_POST['project_end_date'] : NULL;
                 $created_at = date('Y-m-d H:i:s');
                 $created_by = $_POST['logged_in_employee_id'] ?? '';
-                
+
+                // Ensure that required fields are present
                 if ($project_name && $project_technology && $team_members_id && $created_by) {
                     // Ensure team members are an array
                     if (!is_array($team_members_id)) {
-                        $team_members_id = explode(",", $team_members_id); 
+                        $team_members_id = explode(",", $team_members_id); // Convert to array if it's a comma-separated string
                     }
 
-                    // Insert the project directly with the team_member_ids as JSON
-                    $team_member_ids_json = json_encode($team_members_id); // Convert the team members array to JSON format
+                    // Convert team members array to JSON format
+                    $team_member_ids_json = json_encode($team_members_id);
 
-                    $insert_project_query = "INSERT INTO projects (client_id, name, description, technology, start_date, end_date, created_at, created_by, team_member_ids)
-                        VALUES ('$client_id', '$project_name', '$project_description', '$project_technology', '$project_start_date', '$project_end_date', '$created_at', '$created_by', '$team_member_ids_json')";
-                    
-                    if (mysqli_query($conn, $insert_project_query)) {
-                        // Get the last inserted project ID
-                        $project_id = mysqli_insert_id($conn);
-                        if (!$project_id) {
-                            echo json_encode(['error' => 'Failed to retrieve project ID after insertion']);
-                            exit();
-                        }
+                    // Prepare the SQL query using placeholders
+                    $insert_project_query = "
+                        INSERT INTO projects (client_id, name, description, technology, start_date, end_date, created_at, created_by, team_member_ids)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ";
 
-                        // Fetch client details
-                        $client_query = "SELECT name FROM clients WHERE id = '$client_id'";
-                        $client_result = mysqli_query($conn, $client_query);
-                        $client_data = mysqli_fetch_assoc($client_result);
-                        $client_name = $client_data['name'] ?? null;
+                    // Prepare the statement
+                    if ($stmt = mysqli_prepare($conn, $insert_project_query)) {
+                        // Bind the parameters to the prepared statement
+                        mysqli_stmt_bind_param(
+                            $stmt, 
+                            "issssssss", 
+                            $client_id, $project_name, $project_description, $project_technology, 
+                            $project_start_date, $project_end_date, $created_at, $created_by, $team_member_ids_json
+                        );
 
-                        // Fetch team member details
-                        $team_members = [];
-                        if (!empty($team_members_id)) {
-                            $team_ids = implode(',', $team_members_id); // Join IDs for the query
-                            $team_query = "SELECT id, first_name, last_name FROM employees WHERE id IN ($team_ids)";
-                            $team_result = mysqli_query($conn, $team_query);
-                            
-                            while ($member = mysqli_fetch_assoc($team_result)) {
-                                $team_members[] = [
-                                    'employee_id' => $member['id'],
-                                    'first_name' => $member['first_name'],
-                                    'last_name' => $member['last_name']
-                                ];
+                        // Execute the prepared statement
+                        if (mysqli_stmt_execute($stmt)) {
+                            // Get the last inserted project ID
+                            $project_id = mysqli_insert_id($conn);
+                            if (!$project_id) {
+                                echo json_encode(['error' => 'Failed to retrieve project ID after insertion']);
+                                exit();
                             }
+
+                            // Fetch client details using a prepared statement
+                            $client_query = "SELECT name FROM clients WHERE id = ?";
+                            if ($client_stmt = mysqli_prepare($conn, $client_query)) {
+                                mysqli_stmt_bind_param($client_stmt, "i", $client_id);
+                                mysqli_stmt_execute($client_stmt);
+                                mysqli_stmt_bind_result($client_stmt, $client_name);
+                                mysqli_stmt_fetch($client_stmt);
+                                mysqli_stmt_close($client_stmt);
+                            }
+
+                            // Fetch team member details using a prepared statement
+                            $team_members = [];
+                            if (!empty($team_members_id)) {
+                                $team_ids = implode(',', $team_members_id); // Join IDs for the query
+                                $team_query = "SELECT id, first_name, last_name FROM employees WHERE id IN ($team_ids)";
+                                
+                                if ($team_result = mysqli_query($conn, $team_query)) {
+                                    while ($member = mysqli_fetch_assoc($team_result)) {
+                                        $team_members[] = [
+                                            'employee_id' => $member['id'],
+                                            'first_name' => $member['first_name'],
+                                            'last_name' => $member['last_name']
+                                        ];
+                                    }
+                                }
+                            }
+
+                            // Prepare the response data
+                            $newProjectData = [
+                                'project_id' => $project_id,
+                                'project_name' => $project_name,
+                                'project_description' => $project_description,
+                                'project_technology' => $project_technology,
+                                'client_name' => $client_name,
+                                'project_is_active' => 1,
+                                'team_members' => $team_members,
+                                'team_member_ids' => $team_member_ids_json, // Store team member IDs as JSON
+                                'project_start_date' => $project_start_date,
+                                'project_end_date' => $project_end_date,
+                                'created_at' => $created_at,
+                                'created_by' => $created_by
+                            ];
+
+                            echo json_encode(['success' => 'Project added successfully', 'newProject' => $newProjectData]);
+                        } else {
+                            echo json_encode(['error' => 'Failed to add project', 'details' => mysqli_error($conn)]);
                         }
 
-                        $newProjectData = [
-                            'project_id' => $project_id,
-                            'project_name' => $project_name,
-                            'project_description' => $project_description,
-                            'project_technology' => $project_technology,
-                            'client_name' => $client_name,
-                            'team_members' => $team_members,
-                            'team_member_ids' => $team_member_ids_json, // Store team member IDs as JSON
-                            'project_start_date' => $project_start_date,
-                            'project_end_date' => $project_end_date,
-                            'created_at' => $created_at,
-                            'created_by' => $created_by
-                        ];
-
-                        echo json_encode(['success' => 'Project added successfully', 'newProject' => $newProjectData]);
+                        // Close the statement
+                        mysqli_stmt_close($stmt);
                     } else {
-                        echo json_encode(['error' => 'Failed to add project', 'details' => mysqli_error($conn)]);
+                        echo json_encode(['error' => 'Failed to prepare the SQL query']);
                     }
                 } else {
                     echo json_encode(['error' => 'Missing required fields']);
                 }
+
                 break;
 
             case 'edit':
@@ -305,70 +347,101 @@
                     // Convert the team member IDs to JSON format
                     $team_member_ids_json = json_encode($team_members_id);
 
-                    // Prepare the SQL UPDATE query
-                    $update_project_query = "UPDATE projects 
-                                            SET client_id = '$client_id', 
-                                                name = '$project_name', 
-                                                description = '$project_description', 
-                                                technology = '$project_technology', 
-                                                start_date = '$project_start_date', 
-                                                end_date = '$project_end_date', 
-                                                updated_at = '$updated_at', 
-                                                updated_by = '$updated_by',
-                                                team_member_ids = '$team_member_ids_json'
-                                            WHERE id = '$project_id'";
+                    // Prepare the SQL UPDATE query using placeholders
+                    $update_project_query = "
+                        UPDATE projects 
+                        SET client_id = ?, 
+                            name = ?, 
+                            description = ?, 
+                            technology = ?, 
+                            start_date = ?, 
+                            end_date = ?, 
+                            updated_at = ?, 
+                            updated_by = ?, 
+                            team_member_ids = ? 
+                        WHERE id = ?
+                    ";
 
-                    if (mysqli_query($conn, $update_project_query)) {
-                        // Fetch updated project details
-                        $project_query = "SELECT * FROM projects WHERE id = '$project_id'";
-                        $project_result = mysqli_query($conn, $project_query);
-                        $project_data = mysqli_fetch_assoc($project_result);
+                    // Prepare the statement
+                    if ($stmt = mysqli_prepare($conn, $update_project_query)) {
+                        // Bind parameters to the prepared statement
+                        mysqli_stmt_bind_param(
+                            $stmt, 
+                            "issssssssi", 
+                            $client_id, $project_name, $project_description, $project_technology, 
+                            $project_start_date, $project_end_date, $updated_at, $updated_by, 
+                            $team_member_ids_json, $project_id
+                        );
 
-                        // Fetch client details
-                        $client_query = "SELECT name FROM clients WHERE id = '$client_id'";
-                        $client_result = mysqli_query($conn, $client_query);
-                        $client_data = mysqli_fetch_assoc($client_result);
-                        $client_name = $client_data['name'] ?? null;
+                        // Execute the prepared statement
+                        if (mysqli_stmt_execute($stmt)) {
+                            // Fetch updated project details
+                            $project_query = "SELECT * FROM projects WHERE id = ?";
+                            if ($project_stmt = mysqli_prepare($conn, $project_query)) {
+                                mysqli_stmt_bind_param($project_stmt, "i", $project_id);
+                                mysqli_stmt_execute($project_stmt);
+                                $project_result = mysqli_stmt_get_result($project_stmt);
+                                $project_data = mysqli_fetch_assoc($project_result);
 
-                        // Decode the team member IDs from JSON
-                        $team_member_ids = json_decode($project_data['team_member_ids'], true); // Returns an array
-                        // Fetch team member details
-                        $team_members = [];
-                        if (!empty($team_member_ids)) {
-                            $team_ids = implode(',', $team_member_ids); // Join IDs for the query
-                            $team_query = "SELECT id, first_name, last_name FROM employees WHERE id IN ($team_ids)";
-                            $team_result = mysqli_query($conn, $team_query);
-                            
-                            while ($member = mysqli_fetch_assoc($team_result)) {
-                                $team_members[] = [
-                                    'employee_id' => $member['id'],
-                                    'first_name' => $member['first_name'],
-                                    'last_name' => $member['last_name']
+                                // Fetch client details
+                                $client_query = "SELECT name FROM clients WHERE id = ?";
+                                if ($client_stmt = mysqli_prepare($conn, $client_query)) {
+                                    mysqli_stmt_bind_param($client_stmt, "i", $client_id);
+                                    mysqli_stmt_execute($client_stmt);
+                                    mysqli_stmt_bind_result($client_stmt, $client_name);
+                                    mysqli_stmt_fetch($client_stmt);
+                                    mysqli_stmt_close($client_stmt);
+                                }
+
+                                // Decode the team member IDs from JSON
+                                $team_member_ids = json_decode($project_data['team_member_ids'], true); // Returns an array
+                                
+                                // Fetch team member details
+                                $team_members = [];
+                                if (!empty($team_member_ids)) {
+                                    $team_ids = implode(',', $team_member_ids); // Join IDs for the query
+                                    $team_query = "SELECT id, first_name, last_name FROM employees WHERE id IN ($team_ids)";
+                                    if ($team_result = mysqli_query($conn, $team_query)) {
+                                        while ($member = mysqli_fetch_assoc($team_result)) {
+                                            $team_members[] = [
+                                                'employee_id' => $member['id'],
+                                                'first_name' => $member['first_name'],
+                                                'last_name' => $member['last_name']
+                                            ];
+                                        }
+                                    }
+                                }
+
+                                // Prepare the response data
+                                $updatedProjectData = [
+                                    'project_id' => $project_id,
+                                    'project_name' => $project_name,
+                                    'project_description' => $project_description,
+                                    'project_technology' => $project_technology,
+                                    'client_name' => $client_name,
+                                    'team_members' => $team_members,
+                                    'team_member_ids' => $team_member_ids_json,
+                                    'project_start_date' => $project_start_date,
+                                    'project_end_date' => $project_end_date,
+                                    'updated_at' => $updated_at,
+                                    'updated_by' => $updated_by
                                 ];
+
+                                echo json_encode(['success' => 'Project updated successfully', 'updatedProject' => $updatedProjectData]);
                             }
+                        } else {
+                            echo json_encode(['error' => 'Failed to update project', 'details' => mysqli_error($conn)]);
                         }
 
-                        $updatedProjectData = [
-                            'project_id' => $project_id,
-                            'project_name' => $project_name,
-                            'project_description' => $project_description,
-                            'project_technology' => $project_technology,
-                            'client_name' => $client_name,
-                            'team_members' => $team_members,
-                            'team_member_ids' => $team_member_ids_json,
-                            'project_start_date' => $project_start_date,
-                            'project_end_date' => $project_end_date,
-                            'updated_at' => $updated_at,
-                            'updated_by' => $updated_by
-                        ];
-
-                        echo json_encode(['success' => 'Project updated successfully', 'updatedProject' => $updatedProjectData]);
+                        // Close the statement
+                        mysqli_stmt_close($stmt);
                     } else {
-                        echo json_encode(['error' => 'Failed to update project', 'details' => mysqli_error($conn)]);
+                        echo json_encode(['error' => 'Failed to prepare the SQL query']);
                     }
                 } else {
                     echo json_encode(['error' => 'Missing required fields']);
                 }
+
                 break;
             
             case 'update_active_status':

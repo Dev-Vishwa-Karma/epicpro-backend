@@ -12,7 +12,7 @@ ini_set('display_errors', '1');
     }
 
     include 'db_connection.php';
-
+    include 'auth_validate.php';
     // Set the header for JSON response
     header('Content-Type: application/json');
     
@@ -438,29 +438,31 @@ ini_set('display_errors', '1');
                         $created_by = 0; // System or admin ID
 
                         foreach ($tasks as $task) {
-                            $title = $conn->real_escape_string($task['title']);
-                            $due_date = $conn->real_escape_string($task['due_date']);
+                            if(date('Y-m-d', strtotime($task['created_at'])) !== $today){
+                                $title = $conn->real_escape_string($task['title']);
+                                $due_date = $conn->real_escape_string($task['due_date']);
 
-                            $notification_body = $conn->real_escape_string("Task due on: $title (Due: $due_date)");
-                            $notification_title = $conn->real_escape_string("Task Due");
-                            $notification_type = $conn->real_escape_string("task_due");
+                                $notification_body = $conn->real_escape_string("Task due on: $title (Due: $due_date)");
+                                $notification_title = $conn->real_escape_string("Task Due");
+                                $notification_type = $conn->real_escape_string("task_due");
 
-                            // Check for duplicate notification
-                            $checkQuery = "
-                                SELECT * FROM notifications 
-                                WHERE employee_id = $employee_id 
-                                AND body = '$notification_body'
-                                AND DATE(created_at) = CURDATE()
-                                LIMIT 1
-                            ";
-                            $checkResult = $conn->query($checkQuery);
-
-                            if ($checkResult && $checkResult->num_rows == 0) {
-                                $insertQuery = "
-                                    INSERT INTO notifications (employee_id, body, title, `type`, created_by)
-                                    VALUES ($employee_id, '$notification_body', '$notification_title', '$notification_type', $created_by)
+                                // Check for duplicate notification
+                                $checkQuery = "
+                                    SELECT * FROM notifications 
+                                    WHERE employee_id = $employee_id 
+                                    AND body = '$notification_body'
+                                    AND DATE(created_at) = CURDATE()
+                                    LIMIT 1
                                 ";
-                                $conn->query($insertQuery);
+                                $checkResult = $conn->query($checkQuery);
+
+                                if ($checkResult && $checkResult->num_rows == 0) {
+                                    $insertQuery = "
+                                        INSERT INTO notifications (employee_id, body, title, `type`, created_by)
+                                        VALUES ($employee_id, '$notification_body', '$notification_title', '$notification_type', $created_by)
+                                    ";
+                                    $conn->query($insertQuery);
+                                }
                             }
                         }
                     }

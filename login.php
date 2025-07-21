@@ -60,8 +60,9 @@ if (isset($action)) {
 
                 $dt = new DateTime();
                 $dt->add(new DateInterval('PT12H'));
-                    
-                $result['access_token'] = base64_encode($result['id'].'_'.$result['email']. '_'.$result['role'].'_'.$dt->format('Y-m-d H:i:s'));
+                
+                $result['access_token'] = base64_encode($result['id'].'|'.$result['email']. '|'.$result['role'].'|'.$dt->format('Y-m-d H:i:s'));
+                
                 $result['token_type'] = 'Bearer';
 
                 sendJsonResponse('success', $result, 'Login successful!');

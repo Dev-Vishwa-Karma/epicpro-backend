@@ -1,7 +1,7 @@
 <?php
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, X-Requested-With");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
 
 // Handle preflight (OPTIONS) requests
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
@@ -12,6 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
 
 // Include the database connection
 include 'db_connection.php';
+include 'auth_validate.php';
 
 // Helper function to send JSON response
 function sendJsonResponse($status, $data = null, $message = null) {
@@ -106,7 +107,7 @@ if (isset($action)) {
 
         // Edit existing user case
         case 'edit':
-            if (isset($_GET['user_id']) && validateId($_GET['user_id'])) {
+            if (isset($_GET['user_id'])) {
                 $id = $_GET['user_id'];
 
                 $first_name = isset($_POST['first_name']) ? $_POST['first_name'] : null;
