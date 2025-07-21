@@ -46,6 +46,9 @@
                         LEFT JOIN clients c ON p.client_id = c.id
                         WHERE p.id = $project_id AND c.status = 1
                     ";
+                    if (!isAdminCheck()) {
+                        $query .= " AND c.status = 1";
+                    }
 
                     // Add project name filter if set (case-insensitive partial match)
                     if (!empty($project_name_filter)) {
@@ -132,8 +135,11 @@
                             p.team_member_ids
                         FROM projects p
                         LEFT JOIN clients c ON p.client_id = c.id
-                        WHERE c.status = 1
                     ";
+
+                    if (!isAdminCheck()) {
+                        $query .= "  WHERE c.status = 1";
+                    }
 
                     // Role-based filtering
                    if ($role === 'employee' && !empty($logged_in_employee_id)) {

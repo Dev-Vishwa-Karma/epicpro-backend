@@ -36,6 +36,17 @@ function decode_token($auth) {
 
 function isAdmin()
 {
+    if(!isAdminCheck()){
+        http_response_code(403);
+        echo json_encode(['status' => 'error', 'message' => "You don't have permission to access this"]);
+        exit;
+    }else{
+        return true;
+    }
+}
+
+function isAdminCheck()
+{
     $headers = getallheaders();
     $auth = $headers['Authorization'] ?? null;
     $token_info = decode_token($auth);
@@ -43,9 +54,6 @@ function isAdmin()
         if (in_array($token_info[2], ['super_admin', 'admin'])) {
             return true;
         }
-
-        http_response_code(403);
-        echo json_encode(['status' => 'error', 'message' => "You don't have permission to access this"]);
-        exit;
     }
+    return false;
 }
