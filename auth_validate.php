@@ -26,7 +26,7 @@ if ($auth) {
 function decode_token($auth) {
     $authorization = explode(' ', $auth);
     if ($authorization[0] == 'Bearer' && isset($authorization[1])) {
-        return explode('_', base64_decode($authorization[1], true));
+        return explode('|', base64_decode($authorization[1], true));
     } else {
         http_response_code(401);
         echo json_encode(['status' => 'error', 'message' => 'Token type invalid']);
