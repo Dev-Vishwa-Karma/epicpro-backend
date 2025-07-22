@@ -148,9 +148,10 @@ if (isset($action)) {
             break;
 
         case 'get_notifications':
+            $page = isset($_GET['page']) && is_numeric($_GET['page']) && $_GET['page'] > 0 ? (int)$_GET['page'] : 1;
             $employee_id = isset($_GET['user_id']) ? $_GET['user_id'] : null;
             $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10; 
-            $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
+            $offset = ($page - 1) * $limit;
 
             if ($employee_id === null) {
                 sendJsonResponse('error', null, 'User ID is required');
