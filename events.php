@@ -80,40 +80,71 @@ if (isset($action)) {
             break;
 
         case 'add':
-                // Get form data
-                $event_name = $_POST['event_name'];
-                $event_date = $_POST['event_date'];
-                $event_type = $_POST['event_type'];
-                $created_by = isset($_POST['created_by']) ? $_POST['created_by'] : null;
+            // Get form data
+            $event_name = $_POST['event_name'];
+            $event_date = $_POST['event_date'];
+            $event_type = $_POST['event_type'];
+            $created_by = isset($_POST['created_by']) ? $_POST['created_by'] : null;
 
-                // Validate the data (you can add additional validation as needed)
-                if (empty($event_name) || empty($event_date) || empty($event_type)) {
-                    sendJsonResponse('error', null, "All fields are required");
-                    exit;
-                }
+            // Validate the data (you can add additional validation as needed)
+            if (empty($event_name) || empty($event_date) || empty($event_type)) {
+                sendJsonResponse('error', null, "All fields are required");
+                exit;
+            }
 
-                // Prepare the insert query
-                $stmt = $conn->prepare("INSERT INTO events (event_name, event_date, event_type, created_by) VALUES (?, ?, ?, ?)");
+            // Prepare the insert query for the event
+            $stmt = $conn->prepare("INSERT INTO events (event_name, event_date, event_type, created_by) VALUES (?, ?, ?, ?)");
+            
+            // Bind the parameters
+            $stmt->bind_param("sssi", $event_name, $event_date, $event_type, $created_by);
+
+            // Execute the query
+            if ($stmt->execute()) {
+                $id = $conn->insert_id;
+
+                // Get the list of all employees, excluding the one who created the event
+                $notif_sql = "SELECT id, first_name, last_name FROM employees WHERE id != ?";
+                $notif_stmt = $conn->prepare($notif_sql);
                 
-                // Bind the parameters
-                $stmt->bind_param("sssi", $event_name, $event_date, $event_type, $created_by);
-
-                // Execute the query
-                if ($stmt->execute()) {
-                    $id = $conn->insert_id;
-
-                    $addEventData = [
-                        'id' => $id,
-                        'event_name' => $event_name,
-                        'event_date' => $event_date,  
-                        'event_type' => $event_type,
-                        'created_by' => $created_by
-                    ];
-                    // If successful, send success response
-                    sendJsonResponse('success', $addEventData, "Event added successfully");
-                } else {
-                    sendJsonResponse('error', null, "Failed to add Event $stmt->error");
+                // Check if the prepare statement failed
+                if ($notif_stmt === false) {
+                    die('SQL Error: ' . $conn->error);
                 }
+
+                $notif_stmt->bind_param("i", $created_by);
+                $notif_stmt->execute();
+                $result = $notif_stmt->get_result();
+
+                // Send notifications to all employees
+                while ($employee = $result->fetch_assoc()) {
+                    $notification_body = $conn->real_escape_string("$event_name has been on $event_date.");
+                    $notification_title = "New Event";
+                    $notification_type = "event_added";
+                    $notification_recipient = $employee['id']; // Notify the current employee
+
+                    $notif_insert_sql = "
+                        INSERT INTO notifications 
+                        (employee_id, body, title, type) 
+                        VALUES ($notification_recipient, '$notification_body', '$notification_title', '$notification_type')
+                    ";
+
+                    $conn->query($notif_insert_sql);
+                }
+
+                // Prepare the response data
+                $addEventData = [
+                    'id' => $id,
+                    'event_name' => $event_name,
+                    'event_date' => $event_date,  
+                    'event_type' => $event_type,
+                    'created_by' => $created_by
+                ];
+
+                // If successful, send success response
+                sendJsonResponse('success', $addEventData, "Event added successfully");
+            } else {
+                sendJsonResponse('error', null, "Failed to add Event: $stmt->error");
+            }
             break;
 
         case 'edit':

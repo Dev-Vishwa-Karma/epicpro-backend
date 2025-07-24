@@ -220,7 +220,7 @@ ini_set('display_errors', '1');
                                     // Insert notification
                                     $notification_body = $conn->real_escape_string("New task assigned: $title due on $due_date.");
                                     $notification_title = "New Todo Assigned";
-                                    $notification_type = "task";
+                                    $notification_type = "task_added";
                                     
                                     $notif_sql = "
                                         INSERT INTO notifications 
@@ -268,7 +268,7 @@ ini_set('display_errors', '1');
                             // Insert notification
                             $notification_body = $conn->real_escape_string("New task assigned: $title due on $due_date.");
                             $notification_title = "New Todo Assigned";
-                            $notification_type = "task";
+                            $notification_type = "task_added";
 
                             $notif_sql = "
                                 INSERT INTO notifications 
@@ -343,7 +343,7 @@ ini_set('display_errors', '1');
                     // Optional: Update notification or send a new one
                     $notification_body = $conn->real_escape_string("Task updated: $title now due on $due_date.");
                     $notification_title = "Todo Updated";
-                    $notification_type = "task";
+                    $notification_type = "task_updated";
 
                     $notif_sql = "
                         INSERT INTO notifications 
@@ -377,26 +377,66 @@ ini_set('display_errors', '1');
                 break;
                 
             case 'update_status':
-                // Validate and get POST data
                 $id = $_POST['id'] ?? null;
                 $status = $_POST['status'] ?? null;
+                $to_do_created_by = $_POST['to_do_created_by'] ?? null; // Who created the task
+                $to_do_created_for = $_POST['to_do_created_for'] ?? null; // Who the task is assigned to
+                $logged_in_employee_role =  $_POST['logged_in_employee_role'] ?? null;
+                $logged_in_employee_name =  $_POST['logged_in_employee_name'] ?? null;
                 $updated_at = date('Y-m-d H:i:s');
                 $updated_by = null;
 
                 if (!$id || !$status) {
-                    sendJsonResponse('error', null, 'Task id required');
+                    sendJsonResponse('error', null, 'Task id and status are required');
                 }
 
-                $stmt = $conn->prepare("UPDATE project_todo SET status = ?,  updated_at = ?, updated_by = ? WHERE id = ?");
+                $stmt = $conn->prepare("UPDATE project_todo SET status = ?, updated_at = ?, updated_by = ? WHERE id = ?");
                 $stmt->bind_param("ssii", $status, $updated_at, $updated_by, $id);
+
                 if ($stmt->execute()) {
                     $stmt->close();
+                  
+                    if ($status === 'completed') {
+                        // Notify the relevant person based on who updated the task
+                        if ($logged_in_employee_role == 'employee') {
+                            // Employee completes the task, notify the admin
+                            $notification_body = $conn->real_escape_string("Task completed by $logged_in_employee_name. Task ID: $id.");
+                            $notification_title = "Task Completed by $logged_in_employee_name";
+                            $notification_type = "task_completed";
+                            $notification_recipient = $to_do_created_by; // Notify the admin (the creator)
+
+                            $notif_sql = "
+                                INSERT INTO notifications 
+                                (employee_id, body, title, type) 
+                                VALUES ($notification_recipient, '$notification_body', '$notification_title', '$notification_type')
+                            ";
+                            $conn->query($notif_sql);
+                        } elseif ($logged_in_employee_role == 'super_admin' || $logged_in_employee_role == 'admin') {
+                             
+                            // Admin completes the task, notify the employee
+                            $notification_body = $conn->real_escape_string("Task completed by admin. Task ID: $id.");
+                            $notification_title = "Task Completed by Admin";
+                            $notification_type = "task_completed";
+                            $notification_recipient = $to_do_created_for; // Notify the employee (the assignee)
+
+                            $notif_sql = "
+                                INSERT INTO notifications 
+                                (employee_id, body, title, type) 
+                                VALUES ($notification_recipient, '$notification_body', '$notification_title', '$notification_type')
+                            ";
+
+                            $conn->query($notif_sql);
+                        }
+                    }
+
                     sendJsonResponse('success', 'Todo status updated successfully');
-                }  else {
+                } else {
                     http_response_code(500);
-                    sendJsonResponse('error', 'Failed to add todo', ['details' => $stmt->error]);
+                    sendJsonResponse('error', 'Failed to update todo status', ['details' => $stmt->error]);
                 }
+
                 break;
+
             case 'due_today_check':
                 $employee_id = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;
 
