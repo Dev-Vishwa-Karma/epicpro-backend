@@ -34,30 +34,44 @@ if (isset($action)) {
     switch ($action) {
         case 'view':
             // Determine the employee ID
-            if (isset($_GET['employee_id']) && is_numeric($_GET['employee_id']) && $_GET['employee_id'] > 0) {
-                $employeeId = (int)$_GET['employee_id'];
-            } elseif (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
-                $employeeId = (int)$_GET['id'];
+            if (isset($_GET['user_id']) && is_numeric($_GET['user_id']) && $_GET['user_id'] > 0) {
+                $employeeId = (int)$_GET['user_id'];
+                $employeeIdCondition = "AND employee_id = ?";
+                $params = [$employeeId];
+                $paramTypes = "i";
             } else {
-                sendJsonResponse('error', null, 'Invalid or missing employee ID');
-                break;
+                $employeeIdCondition = "";
+                $params = [];
+                $paramTypes = "";
             }
 
             // Handle pagination inputs
             $page = isset($_GET['page']) && is_numeric($_GET['page']) && $_GET['page'] > 0 ? (int)$_GET['page'] : 1;
-            $limit = isset($_GET['limit']) && is_numeric($_GET['limit']) && $_GET['limit'] > 0 ? (int)$_GET['limit'] : 10;
+            $limit = isset($_GET['limit']) && is_numeric($_GET['limit']) && $_GET['limit'] > 0 ? (int)$_GET['limit'] : null;
             $offset = ($page - 1) * $limit;
-
+            
             // Handle sort order
             $sortOrder = 'DESC'; // Default to newest
             if (isset($_GET['sortOrder']) && in_array(strtoupper($_GET['sortOrder']), ['ASC', 'DESC'])) {
                 $sortOrder = strtoupper($_GET['sortOrder']);
             }
 
-            // Prepare SELECT statement with ORDER, LIMIT, OFFSET
-            $query = "SELECT * FROM gallery WHERE employee_id = ? ORDER BY created_at $sortOrder LIMIT ? OFFSET ?";
+            // Start the base query
+            $query = "SELECT * FROM gallery WHERE 1=1 $employeeIdCondition";
+
+            // Add pagination to query if limit and offset are set
+            if ($limit !== null && $offset !== null) {
+                $query .= " ORDER BY created_at $sortOrder LIMIT ? OFFSET ?";
+                // Add pagination parameters to the params array
+                array_push($params, $limit, $offset);
+                $paramTypes .= "ii";
+            } else {
+                $query .= " ORDER BY created_at $sortOrder";
+            }
+
+            // Prepare and execute query
             $stmt = $conn->prepare($query);
-            $stmt->bind_param("iii", $employeeId, $limit, $offset);
+            $stmt->bind_param($paramTypes, ...$params);
 
             if ($stmt->execute()) {
                 $result = $stmt->get_result();
@@ -71,7 +85,7 @@ if (isset($action)) {
                 sendJsonResponse('error', null, "Failed to execute query: $stmt->error");
             }
             break;
-            
+
         case 'add':
             // Get form data
             $employee_id = isset($_POST['employee_id']) ? $_POST['employee_id'] : null;
