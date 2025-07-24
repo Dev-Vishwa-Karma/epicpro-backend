@@ -177,19 +177,19 @@ if (isset($action)) {
 
             break;
 
-        case 'get_punch_status':
-            if (isset($_GET['user_id']) && is_numeric($_GET['user_id']) && $_GET['user_id'] > 0) {
+            case 'get_punch_status':
+                if (isset($_GET['user_id']) && is_numeric($_GET['user_id']) && $_GET['user_id'] > 0) {
 
-                $stmt = $conn->prepare("SELECT * FROM employee_attendance WHERE employee_id = ? AND status = 'active' LIMIT 1");
-                $stmt->bind_param("i", $_GET['user_id']);
-                $stmt->execute();
-                $result = $stmt->get_result();
-                if ($result->num_rows > 0) {
-                    sendJsonResponse('success', null, 'This employee is already punched in.');
-                } else {
-                    sendJsonResponse('error', null, 'This employee is not punched in.');
+                    $stmt = $conn->prepare("SELECT * FROM employee_attendance WHERE employee_id = ? AND status = 'active' LIMIT 1");
+                    $stmt->bind_param("i", $_GET['user_id']);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    if ($result->num_rows > 0) {
+                        sendJsonResponse('success', null, 'This employee is already punched in.');
+                    } else {
+                        sendJsonResponse('error', null, 'This employee is not punched in.');
+                    }
                 }
-            }
             break;
         
             case 'add-report-by-user':
@@ -240,12 +240,10 @@ if (isset($action)) {
             
                 break;
             
-        case 'update-report-by-user';
-            // Capture POST data
+        case 'update-report-by-user':
             if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
-                $id = $_GET['id'];
-                // Validate and get POST data
-                $note = $_POST['note'] ? $_POST['note'] : null;
+                $id = (int)$_GET['id'];
+                $note = $_POST['note'] ?? null;
                 $report = $_POST['report'];
                 $start_time = $_POST['start_time'];
                 $end_time = $_POST['end_time'];
@@ -253,10 +251,21 @@ if (isset($action)) {
                 $todays_working_hours = $_POST['todays_working_hours'];
                 $todays_total_hours = $_POST['todays_total_hours'];
                 $updated_at = date('Y-m-d H:i:s');
+                $logged_in_employee_role =  $_POST['logged_in_employee_role'] ?? null;
 
-                // Prepare the SQL update statement
+                $logged_in_employee_id = isset($_POST['logged_in_employee_id']) ? (int)$_POST['logged_in_employee_id'] : null;
+                $logged_in_user_role = $_POST['logged_in_employee_role'] ?? "";
+
+                $existingReportRes = $conn->query("SELECT note, employee_id FROM reports WHERE id = $id");
+                if (!$existingReportRes || $existingReportRes->num_rows === 0) {
+                    sendJsonResponse('error', null, 'Report not found');
+                    exit;
+                }
+                $existingData = $existingReportRes->fetch_assoc();
+                $old_note = $existingData['note'] ?? '';
+                $employee_id = $existingData['employee_id'];
+
                 $stmt = $conn->prepare("UPDATE reports SET note = ?, report = ?, start_time = ?, end_time = ?, break_duration_in_minutes = ?, total_working_hours = ?, total_hours = ?, updated_at = ? WHERE id = ?");
-
                 if (!$stmt) {
                     sendJsonResponse('error', null, 'Prepare failed: ' . $conn->error);
                     exit;
@@ -264,9 +273,31 @@ if (isset($action)) {
 
                 $stmt->bind_param("ssssssssi", $note, $report, $start_time, $end_time, $break_duration_in_minutes, $todays_working_hours, $todays_total_hours, $updated_at, $id);
 
-                // Execute the statement and check for success
                 if ($stmt->execute()) {
+                    $note_trimmed = trim($note ?? '');
+                    $old_note_trimmed = trim($old_note ?? '');
 
+                    if (
+                        !empty($note_trimmed) && 
+                        $note_trimmed !== $old_note_trimmed &&
+                        in_array(strtolower($logged_in_user_role), ['admin', 'super_admin'])
+                    ) {
+                        
+                        $notification_body = $conn->real_escape_string("Note:.$note_trimmed.");
+                        $notification_title = "Admin Note";
+                        $notification_type = "report_note";
+
+                        $notif_sql = "
+                            INSERT INTO notifications (
+                                employee_id, body, title, `type`
+                            ) VALUES (
+                                $employee_id, '$notification_body', '$notification_title', '$notification_type'
+                            )
+                        ";
+                       
+                        $conn->query($notif_sql); // optional: check for failure
+                    }
+                        
                     $updatedReportData = [
                         'id' => $id,
                         'employee_id' => $employee_id,
@@ -281,15 +312,15 @@ if (isset($action)) {
                     ];
                     sendJsonResponse('success', $updatedReportData, 'Report has been updated successfully.');
                 } else {
-                    sendJsonResponse('error', null, 'Failed to update report'. $stmt->error);
+                    sendJsonResponse('error', null, 'Failed to update report: ' . $stmt->error);
                 }
-                exit;
+
             } else {
                 http_response_code(400);
                 sendJsonResponse('error', null, 'Invalid Report ID');
-                exit;
             }
             break;
+
 
         default:
             sendJsonResponse('error', null, 'Invalid action');
