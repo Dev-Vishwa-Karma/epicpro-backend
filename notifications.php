@@ -171,7 +171,7 @@ if (isset($action)) {
                         notifications.created_at
                     FROM notifications
                     LEFT JOIN employees ON notifications.employee_id = employees.id
-                    WHERE employees.role = 'employee'"; // Filter by role
+                    WHERE 1=1";
 
             // Apply employee_id filter if it's provided
             if ($employee_id !== null) {
@@ -256,116 +256,116 @@ if (isset($action)) {
                 sendJsonResponse('error', null, 'Invalid user ID');
             }
             break;
-            case 'add':
-                $title = isset($_POST['title']) ? $_POST['title'] : null;
-                $body = isset($_POST['body']) ? $_POST['body'] : null;
-                $type = isset($_POST['type']) ? $_POST['type'] : null;
-                $read = isset($_POST['read']) ? $_POST['read'] : 0; 
-                $employee_id = isset($_POST['employee_id']) ? $_POST['employee_id'] : null;
-                $created_at = date('Y-m-d H:i:s');
-                $updated_at = $created_at;
+        //     case 'add':
+        //         $title = isset($_POST['title']) ? $_POST['title'] : null;
+        //         $body = isset($_POST['body']) ? $_POST['body'] : null;
+        //         $type = isset($_POST['type']) ? $_POST['type'] : null;
+        //         $read = isset($_POST['read']) ? $_POST['read'] : 0; 
+        //         $employee_id = isset($_POST['employee_id']) ? $_POST['employee_id'] : null;
+        //         $created_at = date('Y-m-d H:i:s');
+        //         $updated_at = $created_at;
                 
-                // Validate required fields
-                if ($title && $body && $type) {
-                    // Prepare the SQL insert statement
-                    $stmt = $conn->prepare("INSERT INTO notifications (employee_id, title, body, `type`, `read`, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                    $stmt->bind_param("ssssiss", $employee_id, $title, $body, $type, $read, $created_at, $updated_at);
+        //         // Validate required fields
+        //         if ($title && $body && $type) {
+        //             // Prepare the SQL insert statement
+        //             $stmt = $conn->prepare("INSERT INTO notifications (employee_id, title, body, `type`, `read`, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        //             $stmt->bind_param("ssssiss", $employee_id, $title, $body, $type, $read, $created_at, $updated_at);
 
-                    // Execute the statement and check for success
-                    if ($stmt->execute()) {
-                        $newNotificationData = [
-                            'id' => $stmt->insert_id,
-                            'employee_id' => $employee_id,
-                            'title' => $title,
-                            'body' => $body,
-                            'type' => $type,
-                            'read' => $read,
-                            'created_at' => $created_at,
-                            'updated_at' => $updated_at
-                        ];
+        //             // Execute the statement and check for success
+        //             if ($stmt->execute()) {
+        //                 $newNotificationData = [
+        //                     'id' => $stmt->insert_id,
+        //                     'employee_id' => $employee_id,
+        //                     'title' => $title,
+        //                     'body' => $body,
+        //                     'type' => $type,
+        //                     'read' => $read,
+        //                     'created_at' => $created_at,
+        //                     'updated_at' => $updated_at
+        //                 ];
 
-                        echo json_encode(['success' => 'Notification added successfully', 'newNotification' => $newNotificationData]);
-                    } else {
-                        // If the insert fails, return an error with the details
-                        http_response_code(500);
-                        echo json_encode(['error' => 'Failed to add notification', 'details' => $stmt->error]);
-                    }
-                } else {
-                    // Missing required fields
-                    http_response_code(400);
-                    echo json_encode(['error' => 'Missing required fields']);
-                }
-        break;
+        //                 echo json_encode(['success' => 'Notification added successfully', 'newNotification' => $newNotificationData]);
+        //             } else {
+        //                 // If the insert fails, return an error with the details
+        //                 http_response_code(500);
+        //                 echo json_encode(['error' => 'Failed to add notification', 'details' => $stmt->error]);
+        //             }
+        //         } else {
+        //             // Missing required fields
+        //             http_response_code(400);
+        //             echo json_encode(['error' => 'Missing required fields']);
+        //         }
+        // break;
 
-        case 'edit':
-            // Validate and get POST data
-            $notification_id = $_POST['id'] ?? '';
-            $title = $_POST['title'] ?? '';
-            $body = $_POST['body'] ?? '';
-            $type = $_POST['type'] ?? '';
-            $read = $_POST['read'] ?? '';
-            $employee_id = $_POST['employee_id'] ?? ''; 
+        // case 'edit':
+        //     // Validate and get POST data
+        //     $notification_id = $_POST['id'] ?? '';
+        //     $title = $_POST['title'] ?? '';
+        //     $body = $_POST['body'] ?? '';
+        //     $type = $_POST['type'] ?? '';
+        //     $read = $_POST['read'] ?? '';
+        //     $employee_id = $_POST['employee_id'] ?? ''; 
 
-            // Validate notification_id
-            if (empty($notification_id) || !is_numeric($notification_id) || $notification_id <= 0) {
-                http_response_code(400);
-                echo json_encode(['error' => 'Invalid or missing Notification ID']);
-                exit;
-            }
+        //     // Validate notification_id
+        //     if (empty($notification_id) || !is_numeric($notification_id) || $notification_id <= 0) {
+        //         http_response_code(400);
+        //         echo json_encode(['error' => 'Invalid or missing Notification ID']);
+        //         exit;
+        //     }
 
-            // Prepare the SQL UPDATE query using placeholders
-            $update_query = "
-                UPDATE notifications 
-                SET employee_id = ?, title = ?, body = ?, type = ?, `read` = ?
-                WHERE id = ?
-            ";
+        //     // Prepare the SQL UPDATE query using placeholders
+        //     $update_query = "
+        //         UPDATE notifications 
+        //         SET employee_id = ?, title = ?, body = ?, type = ?, `read` = ?
+        //         WHERE id = ?
+        //     ";
 
-            // Prepare the statement
-            if ($stmt = mysqli_prepare($conn, $update_query)) {
-                // Bind parameters to the prepared statement
-                mysqli_stmt_bind_param($stmt, "sssssi", $employee_id, $title, $body, $type, $read, $notification_id);
+        //     // Prepare the statement
+        //     if ($stmt = mysqli_prepare($conn, $update_query)) {
+        //         // Bind parameters to the prepared statement
+        //         mysqli_stmt_bind_param($stmt, "sssssi", $employee_id, $title, $body, $type, $read, $notification_id);
 
-                // Execute the prepared statement
-                if (mysqli_stmt_execute($stmt)) {
-                    // Fetch updated notification details
-                   $notification_query = "SELECT 
-                            CONCAT(employees.first_name, ' ', employees.last_name) AS full_name,
-                            notifications.id,
-                            notifications.employee_id,
-                            notifications.title,
-                            notifications.body,
-                            notifications.`type`,
-                            notifications.`read`, 
-                            notifications.created_at
-                        FROM notifications
-                        JOIN employees ON notifications.employee_id = employees.id
-                        WHERE notifications.id = ?";
-                    if ($notification_stmt = mysqli_prepare($conn, $notification_query)) {
-                        mysqli_stmt_bind_param($notification_stmt, "i", $notification_id);
-                        mysqli_stmt_execute($notification_stmt);
-                        $notification_result = mysqli_stmt_get_result($notification_stmt);
-                        $notification_data = mysqli_fetch_assoc($notification_result);
+        //         // Execute the prepared statement
+        //         if (mysqli_stmt_execute($stmt)) {
+        //             // Fetch updated notification details
+        //            $notification_query = "SELECT 
+        //                     CONCAT(employees.first_name, ' ', employees.last_name) AS full_name,
+        //                     notifications.id,
+        //                     notifications.employee_id,
+        //                     notifications.title,
+        //                     notifications.body,
+        //                     notifications.`type`,
+        //                     notifications.`read`, 
+        //                     notifications.created_at
+        //                 FROM notifications
+        //                 JOIN employees ON notifications.employee_id = employees.id
+        //                 WHERE notifications.id = ?";
+        //             if ($notification_stmt = mysqli_prepare($conn, $notification_query)) {
+        //                 mysqli_stmt_bind_param($notification_stmt, "i", $notification_id);
+        //                 mysqli_stmt_execute($notification_stmt);
+        //                 $notification_result = mysqli_stmt_get_result($notification_stmt);
+        //                 $notification_data = mysqli_fetch_assoc($notification_result);
 
-                        // Prepare the response data
-                        echo json_encode([
-                            'status' => 'success',
-                            'message' => 'Notification updated successfully',
-                            'updatedNotificationData' => $notification_data
-                        ]);
-                    } else {
-                        echo json_encode(['error' => 'Failed to retrieve updated notification data']);
-                    }
-                } else {
-                    echo json_encode(['error' => 'Failed to update notification', 'details' => mysqli_error($conn)]);
-                }
+        //                 // Prepare the response data
+        //                 echo json_encode([
+        //                     'status' => 'success',
+        //                     'message' => 'Notification updated successfully',
+        //                     'updatedNotificationData' => $notification_data
+        //                 ]);
+        //             } else {
+        //                 echo json_encode(['error' => 'Failed to retrieve updated notification data']);
+        //             }
+        //         } else {
+        //             echo json_encode(['error' => 'Failed to update notification', 'details' => mysqli_error($conn)]);
+        //         }
 
-                // Close the statement
-                mysqli_stmt_close($stmt);
-            } else {
-                echo json_encode(['error' => 'Failed to prepare the SQL query']);
-            }
-            exit;
-            break;
+        //         // Close the statement
+        //         mysqli_stmt_close($stmt);
+        //     } else {
+        //         echo json_encode(['error' => 'Failed to prepare the SQL query']);
+        //     }
+        //     exit;
+        //     break;
 
 
 
