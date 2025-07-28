@@ -158,6 +158,7 @@ if (isset($action)) {
             $start_date = isset($_GET['start_date']) ? $_GET['start_date'] : null;
             $end_date = isset($_GET['end_date']) ? $_GET['end_date'] : null;
             $status = isset($_GET['status']) ? $_GET['status'] : null;
+            $title = isset($_GET['title']) ? $_GET['title'] : null;
 
             // Begin constructing the base query with LEFT JOIN to get employee details
             $query = "SELECT 
@@ -178,6 +179,12 @@ if (isset($action)) {
             if ($employee_id !== null) {
                 $employee_id = (int)$employee_id;
                 $query .= " AND notifications.employee_id = $employee_id";
+            }
+
+            // Apply title filter if it's provided
+            if ($title !== null) {
+                $title = $conn->real_escape_string($title);
+                $query .= " AND notifications.title LIKE '%$title%'";
             }
 
             // Add status filter
