@@ -162,6 +162,7 @@ if (isset($action)) {
             // Begin constructing the base query with LEFT JOIN to get employee details
             $query = "SELECT 
                         CONCAT(employees.first_name, ' ', employees.last_name) AS full_name,
+                        employees.profile,
                         notifications.id,
                         notifications.employee_id,
                         notifications.title,
