@@ -36,10 +36,21 @@ if (isset($action)) {
     switch ($action) {
         case 'view':
             $type = $_GET['type'] ?? null;
+            $search = $_GET['search'] ?? null;
             $where = '';
             if ($type && validateType($type)) {
-                $where = "WHERE type = '" . $conn->real_escape_string($type) . "'";
+                $where .= "WHERE type = '" . $conn->real_escape_string($type) . "'";
             }
+
+            if ($search) {
+                if ($where) {
+                    $where .= " AND title LIKE '%" . $conn->real_escape_string($search) . "%'";
+                } else {
+                    $where .= "WHERE title LIKE '%" . $conn->real_escape_string($search) . "%'";
+                }
+            }
+
+            // Build the SQL query
             $sql = "SELECT * FROM $table $where ORDER BY id DESC";
             $result = $conn->query($sql);
             if ($result) {
