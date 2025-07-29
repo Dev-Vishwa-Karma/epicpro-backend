@@ -143,7 +143,7 @@
 
                     // Role-based filtering
                    if ($role === 'employee' && !empty($logged_in_employee_id)) {
-                        $query .= " AND p.is_active = 1 AND JSON_CONTAINS(p.team_member_ids, '\"$logged_in_employee_id\"')";
+                        $query .= " AND p.is_active = 1";
                     }
 
                     // Add project name filter if set
