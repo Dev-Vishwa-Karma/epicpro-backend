@@ -69,9 +69,15 @@ if (isset($action)) {
                 $query .= " ORDER BY created_at $sortOrder";
             }
 
-            // Prepare and execute query
-            $stmt = $conn->prepare($query);
-            $stmt->bind_param($paramTypes, ...$params);
+            // Check if there are any parameters to bind
+            if (!empty($paramTypes)) {
+                // Prepare and execute query
+                $stmt = $conn->prepare($query);
+                $stmt->bind_param($paramTypes, ...$params);
+            } else {
+                // Prepare and execute query without binding parameters
+                $stmt = $conn->prepare($query);
+            }
 
             if ($stmt->execute()) {
                 $result = $stmt->get_result();
