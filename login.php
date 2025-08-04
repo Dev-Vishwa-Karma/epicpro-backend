@@ -44,7 +44,7 @@ if (isset($action)) {
             }
 
             $password = md5($password);
-            $stmt = $conn->prepare("SELECT id, first_name, last_name, email, role, dob, gender, status, profile FROM employees WHERE email = ? AND password = ? AND deleted_at IS NULL LIMIT 1");
+            $stmt = $conn->prepare("SELECT id, first_name, last_name, email, role, dob, gender, status, profile, deleted_at FROM employees WHERE email = ? AND password = ? LIMIT 1");
             $stmt->bind_param("ss", $email, $password);
             $stmt->execute();
             $result = $stmt->get_result();
@@ -54,6 +54,11 @@ if (isset($action)) {
                 sendJsonResponse('error', null, 'Please enter a valid registered email address and password.');
             } else {
                 $result = $result->fetch_assoc();
+
+                if (!empty($result['deleted_at'])) {
+                    sendJsonResponse('error', null, 'This account has been deleted. Please contact support for further assistance.');
+                }
+
                 if ($result['status'] === 0) {
                     sendJsonResponse('error', null, 'Your account is deactivated. Please contact the administrator.');
                 }
