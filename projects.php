@@ -88,6 +88,7 @@
                                     SELECT id, first_name, last_name, profile 
                                     FROM employees 
                                     WHERE id IN ($team_member_ids_placeholder)
+                                    AND deleted_at IS NULL
                                 ";
 
                                 $team_result = mysqli_query($conn, $team_query);
@@ -187,7 +188,7 @@
                                 // Prepare the query to fetch team members
                                 $team_member_ids_placeholder = implode(",", $team_member_ids);
                                 $team_query = "
-                                    SELECT id, first_name, last_name, profile FROM employees WHERE id IN ($team_member_ids_placeholder)
+                                    SELECT id, first_name, last_name, profile FROM employees WHERE id IN ($team_member_ids_placeholder) AND deleted_at IS NULL
                                 ";
 
                                 $team_result = mysqli_query($conn, $team_query);

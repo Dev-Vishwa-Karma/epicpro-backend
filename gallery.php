@@ -57,7 +57,8 @@ if (isset($action)) {
             }
 
             // Start the base query
-            $query = "SELECT * FROM gallery WHERE 1=1 $employeeIdCondition";
+            $query = "SELECT * FROM gallery WHERE 1=1 AND employee_id IN (SELECT id FROM employees WHERE deleted_at IS NULL)
+";
 
             // Add pagination to query if limit and offset are set
             if ($limit !== null && $offset !== null) {

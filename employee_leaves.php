@@ -59,7 +59,7 @@ if (isset($action)) {
                     employees.email
                 FROM employee_leaves
                 INNER JOIN employees ON employee_leaves.employee_id = employees.id
-                WHERE employee_leaves.employee_id = $employee_id";
+                WHERE employee_leaves.employee_id = $employee_id AND employees.deleted_at IS NULL"; 
 
                 // Status filter
                 if ($status && in_array($status, ['pending', 'cancelled', 'approved', 'rejected'])) {
@@ -104,11 +104,12 @@ if (isset($action)) {
                     employees.last_name, 
                     employees.email
                 FROM employee_leaves
-                INNER JOIN employees ON employee_leaves.employee_id = employees.id";
+                INNER JOIN employees ON employee_leaves.employee_id = employees.id
+                WHERE employees.deleted_at IS NULL"; // Exclude deleted employees
 
                 // Status filter
                 if ($status && in_array($status, ['pending', 'cancelled', 'approved', 'rejected'])) {
-                    $query .= " WHERE employee_leaves.status = '$status'";
+                    $query .= " AND employee_leaves.status = '$status'";
                 }
 
                 // Date filters (added to the else block)

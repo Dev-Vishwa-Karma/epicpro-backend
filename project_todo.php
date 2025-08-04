@@ -60,7 +60,7 @@ ini_set('display_errors', '1');
                             e.profile
                         FROM project_todo pt
                         LEFT JOIN employees e ON pt.employee_id = e.id
-                        WHERE pt.employee_id = ? AND pt.status = ?
+                        WHERE pt.employee_id = ? AND pt.status = ? AND e.deleted_at IS NULL
                         ORDER BY 
                             ABS(DATEDIFF(pt.due_date, CURDATE())) ASC,
                             CASE 
@@ -126,7 +126,7 @@ ini_set('display_errors', '1');
                             e.profile
                         FROM project_todo pt
                         LEFT JOIN employees e ON pt.employee_id = e.id
-                        WHERE pt.status = ?
+                        WHERE pt.status = ? AND e.deleted_at IS NULL
                     ";
 
                     if ($role === 'employee') {

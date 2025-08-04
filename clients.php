@@ -111,7 +111,7 @@ ini_set('display_errors', '1');
                                 $escaped_ids = implode(",", array_map('intval', $team_ids));
 
                                 // Fetch team member names
-                                $name_query = "SELECT first_name, last_name, profile FROM employees WHERE id IN ($escaped_ids)";
+                                $name_query = "SELECT first_name, last_name, profile FROM employees WHERE id IN ($escaped_ids) AND deleted_at IS NULL";
                                 $name_result = $conn->query($name_query);
 
                                 if ($name_result) {
@@ -143,7 +143,8 @@ ini_set('display_errors', '1');
 
                         if (!empty($unique_ids)) {
                             $escaped_ids = implode(",", array_map('intval', $unique_ids));
-                            $empl_query = "SELECT id, first_name, last_name, profile FROM employees WHERE id IN ($escaped_ids)";
+                            $empl_query = "SELECT id, first_name, last_name, profile FROM employees WHERE id IN ($escaped_ids) AND deleted_at IS NULL";
+                            
                             $empl_result = $conn->query($empl_query);
                             while ($member = $empl_result->fetch_assoc()) {
                                 $team_member_details[] = [

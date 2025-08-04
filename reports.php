@@ -59,6 +59,8 @@ if (isset($action)) {
             } elseif ($end_date) {
                 $conditions[] = "DATE(reports.created_at) = '$end_date'";
             }
+
+            $conditions[] = "e.deleted_at IS NULL";
         
             // Base query
             $query = "
