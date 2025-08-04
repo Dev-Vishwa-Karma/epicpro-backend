@@ -5,6 +5,12 @@ $auth = $headers['Authorization'] ?? null;
 if ($auth) {
     $token_info = decode_token($auth);
     if (is_array($token_info) && isset($token_info[3])) {
+        if (isUserDeleted($token_info[0])) {
+            http_response_code(401);
+            echo json_encode(['status' => 'error', 'message' => 'This account has been deleted']);
+            exit;
+        }
+
 
         $dt = new DateTime();
         if ($dt->format('Y-m-d H:i:s') > $token_info[3]) {
@@ -56,4 +62,23 @@ function isAdminCheck()
         }
     }
     return false;
+}
+
+function isUserDeleted($userId) {
+    global $conn;  // Assuming $conn is your database connection
+    
+    // Query to check if the user is deleted
+    $stmt = $conn->prepare("SELECT deleted_at FROM employees WHERE id = ? LIMIT 1");
+    $stmt->bind_param("i", $userId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    if ($result->num_rows > 0) {
+        $user = $result->fetch_assoc();
+        // Check if the user is marked as deleted
+        return !empty($user['deleted_at']);
+    }
+    
+    // If no user found, assume the user is deleted
+    return true;
 }

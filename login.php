@@ -56,7 +56,7 @@ if (isset($action)) {
                 $result = $result->fetch_assoc();
 
                 if (!empty($result['deleted_at'])) {
-                    sendJsonResponse('error', null, 'This account has been deleted. Please contact support for further assistance.');
+                    sendJsonResponse('error', null, 'This account has been deleted. Please contact the administrator.');
                 }
 
                 if ($result['status'] === 0) {
