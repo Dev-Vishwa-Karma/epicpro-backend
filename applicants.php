@@ -292,7 +292,7 @@ switch ($action) {
                 $params[] = 'uploads/resumes/' . $filename;
                 $types .= 's';
                 $updates[] = 'resume = ?';
-                $params[] = $_FILES['resume']['name'];
+                $params[] = $_FILES['resume']['name']; 
                 $types .= 's';
             }
         }
@@ -371,6 +371,55 @@ switch ($action) {
             respond('error', ['message' => $stmt->error], 400);
         }
         break;
+
+        case 'sync_applicant':
+            $url = 'https://randomuser.me/api/?results=10';
+            $response = file_get_contents($url);
+            $applicantData = json_decode($response, true);
+        
+            if ($applicantData && isset($applicantData['results'])) {
+                $insertedApplicants = 0;
+        
+                foreach ($applicantData['results'] as $applicant) {
+                    $email = $applicant['email'] ?? '';
+                    
+                    if (!empty($email)) {
+                        // Check if applicant exists
+                        $stmt = $conn->prepare('SELECT COUNT(*) AS count FROM applicants WHERE email = ?');
+                        $stmt->bind_param('s', $email);
+                        $stmt->execute();
+                        $result = $stmt->get_result();
+                        $row = $result->fetch_assoc();
+                        $count = $row['count'];
+        
+                        if ($count == 0) {
+                            // Prepare data from API response
+                            $fullname = ($applicant['name']['first'] ?? '') . ' ' . ($applicant['name']['last'] ?? '');
+                            $phone = $applicant['phone'] ?? '';
+                            $streetaddress = ($applicant['location']['street']['number'] ?? '') . ' ' . 
+                                            ($applicant['location']['street']['name'] ?? '');
+                            $skills = json_encode(['Random Skill 1', 'Random Skill 2']); // Default skills
+                            $status = 'pending';
+                            $experience = rand(1, 10) . ' years'; // Random experience
+        
+                            // Insert new applicant
+                            $stmt = $conn->prepare('INSERT INTO applicants 
+                                (fullname, email, phone, experience, streetaddress, skills, status) 
+                                VALUES (?, ?, ?, ?, ?, ?, ?)');
+                            $stmt->bind_param('sssssss', 
+                                $fullname, $email, $phone, $experience, $streetaddress, $skills, $status);
+                            
+                            if ($stmt->execute()) {
+                                $insertedApplicants++;
+                            }
+                        }
+                    }
+                }
+                respond('success', ['inserted' => $insertedApplicants]);
+            } else {
+                respond('error', ['message' => 'Failed to fetch applicant data from external source'], 500);
+            }
+            break;
 
     default:
         respond('error', ['message' => 'Invalid action'], 400);
