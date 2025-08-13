@@ -56,9 +56,8 @@ if (isset($action)) {
                 $sortOrder = strtoupper($_GET['sortOrder']);
             }
 
-            // Start the base query
-            $query = "SELECT * FROM gallery WHERE 1=1 AND employee_id IN (SELECT id FROM employees WHERE deleted_at IS NULL)
-";
+            // Build the base query (now includes $employeeIdCondition properly)
+            $query = "SELECT * FROM gallery WHERE 1=1 AND employee_id IN (SELECT id FROM employees WHERE deleted_at IS NULL) $employeeIdCondition";
 
             // Add pagination to query if limit and offset are set
             if ($limit !== null && $offset !== null) {
@@ -70,16 +69,14 @@ if (isset($action)) {
                 $query .= " ORDER BY created_at $sortOrder";
             }
 
-            // Check if there are any parameters to bind
+            // Prepare and bind
+            $stmt = $conn->prepare($query);
+
             if (!empty($paramTypes)) {
-                // Prepare and execute query
-                $stmt = $conn->prepare($query);
                 $stmt->bind_param($paramTypes, ...$params);
-            } else {
-                // Prepare and execute query without binding parameters
-                $stmt = $conn->prepare($query);
             }
 
+            // Execute and handle results
             if ($stmt->execute()) {
                 $result = $stmt->get_result();
                 if ($result) {
