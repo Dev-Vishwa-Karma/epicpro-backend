@@ -699,11 +699,6 @@ if (isset($action)) {
 
                     if (!empty($salaryDetails)) {
                         foreach ($salaryDetails as $detail) {
-                            if (!isset($detail['id'])) {
-                                sendJsonResponse('error', null, "Salary detail ID is missing.");
-                                exit;
-                            }
-
                             $source = isset($detail['source']) ? trim($detail['source']) : '';
                             $amount = isset($detail['amount']) && is_numeric($detail['amount']) ? (int)$detail['amount'] : null;
                             $from_date = isset($detail['from_date']) ? $detail['from_date'] : null;
@@ -715,8 +710,18 @@ if (isset($action)) {
                             }
 
                             $updated_at = date('Y-m-d H:i:s');
-                            $salarySql = "UPDATE salary_details SET source = '$source', amount = $amount, from_date = '$from_date', to_date = '$to_date', updated_at = '$updated_at' WHERE employee_id = $id AND id = {$detail['id']}";
-                            $conn->query($salarySql);
+                            
+                            // Check if salary detail exists
+                            if (isset($detail['id']) && !empty($detail['id'])) {
+                                // Update existing salary detail
+                                $salarySql = "UPDATE salary_details SET source = '$source', amount = $amount, from_date = '$from_date', to_date = '$to_date', updated_at = '$updated_at' WHERE employee_id = $id AND id = {$detail['id']}";
+                                $conn->query($salarySql);
+                            } else {
+                                // Insert new salary detail
+                                $created_at = $updated_at;
+                                $salarySql = "INSERT INTO salary_details (employee_id, source, amount, from_date, to_date, created_at, updated_at) VALUES ($id, '$source', $amount, '$from_date', '$to_date', '$created_at', '$updated_at')";
+                                $conn->query($salarySql);
+                            }
                         }
                     }
 
