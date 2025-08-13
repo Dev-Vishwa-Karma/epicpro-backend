@@ -68,21 +68,21 @@ switch ($action) {
         }
         break;
 
-    case 'get':
-        $id = $_GET['id'] ?? null;
-        if (!$id) respond('error', ['message' => 'ID required'], 400);
-        $stmt = $conn->prepare('SELECT * FROM applicants WHERE id = ?');
-        $stmt->bind_param('i', $id);
-        $stmt->execute();
-        $applicant = $stmt->get_result()->fetch_assoc();
-        if ($applicant) {
-            respond('success', $applicant);
-        } else {
-            respond('error', ['message' => 'Applicant not found'], 404);
-        }
-        break;
+    // case 'get':
+    //     $id = $_GET['id'] ?? null;
+    //     if (!$id) respond('error', ['message' => 'ID required'], 400);
+    //     $stmt = $conn->prepare('SELECT * FROM applicants WHERE id = ?');
+    //     $stmt->bind_param('i', $id);
+    //     $stmt->execute();
+    //     $applicant = $stmt->get_result()->fetch_assoc();
+    //     if ($applicant) {
+    //         respond('success', $applicant);
+    //     } else {
+    //         respond('error', ['message' => 'Applicant not found'], 404);
+    //     }
+    //     break;
 
-    case 'list':
+    case 'get':
         $where = [];
         $params = [];
         $types = '';
@@ -190,7 +190,7 @@ switch ($action) {
                 $applicant = $stmt2->get_result()->fetch_assoc();
 
                 $statusUpdate = getStatusUpdateEmail($applicant, $_POST['status']);
-                sendEmail($applicant['email'], $statusUpdate['subject'], $statusUpdate['message']);
+                // sendEmail($applicant['email'], $statusUpdate['subject'], $statusUpdate['message']);
             }
             respond('success', ['updated' => $stmt->affected_rows]);
         } else {
@@ -238,7 +238,7 @@ switch ($action) {
                                         ($applicant['location']['street']['name'] ?? '');
                         $skills = json_encode(['Random Skill 1', 'Random Skill 2']); // Default skills
                         $status = 'pending';
-                        $experience = rand(1, 10) . ' years'; // Random experience
+                        $experience = rand(1, 10); // Random experience
     
                         // Insert new applicant
                         $stmt = $conn->prepare('INSERT INTO applicants 
