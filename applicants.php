@@ -25,28 +25,25 @@ switch ($action) {
         $email = $_POST['email'] ?? '';
         $phone = $_POST['phone'] ?? '';
         $experience = $_POST['experience'] ?? '';
-        $streetaddress = $_POST['streetaddress'] ?? '';
+        $address = $_POST['address'] ?? '';
         $skills = $_POST['skills'] ?? '[]';
         $status = 'pending';
         $resume_path = null;
-        $resume = null;
 
         if (isset($_FILES['resume']) && $_FILES['resume']['error'] === UPLOAD_ERR_OK) {
             $uploadDir = __DIR__ . '/uploads/resumes/';
             if (!is_dir($uploadDir)) {
                 mkdir($uploadDir, 0777, true);
             }
-            $ext = pathinfo($_FILES['resume']['name'], PATHINFO_EXTENSION);
             $filename = uniqid() . '-' . preg_replace('/[^a-zA-Z0-9._-]/', '', $_FILES['resume']['name']);
             $targetFile = $uploadDir . $filename;
             if (move_uploaded_file($_FILES['resume']['tmp_name'], $targetFile)) {
                 $resume_path = 'uploads/resumes/' . $filename;
-                $resume = $_FILES['resume']['name'];
             }
         }
 
-        $stmt = $conn->prepare('INSERT INTO applicants (fullname, email, phone, experience, streetaddress, skills, resume_path, resume, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
-        $stmt->bind_param('sssssssss', $fullname, $email, $phone, $experience, $streetaddress, $skills, $resume_path, $resume, $status);
+        $stmt = $conn->prepare('INSERT INTO applicants (fullname, email, phone, experience, address, skills, resume_path, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+        $stmt->bind_param('ssssssss', $fullname, $email, $phone, $experience, $address, $skills, $resume_path, $status);
         if ($stmt->execute()) {
             $applicantId = $conn->insert_id;
 
@@ -55,15 +52,15 @@ switch ($action) {
             $stmt2->execute();
             $applicant = $stmt2->get_result()->fetch_assoc();
 
-            // Send admin notification
-            $subjectAdmin = "New Application Received - {$fullname}";
-            $messageAdmin = getAdminNotificationEmail($applicant);
-            sendEmail('akash.profilics@gmail.com', $subjectAdmin, $messageAdmin);
+            // // Send admin notification
+            // $subjectAdmin = "New Application Received - {$fullname}";
+            // $messageAdmin = getAdminNotificationEmail($applicant);
+            // sendEmail('akash.profilics@gmail.com', $subjectAdmin, $messageAdmin);
 
-            // Send applicant confirmation
-            $subjectApplicant = "Application Received - {$fullname}";
-            $messageApplicant = getApplicantConfirmationEmail($applicant);
-            sendEmail($email, $subjectApplicant, $messageApplicant);
+            // // Send applicant confirmation
+            // $subjectApplicant = "Application Received - {$fullname}";
+            // $messageApplicant = getApplicantConfirmationEmail($applicant);
+            // sendEmail($email, $subjectApplicant, $messageApplicant);
 
             respond('success', ['id' => $applicantId]);
         } else {
@@ -152,7 +149,7 @@ switch ($action) {
         $id = $_POST['id'] ?? null;
         if (!$id) respond('error', ['message' => 'ID required'], 400);
 
-        $fields = ['fullname', 'email', 'phone', 'experience', 'streetaddress', 'skills', 'status'];
+        $fields = ['fullname', 'email', 'phone', 'experience', 'address', 'skills', 'status'];
         $updates = [];
         $params = [];
         $types = '';
@@ -170,15 +167,11 @@ switch ($action) {
             if (!is_dir($uploadDir)) {
                 mkdir($uploadDir, 0777, true);
             }
-            $ext = pathinfo($_FILES['resume']['name'], PATHINFO_EXTENSION);
             $filename = uniqid() . '-' . preg_replace('/[^a-zA-Z0-9._-]/', '', $_FILES['resume']['name']);
             $targetFile = $uploadDir . $filename;
             if (move_uploaded_file($_FILES['resume']['tmp_name'], $targetFile)) {
                 $updates[] = 'resume_path = ?';
                 $params[] = 'uploads/resumes/' . $filename;
-                $types .= 's';
-                $updates[] = 'resume = ?';
-                $params[] = $_FILES['resume']['name']; 
                 $types .= 's';
             }
         }
@@ -217,54 +210,54 @@ switch ($action) {
         }
         break;
 
-        case 'sync_applicant':
-            $url = 'https://randomuser.me/api/?results=10';
-            $response = file_get_contents($url);
-            $applicantData = json_decode($response, true);
-        
-            if ($applicantData && isset($applicantData['results'])) {
-                $insertedApplicants = 0;
-        
-                foreach ($applicantData['results'] as $applicant) {
-                    $email = $applicant['email'] ?? '';
-                    
-                    if (!empty($email)) {
-                        // Check if applicant exists
-                        $stmt = $conn->prepare('SELECT COUNT(*) AS count FROM applicants WHERE email = ?');
-                        $stmt->bind_param('s', $email);
-                        $stmt->execute();
-                        $result = $stmt->get_result();
-                        $row = $result->fetch_assoc();
-                        $count = $row['count'];
-        
-                        if ($count == 0) {
-                            // Prepare data from API response
-                            $fullname = ($applicant['name']['first'] ?? '') . ' ' . ($applicant['name']['last'] ?? '');
-                            $phone = $applicant['phone'] ?? '';
-                            $streetaddress = ($applicant['location']['street']['number'] ?? '') . ' ' . 
-                                            ($applicant['location']['street']['name'] ?? '');
-                            $skills = json_encode(['Random Skill 1', 'Random Skill 2']); // Default skills
-                            $status = 'pending';
-                            $experience = rand(1, 10) . ' years'; // Random experience
-        
-                            // Insert new applicant
-                            $stmt = $conn->prepare('INSERT INTO applicants 
-                                (fullname, email, phone, experience, streetaddress, skills, status) 
-                                VALUES (?, ?, ?, ?, ?, ?, ?)');
-                            $stmt->bind_param('sssssss', 
-                                $fullname, $email, $phone, $experience, $streetaddress, $skills, $status);
-                            
-                            if ($stmt->execute()) {
-                                $insertedApplicants++;
-                            }
+    case 'sync_applicant':
+        $url = 'https://randomuser.me/api/?results=10';
+        $response = file_get_contents($url);
+        $applicantData = json_decode($response, true);
+    
+        if ($applicantData && isset($applicantData['results'])) {
+            $insertedApplicants = 0;
+    
+            foreach ($applicantData['results'] as $applicant) {
+                $email = $applicant['email'] ?? '';
+                
+                if (!empty($email)) {
+                    // Check if applicant exists
+                    $stmt = $conn->prepare('SELECT COUNT(*) AS count FROM applicants WHERE email = ?');
+                    $stmt->bind_param('s', $email);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    $row = $result->fetch_assoc();
+                    $count = $row['count'];
+    
+                    if ($count == 0) {
+                        // Prepare data from API response
+                        $fullname = ($applicant['name']['first'] ?? '') . ' ' . ($applicant['name']['last'] ?? '');
+                        $phone = $applicant['phone'] ?? '';
+                        $address = ($applicant['location']['street']['number'] ?? '') . ' ' . 
+                                        ($applicant['location']['street']['name'] ?? '');
+                        $skills = json_encode(['Random Skill 1', 'Random Skill 2']); // Default skills
+                        $status = 'pending';
+                        $experience = rand(1, 10) . ' years'; // Random experience
+    
+                        // Insert new applicant
+                        $stmt = $conn->prepare('INSERT INTO applicants 
+                            (fullname, email, phone, experience, address, skills, status) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?)');
+                        $stmt->bind_param('sssssss', 
+                            $fullname, $email, $phone, $experience, $address, $skills, $status);
+                        
+                        if ($stmt->execute()) {
+                            $insertedApplicants++;
                         }
                     }
                 }
-                respond('success', ['inserted' => $insertedApplicants]);
-            } else {
-                respond('error', ['message' => 'Failed to fetch applicant data from external source'], 500);
             }
-            break;
+            respond('success', ['inserted' => $insertedApplicants]);
+        } else {
+            respond('error', ['message' => 'Failed to fetch applicant data from external source'], 500);
+        }
+        break;
 
     default:
         respond('error', ['message' => 'Invalid action'], 400);
