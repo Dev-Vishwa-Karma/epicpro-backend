@@ -1,4 +1,6 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
@@ -26,21 +28,7 @@ switch ($action) {
             error_log("Database connection failed in add action");
             respond('error', ['message' => 'Database connection failed'], 500);
         }
-        
-        // Check if required columns exist in the table
-        try {
-            $checkColumns = $conn->query("SHOW COLUMNS FROM applicants LIKE 'joining_timeframe'");
-            if ($checkColumns === false) {
-                error_log("Error checking table structure: " . $conn->error);
-                respond('error', ['message' => 'Error checking database structure'], 500);
-            }
-            if ($checkColumns->num_rows === 0) {
-                respond('error', ['message' => 'Database table needs to be updated. Please run the database update script.'], 500);
-            }
-        } catch (Exception $e) {
-            error_log("Exception checking table structure: " . $e->getMessage());
-            respond('error', ['message' => 'Database structure check failed'], 500);
-        }
+    
         
         // Log received data for debugging
         error_log("Received POST data: " . print_r($_POST, true));
@@ -50,16 +38,17 @@ switch ($action) {
         $phone = $_POST['phone'] ?? '';
         $alternate_phone = $_POST['alternate_phone'] ?? '';
         $dob = $_POST['dob'] ?? '';
-        $merital_status = $_POST['merital_status'] ?? '';
+        $merital_status = !empty($_POST['merital_status']) ? $_POST['merital_status'] : 'single';
         $experience = $_POST['experience'] ?? '';
         $address = $_POST['address'] ?? '';
         $skills = $_POST['skills'] ?? '[]';
         $joining_timeframe = $_POST['joining_timeframe'] ?? '';
-        $bond_agreement = $_POST['bond_agreement'] ?? '';
+        $bond_agreement = !empty($_POST['bond_agreement']) ? $_POST['bond_agreement'] : 'no';
         $branch = $_POST['branch'] ?? '';
         $graduate_year = !empty($_POST['graduate_year']) ? (int)$_POST['graduate_year'] : null;
         $status = 'pending';
         $resume_path = null;
+        $source = $_POST['source'] ?? 'admin';
 
         if (empty($fullname) || empty($email)) {
             respond('error', ['message' => 'Full Name and Email are required.'], 400);
@@ -86,7 +75,7 @@ switch ($action) {
             }
         }
 
-        $sql = 'INSERT INTO applicants (fullname, email, phone, alternate_phone, dob, merital_status, experience, address, skills, joining_timeframe, bond_agreement, branch, graduate_year, resume_path, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+        $sql = 'INSERT INTO applicants (fullname, email, phone, alternate_phone, dob, merital_status, experience, address, skills, joining_timeframe, bond_agreement, branch, graduate_year, resume_path, status, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
         error_log("SQL Query: " . $sql);
         
         $stmt = $conn->prepare($sql);
@@ -95,7 +84,8 @@ switch ($action) {
             respond('error', ['message' => 'Database prepare failed: ' . $conn->error], 500);
         }
         
-        $bindResult = $stmt->bind_param('ssssssssssssssis', $fullname, $email, $phone, $alternate_phone, $dob, $merital_status, $experience, $address, $skills, $joining_timeframe, $bond_agreement, $branch, $graduate_year, $resume_path, $status);
+        $bindResult = $stmt->bind_param('ssssssssssssisss', $fullname, $email, $phone, $alternate_phone, $dob, $merital_status, $experience, $address, $skills, $joining_timeframe, $bond_agreement, $branch, $graduate_year, $resume_path, $status, $source);
+
         if (!$bindResult) {
             error_log("Bind failed: " . $stmt->error);
             respond('error', ['message' => 'Database bind failed: ' . $stmt->error], 500);
@@ -206,7 +196,7 @@ switch ($action) {
         $id = $_POST['id'] ?? null;
         if (!$id) respond('error', ['message' => 'ID required'], 400);
 
-        $fields = ['fullname', 'email', 'phone', 'alternate_phone', 'dob', 'merital_status', 'experience', 'address', 'skills', 'joining_timeframe', 'bond_agreement', 'branch', 'graduate_year', 'status'];
+        $fields = ['fullname', 'email', 'phone', 'alternate_phone', 'dob', 'merital_status', 'experience', 'address', 'skills', 'joining_timeframe', 'bond_agreement', 'branch', 'graduate_year', 'reject_reason', 'status'];
         $updates = [];
         $params = [];
         $types = '';
@@ -272,7 +262,7 @@ switch ($action) {
             error_log("Database connection failed in sync_applicant");
             respond('error', ['message' => 'Database connection failed'], 500);
         }                                                                                                                               
-        $url = 'https://randomuser.me/api/?results=100';                                                                                                                                                                                                                
+        $url = 'https://randomuser.me/api/?results=1';                                                                                                                                                                                                                
         $response = file_get_contents($url);
         if ($response === false) {
             error_log("Failed to fetch data from: " . $url);
@@ -318,12 +308,13 @@ switch ($action) {
                         $bond_agreement = ['yes', 'no'][array_rand(['yes', 'no'])];
                         $branch = 'Main Branch';
                         $graduate_year = rand(2015, 2024);
+                        $source_sync = 'sync';
 
                         $stmt = $conn->prepare('INSERT INTO applicants 
-                            (fullname, email, phone, alternate_phone, dob, merital_status, experience, address, skills, joining_timeframe, bond_agreement, branch, graduate_year, status) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-                        $stmt->bind_param('ssssssssssssss', 
-                            $fullname, $email, $phone, $alternate_phone, $dob, $merital_status, $experience, $address, $skills, $joining_timeframe, $bond_agreement, $branch, $graduate_year, $status);
+                            (fullname, email, phone, alternate_phone, dob, merital_status, experience, address, skills, joining_timeframe, bond_agreement, branch, graduate_year, status, source) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+                        $stmt->bind_param('sssssssssssssss', 
+                            $fullname, $email, $phone, $alternate_phone, $dob, $merital_status, $experience, $address, $skills, $joining_timeframe, $bond_agreement, $branch, $graduate_year, $status, $source_sync);
                         
                         if ($stmt->execute()) {
                             $insertedApplicants++;
