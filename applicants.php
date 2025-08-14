@@ -24,11 +24,27 @@ switch ($action) {
         $fullname = $_POST['fullname'] ?? '';
         $email = $_POST['email'] ?? '';
         $phone = $_POST['phone'] ?? '';
+        $alternate_phone = $_POST['alternate_phone'] ?? '';
+        $dob = $_POST['dob'] ?? '';
+        $merital_status = $_POST['merital_status'] ?? '';
         $experience = $_POST['experience'] ?? '';
         $address = $_POST['address'] ?? '';
         $skills = $_POST['skills'] ?? '[]';
         $status = 'pending';
         $resume_path = null;
+
+        if (empty($fullname) || empty($email)) {
+            respond('error', ['message' => 'Full Name and Email are required.'], 400);
+        }
+
+        // Check if email already exists
+        $stmt = $conn->prepare('SELECT id FROM applicants WHERE email = ?');
+        $stmt->bind_param('s', $email);
+        $stmt->execute();
+        $stmt->store_result();
+        if ($stmt->num_rows > 0) {
+            respond('error', ['message' => 'Email already exists.'], 200);
+        }
 
         if (isset($_FILES['resume']) && $_FILES['resume']['error'] === UPLOAD_ERR_OK) {
             $uploadDir = __DIR__ . '/uploads/resumes/';
@@ -42,8 +58,8 @@ switch ($action) {
             }
         }
 
-        $stmt = $conn->prepare('INSERT INTO applicants (fullname, email, phone, experience, address, skills, resume_path, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-        $stmt->bind_param('ssssssss', $fullname, $email, $phone, $experience, $address, $skills, $resume_path, $status);
+        $stmt = $conn->prepare('INSERT INTO applicants (fullname, email, phone, alternate_phone, dob, merital_status, experience, address, skills, resume_path, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $stmt->bind_param('sssssssssss', $fullname, $email, $phone, $alternate_phone, $dob, $merital_status, $experience, $address, $skills, $resume_path, $status);
         if ($stmt->execute()) {
             $applicantId = $conn->insert_id;
 
@@ -149,7 +165,7 @@ switch ($action) {
         $id = $_POST['id'] ?? null;
         if (!$id) respond('error', ['message' => 'ID required'], 400);
 
-        $fields = ['fullname', 'email', 'phone', 'experience', 'address', 'skills', 'status'];
+        $fields = ['fullname', 'email', 'phone', 'alternate_phone', 'dob', 'merital_status', 'experience', 'address', 'skills', 'status'];
         $updates = [];
         $params = [];
         $types = '';
@@ -211,9 +227,21 @@ switch ($action) {
         break;
 
     case 'sync_applicant':
-        $url = 'https://randomuser.me/api/?results=10';
+        if (!$conn) {
+            error_log("Database connection failed in sync_applicant");
+            respond('error', ['message' => 'Database connection failed'], 500);
+        }
+        $url = 'https://randomuser.me/api/?results=100';
         $response = file_get_contents($url);
+        if ($response === false) {
+            error_log("Failed to fetch data from: " . $url);
+            respond('error', ['message' => 'Failed to fetch data from external API'], 500);
+        }
         $applicantData = json_decode($response, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            error_log("JSON decode error: " . json_last_error_msg());
+            respond('error', ['message' => 'Invalid JSON response from external API'], 500);
+        }
     
         if ($applicantData && isset($applicantData['results'])) {
             $insertedApplicants = 0;
@@ -231,24 +259,31 @@ switch ($action) {
                     $count = $row['count'];
     
                     if ($count == 0) {
-                        // Prepare data from API response
+                        error_log("Processing new applicant: " . $email);
                         $fullname = ($applicant['name']['first'] ?? '') . ' ' . ($applicant['name']['last'] ?? '');
                         $phone = $applicant['phone'] ?? '';
+                        $alternate_phone = $applicant['phone'] ?? '';
+                        $dob = '';
+                        if (isset($applicant['dob']['date'])) {
+                            $dob = date('Y-m-d', strtotime($applicant['dob']['date']));
+                        }
+                        $merital_status = ['single', 'married', 'divorced', 'widowed'][array_rand(['single', 'married', 'divorced', 'widowed'])]; // Random marital status
                         $address = ($applicant['location']['street']['number'] ?? '') . ' ' . 
                                         ($applicant['location']['street']['name'] ?? '');
-                        $skills = json_encode(['Random Skill 1', 'Random Skill 2']); // Default skills
+                        $skills = json_encode(['Random Skill 1', 'Random Skill 2']);
                         $status = 'pending';
-                        $experience = rand(1, 10); // Random experience
-    
-                        // Insert new applicant
+                        $experience = (string)rand(1, 10);
+
                         $stmt = $conn->prepare('INSERT INTO applicants 
-                            (fullname, email, phone, experience, address, skills, status) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?)');
-                        $stmt->bind_param('sssssss', 
-                            $fullname, $email, $phone, $experience, $address, $skills, $status);
+                            (fullname, email, phone, alternate_phone, dob, merital_status, experience, address, skills, status) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+                        $stmt->bind_param('ssssssssss', 
+                            $fullname, $email, $phone, $alternate_phone, $dob, $merital_status, $experience, $address, $skills, $status);
                         
                         if ($stmt->execute()) {
                             $insertedApplicants++;
+                        } else {
+                            error_log("Sync applicant error: " . $stmt->error);
                         }
                     }
                 }
