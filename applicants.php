@@ -21,6 +21,33 @@ function respond($status, $data = [], $code = 200) {
     exit;
 }
 
+// Function to convert decimal experience to readable text
+function formatExperience($experience) {
+    if (empty($experience)) return '';
+    
+    // Handle decimal format (e.g., 1.6 = 1 year 6 months)
+    if (strpos($experience, '.') !== false) {
+        $parts = explode('.', $experience);
+        $years = (int)$parts[0];
+        $months = (int)$parts[1];
+        
+        $result = '';
+        if ($years > 0) {
+            $result .= $years . ' year' . ($years > 1 ? 's' : '');
+        }
+        if ($months > 0) {
+            if ($result) $result .= ' ';
+            $result .= $months . ' month' . ($months > 1 ? 's' : '');
+        }
+        return $result;
+    }
+    
+    // Handle integer format (e.g., 1 = 1 year)
+    $years = (int)$experience;
+    if ($years == 0) return '0 months';
+    return $years . ' year' . ($years > 1 ? 's' : '');
+}
+
 switch ($action) {
     case 'add':
         // Check database connection
@@ -180,6 +207,10 @@ switch ($action) {
         $result = $stmt->get_result();
         $applicants = [];
         while ($row = $result->fetch_assoc()) {
+            // Format experience for display
+            if (isset($row['experience'])) {
+                $row['experience_display'] = formatExperience($row['experience']);
+            }
             $applicants[] = $row;
         }
 
@@ -262,7 +293,7 @@ switch ($action) {
             error_log("Database connection failed in sync_applicant");
             respond('error', ['message' => 'Database connection failed'], 500);
         }                                                                                                                               
-        $url = 'https://randomuser.me/api/?results=1';                                                                                                                                                                                                                
+        $url = 'https://randomuser.me/api/?results=50';                                                                                                                                                                                                                
         $response = file_get_contents($url);
         if ($response === false) {
             error_log("Failed to fetch data from: " . $url);
@@ -298,16 +329,16 @@ switch ($action) {
                         if (isset($applicant['dob']['date'])) {
                             $dob = date('Y-m-d', strtotime($applicant['dob']['date']));
                         }
-                        $merital_status = ['single', 'married', 'divorced', 'widowed'][array_rand(['single', 'married', 'divorced', 'widowed'])]; // Random marital status
+                        $marital_status = null;
                         $address = ($applicant['location']['street']['number'] ?? '') . ' ' . 
                                         ($applicant['location']['street']['name'] ?? '');
-                        $skills = json_encode(['Random Skill 1', 'Random Skill 2']);
+                        $skills = json_encode(['']);
                         $status = 'pending';
-                        $experience = (string)rand(1, 10);
-                        $joining_timeframe = ['Same Week', 'Next Week', 'After 15 Days'][array_rand(['Same Week', 'Next Week', 'After 15 Days'])];
-                        $bond_agreement = ['yes', 'no'][array_rand(['yes', 'no'])];
-                        $branch = 'Main Branch';
-                        $graduate_year = rand(2015, 2024);
+                        $experience = null;
+                        $joining_timeframe = null;
+                        $bond_agreement = null;
+                        $branch = '';
+                        $graduate_year = null;
                         $source_sync = 'sync';
 
                         $stmt = $conn->prepare('INSERT INTO applicants 
@@ -324,7 +355,7 @@ switch ($action) {
                     }
                 }
             }
-            respond('success', ['inserted' => $insertedApplicants]);
+                                                                                                                                                                                                                                            respond('success', ['inserted' => $insertedApplicants]);
         } else {
             respond('error', ['message' => 'Failed to fetch applicant data from external source'], 500);
         }
