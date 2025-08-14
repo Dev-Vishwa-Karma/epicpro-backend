@@ -70,7 +70,7 @@ switch ($action) {
         $address = $_POST['address'] ?? '';
         $skills = $_POST['skills'] ?? '[]';
         $joining_timeframe = $_POST['joining_timeframe'] ?? '';
-        $bond_agreement = !empty($_POST['bond_agreement']) ? $_POST['bond_agreement'] : 'no';
+        $bond_agreement = !empty($_POST['bond_agreement']) ? $_POST['bond_agreement'] : null;
         $branch = $_POST['branch'] ?? '';
         $graduate_year = !empty($_POST['graduate_year']) ? (int)$_POST['graduate_year'] : null;
         $status = 'pending';
