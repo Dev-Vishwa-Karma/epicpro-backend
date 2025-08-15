@@ -293,7 +293,7 @@ switch ($action) {
             error_log("Database connection failed in sync_applicant");
             respond('error', ['message' => 'Database connection failed'], 500);
         }                                                                                                                               
-        $url = 'https://randomuser.me/api/?results=50';                                                                                                                                                                                                                
+        $url = 'https://randomuser.me/api/?results=5';                                                                                                                                                                                                                
         $response = file_get_contents($url);
         if ($response === false) {
             error_log("Failed to fetch data from: " . $url);
