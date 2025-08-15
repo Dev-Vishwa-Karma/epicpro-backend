@@ -16,12 +16,6 @@ header('Content-Type: application/json');
 
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
-function respond($status, $data = [], $code = 200) {
-    http_response_code($code);
-    echo json_encode(['status' => $status, 'data' => $data]);
-    exit;
-}
-
 // Function to convert decimal experience to readable text
 function formatExperience($experience) {
     if (empty($experience)) return '';
@@ -344,12 +338,12 @@ switch ($action) {
                     }
                 }
             }
-                                                                                                                                                                                                                                            respond('success', ['inserted' => $insertedApplicants]);
+            sendJsonResponse('success', ['inserted' => $insertedApplicants]);
         } else {
-            respond('error', ['message' => 'Failed to fetch applicant data from external source'], 500);
+            sendJsonResponse('error', null, "Failed to fetch applicant data from external source");
         }
         break;
 
     default:
-        respond('error', ['message' => 'Invalid action'], 400);
+        sendJsonResponse('error', null, "Invalid action");
 }
