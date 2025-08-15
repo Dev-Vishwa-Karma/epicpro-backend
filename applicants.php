@@ -65,7 +65,7 @@ switch ($action) {
         $phone = $_POST['phone'] ?? '';
         $alternate_phone = $_POST['alternate_phone'] ?? '';
         $dob = $_POST['dob'] ?? '';
-        $merital_status = !empty($_POST['merital_status']) ? $_POST['merital_status'] : 'single';
+        $marital_status = !empty($_POST['marital_status']) ? $_POST['marital_status'] : 'single';
         $experience = $_POST['experience'] ?? '';
         $address = $_POST['address'] ?? '';
         $skills = $_POST['skills'] ?? '[]';
@@ -102,7 +102,7 @@ switch ($action) {
             }
         }
 
-        $sql = 'INSERT INTO applicants (fullname, email, phone, alternate_phone, dob, merital_status, experience, address, skills, joining_timeframe, bond_agreement, branch, graduate_year, resume_path, status, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+        $sql = 'INSERT INTO applicants (fullname, email, phone, alternate_phone, dob, marital_status, experience, address, skills, joining_timeframe, bond_agreement, branch, graduate_year, resume_path, status, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
         error_log("SQL Query: " . $sql);
         
         $stmt = $conn->prepare($sql);
@@ -111,7 +111,7 @@ switch ($action) {
             respond('error', ['message' => 'Database prepare failed: ' . $conn->error], 500);
         }
         
-        $bindResult = $stmt->bind_param('ssssssssssssisss', $fullname, $email, $phone, $alternate_phone, $dob, $merital_status, $experience, $address, $skills, $joining_timeframe, $bond_agreement, $branch, $graduate_year, $resume_path, $status, $source);
+        $bindResult = $stmt->bind_param('ssssssssssssisss', $fullname, $email, $phone, $alternate_phone, $dob, $marital_status, $experience, $address, $skills, $joining_timeframe, $bond_agreement, $branch, $graduate_year, $resume_path, $status, $source);
 
         if (!$bindResult) {
             error_log("Bind failed: " . $stmt->error);
@@ -227,7 +227,7 @@ switch ($action) {
         $id = $_POST['id'] ?? null;
         if (!$id) respond('error', ['message' => 'ID required'], 400);
 
-        $fields = ['fullname', 'email', 'phone', 'alternate_phone', 'dob', 'merital_status', 'experience', 'address', 'skills', 'joining_timeframe', 'bond_agreement', 'branch', 'graduate_year', 'reject_reason', 'status'];
+        $fields = ['fullname', 'email', 'phone', 'alternate_phone', 'dob', 'marital_status', 'experience', 'address', 'skills', 'joining_timeframe', 'bond_agreement', 'branch', 'graduate_year', 'reject_reason', 'status'];
         $updates = [];
         $params = [];
         $types = '';
@@ -342,10 +342,10 @@ switch ($action) {
                         $source_sync = 'sync';
 
                         $stmt = $conn->prepare('INSERT INTO applicants 
-                            (fullname, email, phone, alternate_phone, dob, merital_status, experience, address, skills, joining_timeframe, bond_agreement, branch, graduate_year, status, source) 
+                            (fullname, email, phone, alternate_phone, dob, marital_status, experience, address, skills, joining_timeframe, bond_agreement, branch, graduate_year, status, source) 
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
                         $stmt->bind_param('sssssssssssssss', 
-                            $fullname, $email, $phone, $alternate_phone, $dob, $merital_status, $experience, $address, $skills, $joining_timeframe, $bond_agreement, $branch, $graduate_year, $status, $source_sync);
+                            $fullname, $email, $phone, $alternate_phone, $dob, $marital_status, $experience, $address, $skills, $joining_timeframe, $bond_agreement, $branch, $graduate_year, $status, $source_sync);
                         
                         if ($stmt->execute()) {
                             $insertedApplicants++;
