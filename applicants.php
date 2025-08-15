@@ -49,6 +49,87 @@ function formatExperience($experience) {
 }
 
 switch ($action) {
+    // case 'get':
+    //     $id = $_GET['id'] ?? null;
+    //     if (!$id) respond('error', ['message' => 'ID required'], 400);
+    //     $stmt = $conn->prepare('SELECT * FROM applicants WHERE id = ?');
+    //     $stmt->bind_param('i', $id);
+    //     $stmt->execute();
+    //     $applicant = $stmt->get_result()->fetch_assoc();
+    //     if ($applicant) {
+    //         respond('success', $applicant);
+    //     } else {
+    //         respond('error', ['message' => 'Applicant not found'], 404);
+    //     }
+    //     break;
+
+    case 'view':
+        $where = [];
+        $params = [];
+        $types = '';
+
+        if (!empty($_GET['search'])) {
+            $search = '%' . $_GET['search'] . '%';
+            $where[] = "(fullname LIKE ? OR email LIKE ? OR phone LIKE ?)";
+            $params[] = $search;
+            $params[] = $search;
+            $params[] = $search;
+            $types .= 'sss';
+        }
+
+        if (!empty($_GET['status']) && in_array($_GET['status'], ['pending','reviewed','interviewed','hired','rejected'])) {
+            $where[] = "status = ?";
+            $params[] = $_GET['status'];
+            $types .= 's';
+        }
+
+        $order = "created_at DESC";
+        if (!empty($_GET['order']) && $_GET['order'] === 'oldest') {
+            $order = "created_at ASC";
+        }
+
+        $page = isset($_GET['page']) && is_numeric($_GET['page']) && $_GET['page'] > 0 ? (int)$_GET['page'] : 1;
+        $limit = isset($_GET['limit']) && is_numeric($_GET['limit']) && $_GET['limit'] > 0 ? (int)$_GET['limit'] : 10;
+        $offset = ($page - 1) * $limit;
+
+        $count_sql = "SELECT COUNT(*) as total FROM applicants";
+        if ($where) $count_sql .= " WHERE " . implode(" AND ", $where);
+        $count_stmt = $conn->prepare($count_sql);
+        if ($params) $count_stmt->bind_param($types, ...$params);
+        $count_stmt->execute();
+        $total = $count_stmt->get_result()->fetch_assoc()['total'];
+
+        $sql = "SELECT * FROM applicants";
+        if ($where) $sql .= " WHERE " . implode(" AND ", $where);
+        $sql .= " ORDER BY $order LIMIT ? OFFSET ?";
+        $stmt = $conn->prepare($sql);
+        if ($params) {
+            $types_with_pagination = $types . 'ii';
+            array_push($params, $limit, $offset);
+            $stmt->bind_param($types_with_pagination, ...$params);
+        } else {
+            $stmt->bind_param('ii', $limit, $offset);
+        }
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $applicants = [];
+        while ($row = $result->fetch_assoc()) {
+            // Format experience for display
+            if (isset($row['experience'])) {
+                $row['experience_display'] = formatExperience($row['experience']);
+            }
+            $applicants[] = $row;
+        }
+
+        respond('success', [
+            'applicants' => $applicants,
+            'total' => (int)$total,
+            'page' => $page,
+            'limit' => $limit,
+            'totalPages' => ceil($total / $limit)
+        ]);
+        break;
+
     case 'add':
         // Check database connection
         if (!$conn) {
@@ -140,87 +221,6 @@ switch ($action) {
             error_log("Add applicant error: " . $stmt->error);
             respond('error', ['message' => $stmt->error], 400);
         }
-        break;
-
-    // case 'get':
-    //     $id = $_GET['id'] ?? null;
-    //     if (!$id) respond('error', ['message' => 'ID required'], 400);
-    //     $stmt = $conn->prepare('SELECT * FROM applicants WHERE id = ?');
-    //     $stmt->bind_param('i', $id);
-    //     $stmt->execute();
-    //     $applicant = $stmt->get_result()->fetch_assoc();
-    //     if ($applicant) {
-    //         respond('success', $applicant);
-    //     } else {
-    //         respond('error', ['message' => 'Applicant not found'], 404);
-    //     }
-    //     break;
-
-    case 'get':
-        $where = [];
-        $params = [];
-        $types = '';
-
-        if (!empty($_GET['search'])) {
-            $search = '%' . $_GET['search'] . '%';
-            $where[] = "(fullname LIKE ? OR email LIKE ? OR phone LIKE ?)";
-            $params[] = $search;
-            $params[] = $search;
-            $params[] = $search;
-            $types .= 'sss';
-        }
-
-        if (!empty($_GET['status']) && in_array($_GET['status'], ['pending','reviewed','interviewed','hired','rejected'])) {
-            $where[] = "status = ?";
-            $params[] = $_GET['status'];
-            $types .= 's';
-        }
-
-        $order = "created_at DESC";
-        if (!empty($_GET['order']) && $_GET['order'] === 'oldest') {
-            $order = "created_at ASC";
-        }
-
-        $page = isset($_GET['page']) && is_numeric($_GET['page']) && $_GET['page'] > 0 ? (int)$_GET['page'] : 1;
-        $limit = isset($_GET['limit']) && is_numeric($_GET['limit']) && $_GET['limit'] > 0 ? (int)$_GET['limit'] : 10;
-        $offset = ($page - 1) * $limit;
-
-        $count_sql = "SELECT COUNT(*) as total FROM applicants";
-        if ($where) $count_sql .= " WHERE " . implode(" AND ", $where);
-        $count_stmt = $conn->prepare($count_sql);
-        if ($params) $count_stmt->bind_param($types, ...$params);
-        $count_stmt->execute();
-        $total = $count_stmt->get_result()->fetch_assoc()['total'];
-
-        $sql = "SELECT * FROM applicants";
-        if ($where) $sql .= " WHERE " . implode(" AND ", $where);
-        $sql .= " ORDER BY $order LIMIT ? OFFSET ?";
-        $stmt = $conn->prepare($sql);
-        if ($params) {
-            $types_with_pagination = $types . 'ii';
-            array_push($params, $limit, $offset);
-            $stmt->bind_param($types_with_pagination, ...$params);
-        } else {
-            $stmt->bind_param('ii', $limit, $offset);
-        }
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $applicants = [];
-        while ($row = $result->fetch_assoc()) {
-            // Format experience for display
-            if (isset($row['experience'])) {
-                $row['experience_display'] = formatExperience($row['experience']);
-            }
-            $applicants[] = $row;
-        }
-
-        respond('success', [
-            'applicants' => $applicants,
-            'total' => (int)$total,
-            'page' => $page,
-            'limit' => $limit,
-            'totalPages' => ceil($total / $limit)
-        ]);
         break;
 
     case 'update':
