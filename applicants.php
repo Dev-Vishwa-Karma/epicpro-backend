@@ -11,6 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_once 'mailer.php';
 require_once 'db_connection.php';
 require_once 'email_templates.php';
+require_once 'helpers.php';
 header('Content-Type: application/json');
 
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
@@ -121,7 +122,7 @@ switch ($action) {
             $applicants[] = $row;
         }
 
-        respond('success', [
+        sendJsonResponse('success', [
             'applicants' => $applicants,
             'total' => (int)$total,
             'page' => $page,
@@ -131,16 +132,10 @@ switch ($action) {
         break;
 
     case 'add':
-        // Check database connection
         if (!$conn) {
-            error_log("Database connection failed in add action");
-            respond('error', ['message' => 'Database connection failed'], 500);
+            sendJsonResponse('error', null, 'Database connection failed');
         }
-    
-        
-        // Log received data for debugging
-        error_log("Received POST data: " . print_r($_POST, true));
-        
+
         $fullname = $_POST['fullname'] ?? '';
         $email = $_POST['email'] ?? '';
         $phone = $_POST['phone'] ?? '';
@@ -159,7 +154,7 @@ switch ($action) {
         $source = $_POST['source'] ?? 'admin';
 
         if (empty($fullname) || empty($email)) {
-            respond('error', ['message' => 'Full Name and Email are required.'], 400);
+            sendJsonResponse('error', null, 'Full Name and Email are required.');
         }
 
         // Check if email already exists
@@ -168,7 +163,7 @@ switch ($action) {
         $stmt->execute();
         $stmt->store_result();
         if ($stmt->num_rows > 0) {
-            respond('error', ['message' => 'Email already exists.'], 200);
+            sendJsonResponse('error', null, 'Email already exists.');
         }
 
         if (isset($_FILES['resume']) && $_FILES['resume']['error'] === UPLOAD_ERR_OK) {
@@ -184,19 +179,16 @@ switch ($action) {
         }
 
         $sql = 'INSERT INTO applicants (fullname, email, phone, alternate_phone, dob, marital_status, experience, address, skills, joining_timeframe, bond_agreement, branch, graduate_year, resume_path, status, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
-        error_log("SQL Query: " . $sql);
         
         $stmt = $conn->prepare($sql);
         if (!$stmt) {
-            error_log("Prepare failed: " . $conn->error);
-            respond('error', ['message' => 'Database prepare failed: ' . $conn->error], 500);
+            sendJsonResponse('error', null, "Database prepare failed: " . $conn->error);
         }
         
         $bindResult = $stmt->bind_param('ssssssssssssisss', $fullname, $email, $phone, $alternate_phone, $dob, $marital_status, $experience, $address, $skills, $joining_timeframe, $bond_agreement, $branch, $graduate_year, $resume_path, $status, $source);
 
         if (!$bindResult) {
-            error_log("Bind failed: " . $stmt->error);
-            respond('error', ['message' => 'Database bind failed: ' . $stmt->error], 500);
+            sendJsonResponse('error', null, "Database bind failed: " . $stmt->error);
         }
         if ($stmt->execute()) {
             $applicantId = $conn->insert_id;
@@ -216,17 +208,15 @@ switch ($action) {
             // $messageApplicant = getApplicantConfirmationEmail($applicant);
             // sendEmail($email, $subjectApplicant, $messageApplicant);
 
-            respond('success', ['id' => $applicantId]);
+            sendJsonResponse('success', ['id' => $applicantId]);
         } else {
-            error_log("Add applicant error: " . $stmt->error);
-            respond('error', ['message' => $stmt->error], 400);
+            sendJsonResponse('error', null, $stmt->error);
         }
         break;
 
     case 'update':
         $id = $_POST['id'] ?? null;
-        if (!$id) respond('error', ['message' => 'ID required'], 400);
-
+        if (!$id) sendJsonResponse('error', null, 'ID required');
         $fields = ['fullname', 'email', 'phone', 'alternate_phone', 'dob', 'marital_status', 'experience', 'address', 'skills', 'joining_timeframe', 'bond_agreement', 'branch', 'graduate_year', 'reject_reason', 'status'];
         $updates = [];
         $params = [];
@@ -254,7 +244,7 @@ switch ($action) {
             }
         }
 
-        if (empty($updates)) respond('error', ['message' => 'No fields to update'], 400);
+        if (empty($updates)) sendJsonResponse('error', null, "No fields to update");
         $params[] = $id;
         $types .= 'i';
         $sql = 'UPDATE applicants SET ' . implode(', ', $updates) . ', updated_at = CURRENT_TIMESTAMP WHERE id = ?';
@@ -270,39 +260,38 @@ switch ($action) {
                 $statusUpdate = getStatusUpdateEmail($applicant, $_POST['status']);
                 // sendEmail($applicant['email'], $statusUpdate['subject'], $statusUpdate['message']);
             }
-            respond('success', ['updated' => $stmt->affected_rows]);
+
+            sendJsonResponse('success', ['updated' => $stmt->affected_rows]);
+            
         } else {
-            respond('error', ['message' => $stmt->error], 400);
+            sendJsonResponse('error', null, $stmt->error);
         }
         break;
 
     case 'delete':
         $id = $_POST['id'] ?? null;
-        if (!$id) respond('error', ['message' => 'ID required'], 400);
+        if (!$id) sendJsonResponse('error', null, 'ID required');
         $stmt = $conn->prepare('DELETE FROM applicants WHERE id = ?');
         $stmt->bind_param('i', $id);
         if ($stmt->execute()) {
-            respond('success', ['deleted' => $stmt->affected_rows]);
+            sendJsonResponse('success', ['deleted' => $stmt->affected_rows]);
         } else {
-            respond('error', ['message' => $stmt->error], 400);                                                                                 
+            sendJsonResponse('error', null, $stmt->error);                                                                               
         }
         break;
 
     case 'sync_applicant':
         if (!$conn) {
-            error_log("Database connection failed in sync_applicant");
-            respond('error', ['message' => 'Database connection failed'], 500);
+            sendJsonResponse('error', null, 'Database connection failed');
         }                                                                                                                               
         $url = 'https://randomuser.me/api/?results=50';                                                                                                                                                                                                                
         $response = file_get_contents($url);
         if ($response === false) {
-            error_log("Failed to fetch data from: " . $url);
-            respond('error', ['message' => 'Failed to fetch data from external API'], 500);
+            sendJsonResponse('error', null, "Failed to fetch data from external API");
         }
         $applicantData = json_decode($response, true);
         if (json_last_error() !== JSON_ERROR_NONE) {
-            error_log("JSON decode error: " . json_last_error_msg());
-            respond('error', ['message' => 'Invalid JSON response from external API'], 500);
+            sendJsonResponse('error', null, "Invalid JSON response from external API");
         }
     
         if ($applicantData && isset($applicantData['results'])) {
