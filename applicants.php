@@ -68,7 +68,7 @@ switch ($action) {
         $merital_status = !empty($_POST['merital_status']) ? $_POST['merital_status'] : 'single';
         $experience = $_POST['experience'] ?? '';
         $address = $_POST['address'] ?? '';
-        $skills = $_POST['skills'] ?? '[]';
+        $skills = $_POST['skills'] ?? [];
         $joining_timeframe = $_POST['joining_timeframe'] ?? '';
         $bond_agreement = !empty($_POST['bond_agreement']) ? $_POST['bond_agreement'] : null;
         $branch = $_POST['branch'] ?? '';
@@ -293,7 +293,7 @@ switch ($action) {
             error_log("Database connection failed in sync_applicant");
             respond('error', ['message' => 'Database connection failed'], 500);
         }                                                                                                                               
-        $url = 'https://randomuser.me/api/?results=50';                                                                                                                                                                                                                
+        $url = 'https://randomuser.me/api/?results=1';                                                                                                                                                                                                                
         $response = file_get_contents($url);
         if ($response === false) {
             error_log("Failed to fetch data from: " . $url);
@@ -332,7 +332,7 @@ switch ($action) {
                         $marital_status = null;
                         $address = ($applicant['location']['street']['number'] ?? '') . ' ' . 
                                         ($applicant['location']['street']['name'] ?? '');
-                        $skills = json_encode(['']);
+                        $skills = json_encode([]);
                         $status = 'pending';
                         $experience = null;
                         $joining_timeframe = null;
