@@ -49,99 +49,6 @@ function formatExperience($experience) {
 }
 
 switch ($action) {
-    case 'add':
-        // Check database connection
-        if (!$conn) {
-            error_log("Database connection failed in add action");
-            respond('error', ['message' => 'Database connection failed'], 500);
-        }
-    
-        
-        // Log received data for debugging
-        error_log("Received POST data: " . print_r($_POST, true));
-        
-        $fullname = $_POST['fullname'] ?? '';
-        $email = $_POST['email'] ?? '';
-        $phone = $_POST['phone'] ?? '';
-        $alternate_phone = $_POST['alternate_phone'] ?? '';
-        $dob = $_POST['dob'] ?? '';
-        $merital_status = !empty($_POST['merital_status']) ? $_POST['merital_status'] : 'single';
-        $experience = $_POST['experience'] ?? '';
-        $address = $_POST['address'] ?? '';
-        $skills = $_POST['skills'] ?? [];
-        $joining_timeframe = $_POST['joining_timeframe'] ?? '';
-        $bond_agreement = !empty($_POST['bond_agreement']) ? $_POST['bond_agreement'] : null;
-        $branch = $_POST['branch'] ?? '';
-        $graduate_year = !empty($_POST['graduate_year']) ? (int)$_POST['graduate_year'] : null;
-        $status = 'pending';
-        $resume_path = null;
-        $source = $_POST['source'] ?? 'admin';
-
-        if (empty($fullname) || empty($email)) {
-            respond('error', ['message' => 'Full Name and Email are required.'], 400);
-        }
-
-        // Check if email already exists
-        $stmt = $conn->prepare('SELECT id FROM applicants WHERE email = ?');
-        $stmt->bind_param('s', $email);
-        $stmt->execute();
-        $stmt->store_result();
-        if ($stmt->num_rows > 0) {
-            respond('error', ['message' => 'Email already exists.'], 200);
-        }
-
-        if (isset($_FILES['resume']) && $_FILES['resume']['error'] === UPLOAD_ERR_OK) {
-            $uploadDir = __DIR__ . '/uploads/resumes/';
-            if (!is_dir($uploadDir)) {
-                mkdir($uploadDir, 0777, true);
-            }
-            $filename = uniqid() . '-' . preg_replace('/[^a-zA-Z0-9._-]/', '', $_FILES['resume']['name']);
-            $targetFile = $uploadDir . $filename;
-            if (move_uploaded_file($_FILES['resume']['tmp_name'], $targetFile)) {
-                $resume_path = 'uploads/resumes/' . $filename;
-            }
-        }
-
-        $sql = 'INSERT INTO applicants (fullname, email, phone, alternate_phone, dob, merital_status, experience, address, skills, joining_timeframe, bond_agreement, branch, graduate_year, resume_path, status, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
-        error_log("SQL Query: " . $sql);
-        
-        $stmt = $conn->prepare($sql);
-        if (!$stmt) {
-            error_log("Prepare failed: " . $conn->error);
-            respond('error', ['message' => 'Database prepare failed: ' . $conn->error], 500);
-        }
-        
-        $bindResult = $stmt->bind_param('ssssssssssssisss', $fullname, $email, $phone, $alternate_phone, $dob, $merital_status, $experience, $address, $skills, $joining_timeframe, $bond_agreement, $branch, $graduate_year, $resume_path, $status, $source);
-
-        if (!$bindResult) {
-            error_log("Bind failed: " . $stmt->error);
-            respond('error', ['message' => 'Database bind failed: ' . $stmt->error], 500);
-        }
-        if ($stmt->execute()) {
-            $applicantId = $conn->insert_id;
-
-            $stmt2 = $conn->prepare('SELECT * FROM applicants WHERE id = ?');
-            $stmt2->bind_param('i', $applicantId);
-            $stmt2->execute();
-            $applicant = $stmt2->get_result()->fetch_assoc();
-
-            // // Send admin notification
-            // $subjectAdmin = "New Application Received - {$fullname}";
-            // $messageAdmin = getAdminNotificationEmail($applicant);
-            // sendEmail('akash.profilics@gmail.com', $subjectAdmin, $messageAdmin);
-
-            // // Send applicant confirmation
-            // $subjectApplicant = "Application Received - {$fullname}";
-            // $messageApplicant = getApplicantConfirmationEmail($applicant);
-            // sendEmail($email, $subjectApplicant, $messageApplicant);
-
-            respond('success', ['id' => $applicantId]);
-        } else {
-            error_log("Add applicant error: " . $stmt->error);
-            respond('error', ['message' => $stmt->error], 400);
-        }
-        break;
-
     // case 'get':
     //     $id = $_GET['id'] ?? null;
     //     if (!$id) respond('error', ['message' => 'ID required'], 400);
@@ -156,7 +63,7 @@ switch ($action) {
     //     }
     //     break;
 
-    case 'get':
+    case 'view':
         $where = [];
         $params = [];
         $types = '';
@@ -223,11 +130,104 @@ switch ($action) {
         ]);
         break;
 
+    case 'add':
+        // Check database connection
+        if (!$conn) {
+            error_log("Database connection failed in add action");
+            respond('error', ['message' => 'Database connection failed'], 500);
+        }
+    
+        
+        // Log received data for debugging
+        error_log("Received POST data: " . print_r($_POST, true));
+        
+        $fullname = $_POST['fullname'] ?? '';
+        $email = $_POST['email'] ?? '';
+        $phone = $_POST['phone'] ?? '';
+        $alternate_phone = $_POST['alternate_phone'] ?? '';
+        $dob = $_POST['dob'] ?? '';
+        $marital_status = !empty($_POST['marital_status']) ? $_POST['marital_status'] : 'single';
+        $experience = $_POST['experience'] ?? '';
+        $address = $_POST['address'] ?? '';
+        $skills = $_POST['skills'] ?? [];
+        $joining_timeframe = $_POST['joining_timeframe'] ?? '';
+        $bond_agreement = !empty($_POST['bond_agreement']) ? $_POST['bond_agreement'] : null;
+        $branch = $_POST['branch'] ?? '';
+        $graduate_year = !empty($_POST['graduate_year']) ? (int)$_POST['graduate_year'] : null;
+        $status = 'pending';
+        $resume_path = null;
+        $source = $_POST['source'] ?? 'admin';
+
+        if (empty($fullname) || empty($email)) {
+            respond('error', ['message' => 'Full Name and Email are required.'], 400);
+        }
+
+        // Check if email already exists
+        $stmt = $conn->prepare('SELECT id FROM applicants WHERE email = ?');
+        $stmt->bind_param('s', $email);
+        $stmt->execute();
+        $stmt->store_result();
+        if ($stmt->num_rows > 0) {
+            respond('error', ['message' => 'Email already exists.'], 200);
+        }
+
+        if (isset($_FILES['resume']) && $_FILES['resume']['error'] === UPLOAD_ERR_OK) {
+            $uploadDir = __DIR__ . '/uploads/resumes/';
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0777, true);
+            }
+            $filename = uniqid() . '-' . preg_replace('/[^a-zA-Z0-9._-]/', '', $_FILES['resume']['name']);
+            $targetFile = $uploadDir . $filename;
+            if (move_uploaded_file($_FILES['resume']['tmp_name'], $targetFile)) {
+                $resume_path = 'uploads/resumes/' . $filename;
+            }
+        }
+
+        $sql = 'INSERT INTO applicants (fullname, email, phone, alternate_phone, dob, marital_status, experience, address, skills, joining_timeframe, bond_agreement, branch, graduate_year, resume_path, status, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+        error_log("SQL Query: " . $sql);
+        
+        $stmt = $conn->prepare($sql);
+        if (!$stmt) {
+            error_log("Prepare failed: " . $conn->error);
+            respond('error', ['message' => 'Database prepare failed: ' . $conn->error], 500);
+        }
+        
+        $bindResult = $stmt->bind_param('ssssssssssssisss', $fullname, $email, $phone, $alternate_phone, $dob, $marital_status, $experience, $address, $skills, $joining_timeframe, $bond_agreement, $branch, $graduate_year, $resume_path, $status, $source);
+
+        if (!$bindResult) {
+            error_log("Bind failed: " . $stmt->error);
+            respond('error', ['message' => 'Database bind failed: ' . $stmt->error], 500);
+        }
+        if ($stmt->execute()) {
+            $applicantId = $conn->insert_id;
+
+            $stmt2 = $conn->prepare('SELECT * FROM applicants WHERE id = ?');
+            $stmt2->bind_param('i', $applicantId);
+            $stmt2->execute();
+            $applicant = $stmt2->get_result()->fetch_assoc();
+
+            // // Send admin notification
+            // $subjectAdmin = "New Application Received - {$fullname}";
+            // $messageAdmin = getAdminNotificationEmail($applicant);
+            // sendEmail('akash.profilics@gmail.com', $subjectAdmin, $messageAdmin);
+
+            // // Send applicant confirmation
+            // $subjectApplicant = "Application Received - {$fullname}";
+            // $messageApplicant = getApplicantConfirmationEmail($applicant);
+            // sendEmail($email, $subjectApplicant, $messageApplicant);
+
+            respond('success', ['id' => $applicantId]);
+        } else {
+            error_log("Add applicant error: " . $stmt->error);
+            respond('error', ['message' => $stmt->error], 400);
+        }
+        break;
+
     case 'update':
         $id = $_POST['id'] ?? null;
         if (!$id) respond('error', ['message' => 'ID required'], 400);
 
-        $fields = ['fullname', 'email', 'phone', 'alternate_phone', 'dob', 'merital_status', 'experience', 'address', 'skills', 'joining_timeframe', 'bond_agreement', 'branch', 'graduate_year', 'reject_reason', 'status'];
+        $fields = ['fullname', 'email', 'phone', 'alternate_phone', 'dob', 'marital_status', 'experience', 'address', 'skills', 'joining_timeframe', 'bond_agreement', 'branch', 'graduate_year', 'reject_reason', 'status'];
         $updates = [];
         $params = [];
         $types = '';
@@ -293,7 +293,7 @@ switch ($action) {
             error_log("Database connection failed in sync_applicant");
             respond('error', ['message' => 'Database connection failed'], 500);
         }                                                                                                                               
-        $url = 'https://randomuser.me/api/?results=1';                                                                                                                                                                                                                
+        $url = 'https://randomuser.me/api/?results=5';                                                                                                                                                                                                                
         $response = file_get_contents($url);
         if ($response === false) {
             error_log("Failed to fetch data from: " . $url);
@@ -342,10 +342,10 @@ switch ($action) {
                         $source_sync = 'sync';
 
                         $stmt = $conn->prepare('INSERT INTO applicants 
-                            (fullname, email, phone, alternate_phone, dob, merital_status, experience, address, skills, joining_timeframe, bond_agreement, branch, graduate_year, status, source) 
+                            (fullname, email, phone, alternate_phone, dob, marital_status, experience, address, skills, joining_timeframe, bond_agreement, branch, graduate_year, status, source) 
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
                         $stmt->bind_param('sssssssssssssss', 
-                            $fullname, $email, $phone, $alternate_phone, $dob, $merital_status, $experience, $address, $skills, $joining_timeframe, $bond_agreement, $branch, $graduate_year, $status, $source_sync);
+                            $fullname, $email, $phone, $alternate_phone, $dob, $marital_status, $experience, $address, $skills, $joining_timeframe, $bond_agreement, $branch, $graduate_year, $status, $source_sync);
                         
                         if ($stmt->execute()) {
                             $insertedApplicants++;
