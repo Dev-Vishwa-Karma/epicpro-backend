@@ -150,6 +150,12 @@ switch ($action) {
         $experience = $_POST['experience'] ?? '';
         $address = $_POST['address'] ?? '';
         $skills = $_POST['skills'] ?? [];
+        // Ensure skills is stored as valid JSON string
+        if (is_array($skills)) {
+            $skills = json_encode($skills);
+        } elseif ($skills === null || $skills === '') {
+            $skills = '[]';
+        }
         $joining_timeframe = $_POST['joining_timeframe'] ?? '';
         $bond_agreement = !empty($_POST['bond_agreement']) ? $_POST['bond_agreement'] : null;
         $branch = $_POST['branch'] ?? '';
@@ -157,6 +163,8 @@ switch ($action) {
         $status = 'pending';
         $resume_path = null;
         $source = $_POST['source'] ?? 'admin';
+        $employee_id = !empty($_POST['employee_id']) ? (int)$_POST['employee_id'] : null;
+        $employee_name = !empty($_POST['employee_name']) ? $_POST['employee_name'] : null;
 
         if (empty($fullname) || empty($email)) {
             respond('error', ['message' => 'Full Name and Email are required.'], 400);
@@ -183,7 +191,7 @@ switch ($action) {
             }
         }
 
-        $sql = 'INSERT INTO applicants (fullname, email, phone, alternate_phone, dob, marital_status, experience, address, skills, joining_timeframe, bond_agreement, branch, graduate_year, resume_path, status, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+        $sql = 'INSERT INTO applicants (fullname, email, phone, alternate_phone, dob, marital_status, experience, address, skills, joining_timeframe, bond_agreement, branch, graduate_year, resume_path, status, source, employee_id, employee_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
         error_log("SQL Query: " . $sql);
         
         $stmt = $conn->prepare($sql);
@@ -192,7 +200,7 @@ switch ($action) {
             respond('error', ['message' => 'Database prepare failed: ' . $conn->error], 500);
         }
         
-        $bindResult = $stmt->bind_param('ssssssssssssisss', $fullname, $email, $phone, $alternate_phone, $dob, $marital_status, $experience, $address, $skills, $joining_timeframe, $bond_agreement, $branch, $graduate_year, $resume_path, $status, $source);
+        $bindResult = $stmt->bind_param('ssssssssssssisssss', $fullname, $email, $phone, $alternate_phone, $dob, $marital_status, $experience, $address, $skills, $joining_timeframe, $bond_agreement, $branch, $graduate_year, $resume_path, $status, $source, $employee_id, $employee_name);
 
         if (!$bindResult) {
             error_log("Bind failed: " . $stmt->error);
@@ -227,7 +235,7 @@ switch ($action) {
         $id = $_POST['id'] ?? null;
         if (!$id) respond('error', ['message' => 'ID required'], 400);
 
-        $fields = ['fullname', 'email', 'phone', 'alternate_phone', 'dob', 'marital_status', 'experience', 'address', 'skills', 'joining_timeframe', 'bond_agreement', 'branch', 'graduate_year', 'reject_reason', 'status'];
+        $fields = ['fullname', 'email', 'phone', 'alternate_phone', 'dob', 'marital_status', 'experience', 'address', 'skills', 'joining_timeframe', 'bond_agreement', 'branch', 'graduate_year', 'reject_reason', 'status', 'employee_id', 'employee_name'];
         $updates = [];
         $params = [];
         $types = '';
@@ -235,7 +243,15 @@ switch ($action) {
         foreach ($fields as $field) {
             if (isset($_POST[$field])) {
                 $updates[] = "$field = ?";
-                $params[] = $_POST[$field];
+                $value = $_POST[$field];
+                if ($field === 'skills') {
+                    if (is_array($value)) {
+                        $value = json_encode($value);
+                    } elseif ($value === null || $value === '') {
+                        $value = '[]';
+                    }
+                }
+                $params[] = $value;
                 $types .= 's';
             }
         }
@@ -269,6 +285,22 @@ switch ($action) {
 
                 $statusUpdate = getStatusUpdateEmail($applicant, $_POST['status']);
                 // sendEmail($applicant['email'], $statusUpdate['subject'], $statusUpdate['message']);
+
+                // Send notification to referring employee if status changed and applicant is a referral
+                // if (
+                //     isset($applicant['source']) && $applicant['source'] === 'referral' &&
+                //     !empty($applicant['employee_id']) && isset($_POST['status'])
+                // ) {
+                //     $employee_id = $applicant['employee_id'];
+                //     $title = "Referral Status Updated";
+                //     $body = "The status of your referred applicant ({$applicant['fullname']}) has been changed to '{$_POST['status']}'.";
+                //     $type = "referral_status";
+                //     $read = 0;
+
+                //     $stmtNotif = $conn->prepare("INSERT INTO notifications (employee_id, title, body, type, `read`, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+                //     $stmtNotif->bind_param("isssi", $employee_id, $title, $body, $type, $read);
+                //     $stmtNotif->execute();
+                // }
             }
             respond('success', ['updated' => $stmt->affected_rows]);
         } else {
