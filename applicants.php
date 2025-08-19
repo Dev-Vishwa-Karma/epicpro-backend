@@ -459,7 +459,7 @@ switch ($action) {
                 }
             }
             $updatedApplicants = count($duplicateApplicants);
-            if ($insertedApplicants > 0 || $updatedApplicants > 0) {
+            if ($insertedApplicants > 0 ) {
                 $stmt = $conn->prepare("INSERT INTO sync_log (last_sync) VALUES (NOW())");
                 $stmt->execute();
             }
