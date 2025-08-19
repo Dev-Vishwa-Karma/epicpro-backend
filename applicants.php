@@ -163,7 +163,7 @@ switch ($action) {
         $status = 'pending';
         $resume_path = null;
         $source = $_POST['source'] ?? 'admin';
-        $employee_code = (isset($_POST['employee_code']) && $_POST['employee_code'] !== '') ? $_POST['employee_code'] : null;
+        $employee_id = (isset($_POST['employee_id']) && $_POST['employee_id'] !== '') ? $_POST['employee_id'] : null;
         $employee_name = !empty($_POST['employee_name']) ? $_POST['employee_name'] : null;
 
         if (empty($fullname) || empty($email)) {
@@ -191,7 +191,7 @@ switch ($action) {
             }
         }
 
-        $sql = 'INSERT INTO applicants (fullname, email, phone, alternate_phone, dob, marital_status, experience, address, skills, joining_timeframe, bond_agreement, branch, graduate_year, resume_path, status, source, employee_code, employee_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+        $sql = 'INSERT INTO applicants (fullname, email, phone, alternate_phone, dob, marital_status, experience, address, skills, joining_timeframe, bond_agreement, branch, graduate_year, resume_path, status, source, employee_id, employee_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
         error_log("SQL Query: " . $sql);
         
         $stmt = $conn->prepare($sql);
@@ -200,7 +200,7 @@ switch ($action) {
             respond('error', ['message' => 'Database prepare failed: ' . $conn->error], 500);
         }
         
-        $bindResult = $stmt->bind_param('ssssssssssssisssss', $fullname, $email, $phone, $alternate_phone, $dob, $marital_status, $experience, $address, $skills, $joining_timeframe, $bond_agreement, $branch, $graduate_year, $resume_path, $status, $source, $employee_code, $employee_name);
+        $bindResult = $stmt->bind_param('ssssssssssssisssss', $fullname, $email, $phone, $alternate_phone, $dob, $marital_status, $experience, $address, $skills, $joining_timeframe, $bond_agreement, $branch, $graduate_year, $resume_path, $status, $source, $employee_id, $employee_name);
 
         if (!$bindResult) {
             error_log("Bind failed: " . $stmt->error);
@@ -236,7 +236,7 @@ switch ($action) {
         $emailForUpdate = $_POST['email'] ?? null;
         if (!$id && !$emailForUpdate) respond('error', ['message' => 'ID or Email required'], 400);
 
-        $fields = ['fullname', 'email', 'phone', 'alternate_phone', 'dob', 'marital_status', 'experience', 'address', 'skills', 'joining_timeframe', 'bond_agreement', 'branch', 'graduate_year', 'reject_reason', 'status', 'employee_code', 'employee_name'];
+        $fields = ['fullname', 'email', 'phone', 'alternate_phone', 'dob', 'marital_status', 'experience', 'address', 'skills', 'joining_timeframe', 'bond_agreement', 'branch', 'graduate_year', 'reject_reason', 'status', 'employee_id', 'employee_name'];
         $updates = [];
         $params = [];
         $types = '';
@@ -431,7 +431,7 @@ switch ($action) {
                         $incomingBranch = $applicant['branch'] ?? null;
                         $incomingGraduateYear = $applicant['graduate_year'] ?? null;
                         $incomingSkills = isset($applicant['skills']) ? (is_array($applicant['skills']) ? json_encode($applicant['skills']) : (string)$applicant['skills']) : null;
-                        $incomingEmployeeCode = $applicant['employee_code'] ?? null;
+                        $incomingEmployeeCode = $applicant['employee_id'] ?? null;
                         $incomingEmployeeName = $applicant['employee_name'] ?? null;
 
                         $duplicateApplicants[] = [
@@ -451,7 +451,7 @@ switch ($action) {
                                 'branch' => $incomingBranch,
                                 'graduate_year' => $incomingGraduateYear,
                                 'skills' => $incomingSkills,
-                                'employee_code' => $incomingEmployeeCode,
+                                'employee_id' => $incomingEmployeeCode,
                                 'employee_name' => $incomingEmployeeName,
                             ]
                         ];
@@ -474,7 +474,6 @@ switch ($action) {
         }
 
         break;
-
 
 
     default:
