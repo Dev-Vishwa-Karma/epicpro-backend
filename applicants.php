@@ -163,7 +163,7 @@ switch ($action) {
         $status = 'pending';
         $resume_path = null;
         $source = $_POST['source'] ?? 'admin';
-        $employee_id = !empty($_POST['employee_id']) ? (int)$_POST['employee_id'] : null;
+        $employee_code = (isset($_POST['employee_code']) && $_POST['employee_code'] !== '') ? $_POST['employee_code'] : null;
         $employee_name = !empty($_POST['employee_name']) ? $_POST['employee_name'] : null;
 
         if (empty($fullname) || empty($email)) {
@@ -191,7 +191,7 @@ switch ($action) {
             }
         }
 
-        $sql = 'INSERT INTO applicants (fullname, email, phone, alternate_phone, dob, marital_status, experience, address, skills, joining_timeframe, bond_agreement, branch, graduate_year, resume_path, status, source, employee_id, employee_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+        $sql = 'INSERT INTO applicants (fullname, email, phone, alternate_phone, dob, marital_status, experience, address, skills, joining_timeframe, bond_agreement, branch, graduate_year, resume_path, status, source, employee_code, employee_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
         error_log("SQL Query: " . $sql);
         
         $stmt = $conn->prepare($sql);
@@ -200,7 +200,7 @@ switch ($action) {
             respond('error', ['message' => 'Database prepare failed: ' . $conn->error], 500);
         }
         
-        $bindResult = $stmt->bind_param('ssssssssssssisssss', $fullname, $email, $phone, $alternate_phone, $dob, $marital_status, $experience, $address, $skills, $joining_timeframe, $bond_agreement, $branch, $graduate_year, $resume_path, $status, $source, $employee_id, $employee_name);
+        $bindResult = $stmt->bind_param('ssssssssssssisssss', $fullname, $email, $phone, $alternate_phone, $dob, $marital_status, $experience, $address, $skills, $joining_timeframe, $bond_agreement, $branch, $graduate_year, $resume_path, $status, $source, $employee_code, $employee_name);
 
         if (!$bindResult) {
             error_log("Bind failed: " . $stmt->error);
@@ -233,9 +233,10 @@ switch ($action) {
 
     case 'update':
         $id = $_POST['id'] ?? null;
-        if (!$id) respond('error', ['message' => 'ID required'], 400);
+        $emailForUpdate = $_POST['email'] ?? null;
+        if (!$id && !$emailForUpdate) respond('error', ['message' => 'ID or Email required'], 400);
 
-        $fields = ['fullname', 'email', 'phone', 'alternate_phone', 'dob', 'marital_status', 'experience', 'address', 'skills', 'joining_timeframe', 'bond_agreement', 'branch', 'graduate_year', 'reject_reason', 'status', 'employee_id', 'employee_name'];
+        $fields = ['fullname', 'email', 'phone', 'alternate_phone', 'dob', 'marital_status', 'experience', 'address', 'skills', 'joining_timeframe', 'bond_agreement', 'branch', 'graduate_year', 'reject_reason', 'status', 'employee_code', 'employee_name'];
         $updates = [];
         $params = [];
         $types = '';
@@ -256,6 +257,7 @@ switch ($action) {
             }
         }
 
+        
         if (isset($_FILES['resume']) && $_FILES['resume']['error'] === UPLOAD_ERR_OK) {
             $uploadDir = __DIR__ . '/uploads/resumes/';
             if (!is_dir($uploadDir)) {
@@ -271,15 +273,29 @@ switch ($action) {
         }
 
         if (empty($updates)) respond('error', ['message' => 'No fields to update'], 400);
-        $params[] = $id;
-        $types .= 'i';
-        $sql = 'UPDATE applicants SET ' . implode(', ', $updates) . ', updated_at = CURRENT_TIMESTAMP WHERE id = ?';
+
+        $whereClause = '';
+        $whereType = '';
+        $whereValue = null;
+        if ($id) {
+            $whereClause = 'id = ?';
+            $whereType = 'i';
+            $whereValue = (int)$id;
+        } else {
+            $whereClause = 'email = ?';
+            $whereType = 's';
+            $whereValue = $emailForUpdate;
+        }
+
+        $params[] = $whereValue;
+        $types .= $whereType;
+        $sql = 'UPDATE applicants SET ' . implode(', ', $updates) . ', updated_at = CURRENT_TIMESTAMP WHERE ' . $whereClause;
         $stmt = $conn->prepare($sql);
         $stmt->bind_param($types, ...$params);
         if ($stmt->execute()) {
             if (isset($_POST['status']) && in_array($_POST['status'], ['reviewed', 'interviewed', 'hired'])) {
-                $stmt2 = $conn->prepare('SELECT * FROM applicants WHERE id = ?');
-                $stmt2->bind_param('i', $id);
+                $stmt2 = $conn->prepare('SELECT * FROM applicants WHERE ' . $whereClause . ' LIMIT 1');
+                $stmt2->bind_param($whereType, $whereValue);
                 $stmt2->execute();
                 $applicant = $stmt2->get_result()->fetch_assoc();
 
@@ -289,16 +305,16 @@ switch ($action) {
                 // Send notification to referring employee if status changed and applicant is a referral
                 // if (
                 //     isset($applicant['source']) && $applicant['source'] === 'referral' &&
-                //     !empty($applicant['employee_id']) && isset($_POST['status'])
+                //     !empty($applicant['employee_code']) && isset($_POST['status'])
                 // ) {
-                //     $employee_id = $applicant['employee_id'];
+                //     $employee_code = $applicant['employee_code'];
                 //     $title = "Referral Status Updated";
                 //     $body = "The status of your referred applicant ({$applicant['fullname']}) has been changed to '{$_POST['status']}'.";
                 //     $type = "referral_status";
                 //     $read = 0;
 
-                //     $stmtNotif = $conn->prepare("INSERT INTO notifications (employee_id, title, body, type, `read`, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
-                //     $stmtNotif->bind_param("isssi", $employee_id, $title, $body, $type, $read);
+                //     $stmtNotif = $conn->prepare("INSERT INTO notifications (employee_code, title, body, type, `read`, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+                //     $stmtNotif->bind_param("isssi", $employee_code, $title, $body, $type, $read);
                 //     $stmtNotif->execute();
                 // }
             }
@@ -320,78 +336,146 @@ switch ($action) {
         }
         break;
 
+        
     case 'sync_applicant':
         if (!$conn) {
             error_log("Database connection failed in sync_applicant");
             respond('error', ['message' => 'Database connection failed'], 500);
-        }                                                                                                                               
-        $url = 'https://randomuser.me/api/?results=5';                                                                                                                                                                                                                
+        }
+
+        $lastSync = null;
+        $stmt = $conn->prepare("SELECT last_sync FROM sync_log ORDER BY id DESC LIMIT 1");
+        if ($stmt->execute()) {
+            $result = $stmt->get_result();
+            if ($row = $result->fetch_assoc()) {
+                $lastSync = $row['last_sync'];
+            }
+        }
+    
+        // 2. Build API URL with filter (assuming API supports since date filter)
+        $url = "http://localhost/epichr/server-backend/job_applicants.php?action=view";
+        
+        if ($lastSync) {
+            // $url .= "&since=" . urlencode($lastSync);
+            $url .= "&since=" . str_replace(' ', '%20', $lastSync);
+        }
+    // var_dump($url);die;
         $response = file_get_contents($url);
         if ($response === false) {
             error_log("Failed to fetch data from: " . $url);
             respond('error', ['message' => 'Failed to fetch data from external API'], 500);
         }
+
         $applicantData = json_decode($response, true);
+    
         if (json_last_error() !== JSON_ERROR_NONE) {
             error_log("JSON decode error: " . json_last_error_msg());
             respond('error', ['message' => 'Invalid JSON response from external API'], 500);
         }
-    
-        if ($applicantData && isset($applicantData['results'])) {
+        
+        if ($applicantData) {
             $insertedApplicants = 0;
-    
-            foreach ($applicantData['results'] as $applicant) {
+            $duplicateApplicants = []; 
+
+            foreach ($applicantData['data'] as $applicant) {
                 $email = $applicant['email'] ?? '';
                 
                 if (!empty($email)) {
-                    // Check if applicant exists
-                    $stmt = $conn->prepare('SELECT COUNT(*) AS count FROM applicants WHERE email = ?');
-                    $stmt->bind_param('s', $email);
-                    $stmt->execute();
-                    $result = $stmt->get_result();
-                    $row = $result->fetch_assoc();
-                    $count = $row['count'];
-    
-                    if ($count == 0) {
-                        error_log("Processing new applicant: " . $email);
-                        $fullname = ($applicant['name']['first'] ?? '') . ' ' . ($applicant['name']['last'] ?? '');
-                        $phone = $applicant['phone'] ?? '';
-                        $alternate_phone = $applicant['phone'] ?? '';
-                        $dob = '';
-                        if (isset($applicant['dob']['date'])) {
-                            $dob = date('Y-m-d', strtotime($applicant['dob']['date']));
-                        }
-                        $marital_status = null;
-                        $address = ($applicant['location']['street']['number'] ?? '') . ' ' . 
-                                        ($applicant['location']['street']['name'] ?? '');
-                        $skills = json_encode([]);
-                        $status = 'pending';
-                        $experience = null;
-                        $joining_timeframe = null;
-                        $bond_agreement = null;
-                        $branch = '';
-                        $graduate_year = null;
-                        $source_sync = 'sync';
+                    // Fetch existing record by email (id and fullname) to properly build duplicate payload
+                    $stmtExisting = $conn->prepare('SELECT id, fullname FROM applicants WHERE email = ? LIMIT 1');
+                    $stmtExisting->bind_param('s', $email);
+                    $stmtExisting->execute();
+                    $resultExisting = $stmtExisting->get_result();
+                    $existing = $resultExisting->fetch_assoc();
 
-                        $stmt = $conn->prepare('INSERT INTO applicants 
+                    if (!$existing) {
+                        $fullname = $applicant['fullname'] ?? (($applicant['first_name'] ?? '') . ' ' . ($applicant['last_name'] ?? ''));
+                        $phone = $applicant['phone'] ?? '';
+                        $alternate_phone = $applicant['alternate_phone'] ?? '';
+                        $dob = !empty($applicant['dob']) ? date('Y-m-d', strtotime($applicant['dob'])) : null;
+                        $address = trim(($applicant['address_1'] ?? '') . ' ' . ($applicant['address_2'] ?? ''));
+                        $skills = isset($applicant['skills']) ? (is_array($applicant['skills']) ? json_encode($applicant['skills']) : (string)$applicant['skills']) : json_encode([]);
+                        $status = 'pending';
+                        $source_sync = 'sync';
+                        $marital_status = $applicant['marital_status'] ?? null;
+                        $experience = $applicant['experience'] ?? null;
+                        $joining_timeframe = $applicant['joining_timeframe'] ?? null;
+                        $bond_agreement = $applicant['bond_agreement'] ?? null;
+                        $branch = $applicant['branch'] ?? null;
+                        $graduate_year = $applicant['graduate_year'] ?? null;
+
+                        $stmtInsert = $conn->prepare('INSERT INTO applicants 
                             (fullname, email, phone, alternate_phone, dob, marital_status, experience, address, skills, joining_timeframe, bond_agreement, branch, graduate_year, status, source) 
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-                        $stmt->bind_param('sssssssssssssss', 
-                            $fullname, $email, $phone, $alternate_phone, $dob, $marital_status, $experience, $address, $skills, $joining_timeframe, $bond_agreement, $branch, $graduate_year, $status, $source_sync);
-                        
-                        if ($stmt->execute()) {
+                        $stmtInsert->bind_param(
+                            'sssssssssssssss',
+                            $fullname, $email, $phone, $alternate_phone, $dob, $marital_status, $experience,
+                            $address, $skills, $joining_timeframe, $bond_agreement, $branch, $graduate_year, $status, $source_sync
+                        );
+
+                        if ($stmtInsert->execute()) {
                             $insertedApplicants++;
                         } else {
-                            error_log("Sync applicant error: " . $stmt->error);
+                            error_log("Sync applicant insert error: " . $stmtInsert->error);
                         }
+                    } else {
+                        // Build richer duplicate payload with existing and incoming data
+                        $incomingFullname = $applicant['fullname'] ?? (($applicant['first_name'] ?? '') . ' ' . ($applicant['last_name'] ?? ''));
+                        $incomingDob = !empty($applicant['dob']) ? date('Y-m-d', strtotime($applicant['dob'])) : null;
+                        // $incomingAddress = trim(($applicant['address_1'] ?? '') . ' ' . ($applicant['address_2'] ?? ''));
+                        $incomingAddress = $applicant['address'] ?? null;
+                        $incomingMaritalStatus = $applicant['marital_status'] ?? null;
+                        $incomingExperience = $applicant['experience'] ?? null;
+                        $incomingJoiningTimeframe = $applicant['joining_timeframe'] ?? null;
+                        $incomingBondAgreement = $applicant['bond_agreement'] ?? null;
+                        $incomingBranch = $applicant['branch'] ?? null;
+                        $incomingGraduateYear = $applicant['graduate_year'] ?? null;
+                        $incomingSkills = isset($applicant['skills']) ? (is_array($applicant['skills']) ? json_encode($applicant['skills']) : (string)$applicant['skills']) : null;
+                        $incomingEmployeeCode = $applicant['employee_code'] ?? null;
+                        $incomingEmployeeName = $applicant['employee_name'] ?? null;
+
+                        $duplicateApplicants[] = [
+                            'email' => $email,
+                            'existing_id' => $existing['id'],
+                            'existing_name' => $existing['fullname'],
+                            'new_data' => [
+                                'fullname' => $incomingFullname,
+                                'phone' => $applicant['phone'] ?? '',
+                                'alternate_phone' => $applicant['alternate_phone'] ?? '',
+                                'dob' => $incomingDob,
+                                'address' => $incomingAddress,
+                                'marital_status' => $incomingMaritalStatus,
+                                'experience' => $incomingExperience,
+                                'joining_timeframe' => $incomingJoiningTimeframe,
+                                'bond_agreement' => $incomingBondAgreement,
+                                'branch' => $incomingBranch,
+                                'graduate_year' => $incomingGraduateYear,
+                                'skills' => $incomingSkills,
+                                'employee_code' => $incomingEmployeeCode,
+                                'employee_name' => $incomingEmployeeName,
+                            ]
+                        ];
                     }
                 }
             }
-                                                                                                                                                                                                                                            respond('success', ['inserted' => $insertedApplicants]);
-        } else {
-            respond('error', ['message' => 'Failed to fetch applicant data from external source'], 500);
+            $updatedApplicants = count($duplicateApplicants);
+            if ($insertedApplicants > 0 || $updatedApplicants > 0) {
+                $stmt = $conn->prepare("INSERT INTO sync_log (last_sync) VALUES (NOW())");
+                $stmt->execute();
+            }
+
+            // Send inserted count, updated count (duplicates), and duplicate details
+            respond('success', [
+                'inserted' => $insertedApplicants,
+                'updated' => $updatedApplicants,
+                'duplicates' => $duplicateApplicants,
+                'duplicate_details' => $duplicateApplicants
+            ]);
         }
+
         break;
+
+
 
     default:
         respond('error', ['message' => 'Invalid action'], 400);
