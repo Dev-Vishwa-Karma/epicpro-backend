@@ -121,12 +121,21 @@ switch ($action) {
             $applicants[] = $row;
         }
 
+        $stmt = $conn->prepare("SELECT last_sync FROM sync_log ORDER BY id DESC LIMIT 1");
+        if ($stmt->execute()) {
+            $result = $stmt->get_result();
+            if ($row = $result->fetch_assoc()) {
+                $lastSyncDate = $row['last_sync'];
+            }
+        }
+
         respond('success', [
             'applicants' => $applicants,
             'total' => (int)$total,
             'page' => $page,
             'limit' => $limit,
-            'totalPages' => ceil($total / $limit)
+            'totalPages' => ceil($total / $limit),
+            'last_sync' => $lastSyncDate
         ]);
         break;
 
@@ -464,21 +473,11 @@ switch ($action) {
                 $stmt->execute();
             }
 
-            // Retrieve the most recent last_sync date from the sync_log table
-            $stmt = $conn->prepare("SELECT last_sync FROM sync_log ORDER BY id DESC LIMIT 1");
-            if ($stmt->execute()) {
-                $result = $stmt->get_result();
-                if ($row = $result->fetch_assoc()) {
-                    $lastSyncDate = $row['last_sync'];
-                }
-            }
-
             respond('success', [
                 'inserted' => $insertedApplicants,
                 'updated' => $updatedApplicants,
                 'duplicates' => $duplicateApplicants,
                 'duplicate_details' => $duplicateApplicants,
-                'last_sync' => $lastSyncDate
             ]);
         }
 
