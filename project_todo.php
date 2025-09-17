@@ -392,24 +392,26 @@ ini_set('display_errors', '1');
                     break;
                 }
 
-                // Make sure the todo belongs to the given employee
-                $check_sql = "SELECT id FROM project_todo WHERE id = $todo_id AND employee_id = $employee_id";
+                // Ensure the todo exists by id
+                $check_sql = "SELECT id FROM project_todo WHERE id = $todo_id LIMIT 1";
                 $check_result = $conn->query($check_sql);
 
                 if (!$check_result || $check_result->num_rows === 0) {
                     http_response_code(404);
-                    sendJsonResponse('error', 'Todo not found for this employee');
+                    sendJsonResponse('error', 'Todo not found');
                     break;
                 }
 
                 $update_sql = "
                     UPDATE project_todo 
                     SET 
+                        employee_id = $employee_id,
                         title = '$title',
                         due_date = '$due_date',
                         priority = '$priority',
-                        updated_at = '$updated_at'
-                    WHERE id = $todo_id AND employee_id = $employee_id
+                        updated_at = '$updated_at',
+                        updated_by = $logged_in_employee_id
+                    WHERE id = $todo_id
                 ";
 
                 if ($conn->query($update_sql)) {
@@ -426,7 +428,7 @@ ini_set('display_errors', '1');
                     $conn->query($notif_sql);
 
                     // Fetch updated employee name
-                    $emp_result = $conn->query("SELECT first_name, last_name FROM employees WHERE id = $employee_id");
+                    $emp_result = $conn->query("SELECT first_name, last_name, profile FROM employees WHERE id = $employee_id");
                     $employee = $emp_result ? $emp_result->fetch_assoc() : [];
 
                     $updatedData = [
@@ -434,6 +436,7 @@ ini_set('display_errors', '1');
                         'employee_id' => $employee_id,
                         'first_name' => $employee['first_name'] ?? '',
                         'last_name' => $employee['last_name'] ?? '',
+                        'profile' => $employee['profile'] ?? null,
                         'title' => $title,
                         'due_date' => $due_date,
                         'priority' => $priority,
