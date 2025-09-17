@@ -32,16 +32,17 @@ ini_set('display_errors', '1');
     if (isset($action)) {
         switch ($action) {
             case 'view':
-                // Get status filter from query, default to 'pending'
-                $status = isset($_GET['status']) ? strtolower(trim($_GET['status'])) : 'pending';
+                // Get status filter from query, but do not default to 'pending'
+                $status = isset($_GET['status']) ? strtolower(trim($_GET['status'])) : null;
                 $validStatuses = ['pending', 'completed']; // Extend if needed
-                if (!in_array($status, $validStatuses)) {
-                    $status = 'pending';
+                if ($status && !in_array($status, $validStatuses)) {
+                    $status = null;
                 }
 
                 if (isset($_GET['employee_id']) && is_numeric($_GET['employee_id']) && $_GET['employee_id'] > 0) {
                     $employee_id = $_GET['employee_id'];
-                    $query = "
+                    if ($status) {
+                        $query = "
                         SELECT 
                             pt.id AS todo_id,
                             pt.employee_id,
@@ -70,9 +71,41 @@ ini_set('display_errors', '1');
                                 ELSE 4
                             END ASC
                     ";
-
                     $stmt = $conn->prepare($query);
                     $stmt->bind_param("is", $employee_id, $status);
+                    } else {
+                        $query = "
+                            SELECT 
+                                pt.id AS todo_id,
+                                pt.employee_id,
+                                pt.title,
+                                pt.due_date,
+                                pt.priority,
+                                pt.status,
+                                pt.created_at,
+                                pt.created_by,
+                                pt.updated_at,
+                                pt.updated_by,
+                                pt.deleted_at,
+                                pt.deleted_by,
+                                e.first_name,
+                                e.last_name,
+                                e.profile
+                            FROM project_todo pt
+                            LEFT JOIN employees e ON pt.employee_id = e.id
+                            WHERE pt.employee_id = ? AND e.deleted_at IS NULL
+                            ORDER BY 
+                                ABS(DATEDIFF(pt.due_date, CURDATE())) ASC,
+                                CASE 
+                                    WHEN pt.priority = 'high' THEN 1
+                                    WHEN pt.priority = 'medium' THEN 2
+                                    WHEN pt.priority = 'low' THEN 3
+                                    ELSE 4
+                                END ASC
+                        ";
+                        $stmt = $conn->prepare($query);
+                        $stmt->bind_param("i", $employee_id);
+                    }
 
                     if ($stmt->execute()) {
                         $result = $stmt->get_result();
@@ -107,6 +140,7 @@ ini_set('display_errors', '1');
                     $logged_in_employee_id = $_GET['logged_in_employee_id'] ?? null;
                     $role = $_GET['role'] ?? '';
 
+                    if ($status) {
                     $query = "
                         SELECT 
                             pt.id AS todo_id,
@@ -128,11 +162,9 @@ ini_set('display_errors', '1');
                         LEFT JOIN employees e ON pt.employee_id = e.id
                         WHERE pt.status = ? AND e.deleted_at IS NULL
                     ";
-
                     if ($role === 'employee') {
                         $query .= " AND pt.employee_id = ?";
                     }
-
                     $query .= "
                         ORDER BY 
                             ABS(DATEDIFF(pt.due_date, CURDATE())) ASC,
@@ -143,13 +175,54 @@ ini_set('display_errors', '1');
                                 ELSE 4
                             END ASC
                     ";
-
-                    $stmt = $conn->prepare($query);
-
-                    if ($role === 'employee') {
-                        $stmt->bind_param("si", $status, $logged_in_employee_id);
+                        if ($role === 'employee') {
+                        $stmt = $conn->prepare($query);
+                            $stmt->bind_param("si", $status, $logged_in_employee_id);
+                        } else {
+                            $stmt = $conn->prepare($query);
+                            $stmt->bind_param("s", $status);
+                        }
                     } else {
-                        $stmt->bind_param("s", $status);
+                        $query = "
+                            SELECT 
+                                pt.id AS todo_id,
+                                pt.employee_id,
+                                pt.title,
+                                pt.due_date,
+                                pt.priority,
+                                pt.status,
+                                pt.created_at,
+                                pt.created_by,
+                                pt.updated_at,
+                                pt.updated_by,
+                                pt.deleted_at,
+                                pt.deleted_by,
+                                e.first_name,
+                                e.last_name,
+                                e.profile
+                            FROM project_todo pt
+                            LEFT JOIN employees e ON pt.employee_id = e.id
+                            WHERE e.deleted_at IS NULL
+                        ";
+                        if ($role === 'employee') {
+                            $query .= " AND pt.employee_id = ?";
+                        }
+                        $query .= "
+                            ORDER BY 
+                                ABS(DATEDIFF(pt.due_date, CURDATE())) ASC,
+                                CASE 
+                                    WHEN LOWER(pt.priority) = 'high' THEN 1
+                                    WHEN LOWER(pt.priority) = 'medium' THEN 2
+                                    WHEN LOWER(pt.priority) = 'low' THEN 3
+                                    ELSE 4
+                                END ASC
+                        ";
+                        if ($role === 'employee') {
+                            $stmt = $conn->prepare($query);
+                            $stmt->bind_param("i", $logged_in_employee_id);
+                        } else {
+                            $stmt = $conn->prepare($query);
+                        }
                     }
 
                     if ($stmt->execute()) {
