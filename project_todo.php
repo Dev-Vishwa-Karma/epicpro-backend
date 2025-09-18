@@ -27,6 +27,56 @@ ini_set('display_errors', '1');
         exit;
     }
 
+    // Helper: Dates from query params
+    function buildDateRange()
+    {
+        $from_date = isset($_GET['from_date']) ? trim($_GET['from_date']) : null;
+        $to_date = isset($_GET['to_date']) ? trim($_GET['to_date']) : null;
+        $day = isset($_GET['day']) ? strtolower(trim($_GET['day'])) : null; // today, yesterday, tomorrow, this_week, monday, ... sunday
+        $date = isset($_GET['date']) ? trim($_GET['date']) : null; // exact date
+
+        // If explicit date provided, treat as single day range
+        if ($date) {
+            return [$date, $date];
+        }
+        
+        // If both from/to provided, use them
+        if ($from_date && $to_date) {
+            return [$from_date, $to_date];
+        }
+
+        // for dates and days
+        if ($day) {
+            $today = new DateTime('today');
+            switch ($day) {
+                case 'today':
+                    return [$today->format('Y-m-d'), $today->format('Y-m-d')];
+                case 'yesterday':
+                    $y = clone $today; $y->modify('-1 day');
+                    return [$y->format('Y-m-d'), $y->format('Y-m-d')];
+                case 'tomorrow':
+                    $t = clone $today; $t->modify('+1 day');
+                    return [$t->format('Y-m-d'), $t->format('Y-m-d')];
+                case 'this_week':
+                    // Monday to Sunday of current week
+                    $start = clone $today; $start->modify('monday this week');
+                    $end = clone $start; $end->modify('+6 days');
+                    return [$start->format('Y-m-d'), $end->format('Y-m-d')];
+                case 'monday': case 'tuesday': case 'wednesday': case 'thursday': case 'friday': case 'saturday': case 'sunday':
+                    $target = clone $today;
+                    // Find this week's target weekday
+                    $target->modify($day . ' this week');
+                    return [$target->format('Y-m-d'), $target->format('Y-m-d')];
+            }
+        }
+
+        // normalize to a single-day filter
+        if ($from_date && !$to_date) return [$from_date, $from_date];
+        if ($to_date && !$from_date) return [$to_date, $to_date];
+
+        return [null, null];
+    }
+
     $action = !empty($_GET['action']) ? $_GET['action'] : 'view';
 
     if (isset($action)) {
@@ -37,6 +87,17 @@ ini_set('display_errors', '1');
                 $validStatuses = ['pending', 'completed']; // Extend if needed
                 if ($status && !in_array($status, $validStatuses)) {
                     $status = null;
+                }
+
+                // Build date condition
+                list($range_from, $range_to) = buildDateRange();
+                $dateCondition = '';
+                if ($range_from && $range_to) {
+                    // Safe interpolate after basic validation pattern YYYY-MM-DD
+                    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $range_from) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $range_to)) {
+                        sendJsonResponse('error', null, 'Invalid date format. Use YYYY-MM-DD');
+                    }
+                    $dateCondition = " AND DATE(pt.due_date) BETWEEN '$range_from' AND '$range_to' ";
                 }
 
                 if (isset($_GET['employee_id']) && is_numeric($_GET['employee_id']) && $_GET['employee_id'] > 0) {
@@ -61,7 +122,7 @@ ini_set('display_errors', '1');
                             e.profile
                         FROM project_todo pt
                         LEFT JOIN employees e ON pt.employee_id = e.id
-                        WHERE pt.employee_id = ? AND pt.status = ? AND e.deleted_at IS NULL
+                        WHERE pt.employee_id = ? AND pt.status = ? AND e.deleted_at IS NULL" . $dateCondition . "
                         ORDER BY 
                             ABS(DATEDIFF(pt.due_date, CURDATE())) ASC,
                             CASE 
@@ -93,7 +154,7 @@ ini_set('display_errors', '1');
                                 e.profile
                             FROM project_todo pt
                             LEFT JOIN employees e ON pt.employee_id = e.id
-                            WHERE pt.employee_id = ? AND e.deleted_at IS NULL
+                            WHERE pt.employee_id = ? AND e.deleted_at IS NULL" . $dateCondition . "
                             ORDER BY 
                                 ABS(DATEDIFF(pt.due_date, CURDATE())) ASC,
                                 CASE 
@@ -160,8 +221,7 @@ ini_set('display_errors', '1');
                             e.profile
                         FROM project_todo pt
                         LEFT JOIN employees e ON pt.employee_id = e.id
-                        WHERE pt.status = ? AND e.deleted_at IS NULL
-                    ";
+                        WHERE pt.status = ? AND e.deleted_at IS NULL" . $dateCondition;
                     if ($role === 'employee') {
                         $query .= " AND pt.employee_id = ?";
                     }
@@ -202,8 +262,7 @@ ini_set('display_errors', '1');
                                 e.profile
                             FROM project_todo pt
                             LEFT JOIN employees e ON pt.employee_id = e.id
-                            WHERE e.deleted_at IS NULL
-                        ";
+                            WHERE e.deleted_at IS NULL" . $dateCondition;
                         if ($role === 'employee') {
                             $query .= " AND pt.employee_id = ?";
                         }
