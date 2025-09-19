@@ -19,7 +19,8 @@
     (SELECT COUNT(*) FROM employees WHERE role IN ('admin', 'super_admin') AND deleted_at IS NULL) AS total_users,
     (SELECT COUNT(*) FROM employees WHERE role = 'employee' AND deleted_at IS NULL) AS total_employees,
     SUM(CASE WHEN event_type = 'holiday' THEN 1 ELSE 0 END) AS total_holidays,
-    SUM(CASE WHEN event_type = 'event' THEN 1 ELSE 0 END) AS total_events
+    SUM(CASE WHEN event_type = 'event' THEN 1 ELSE 0 END) AS total_events,
+    (SELECT COUNT(*) FROM project_todo WHERE status = 'pending') AS total_pending_todos
     FROM events";
 
 
