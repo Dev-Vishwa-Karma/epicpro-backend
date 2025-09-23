@@ -84,21 +84,7 @@ if (isset($action)) {
                     //     sendJsonResponse('error', null, 'File size must not exceed 5MB');
                     // }
                     try {
-                        $filePath = uploadFile($_FILES['file_path'], $uploadDir, [
-                            'image/png',
-                            'image/jpg',
-                            'image/jpeg',
-                            'image/wepb',
-                            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',  # .xlsx
-                            'application/vnd.ms-excel',  # .xls
-                            'application/pdf',  # .pdf
-                            'application/zip',  # .zip
-                            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',  # .docx
-                            'text/csv',  # .csv
-                            'application/vnd.ms-powerpoint',  # .ppt
-                            'application/msword',  # .doc
-                            'application/vnd.openxmlformats-officedocument.presentationml.presentation'  # .pptx
-                        ]);
+                        $filePath = uploadFile($_FILES['file_path'], $uploadDir, [], 512 * 1024 * 1024);
                     } catch (Exception $e) {
                         sendJsonResponse('error', null, $e->getMessage());
                     }
@@ -140,7 +126,7 @@ if (isset($action)) {
                     //     sendJsonResponse('error', null, 'File size must not exceed 5MB');
                     // }
                     try {
-                        $filePath = uploadFile($_FILES['file_path'], $uploadDir);
+                        $filePath = uploadFile($_FILES['file_path'], $uploadDir, [], 512 * 1024 * 1024);
                     } catch (Exception $e) {
                         sendJsonResponse('error', null, $e->getMessage());
                     }

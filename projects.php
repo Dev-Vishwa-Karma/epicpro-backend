@@ -280,14 +280,15 @@
                             $team_members = [];
                             if (!empty($team_members_id)) {
                                 $team_ids = implode(',', $team_members_id); // Join IDs for the query
-                                $team_query = "SELECT id, first_name, last_name FROM employees WHERE id IN ($team_ids)";
+                                $team_query = "SELECT id, first_name, last_name, profile FROM employees WHERE id IN ($team_ids)";
                                 
                                 if ($team_result = mysqli_query($conn, $team_query)) {
                                     while ($member = mysqli_fetch_assoc($team_result)) {
                                         $team_members[] = [
                                             'employee_id' => $member['id'],
                                             'first_name' => $member['first_name'],
-                                            'last_name' => $member['last_name']
+                                            'last_name' => $member['last_name'],
+                                            'profile' => $member['profile']
                                         ];
                                     }
                                 }
@@ -401,13 +402,14 @@
                                 $team_members = [];
                                 if (!empty($team_member_ids)) {
                                     $team_ids = implode(',', $team_member_ids); // Join IDs for the query
-                                    $team_query = "SELECT id, first_name, last_name FROM employees WHERE id IN ($team_ids)";
+                                    $team_query = "SELECT id, first_name, last_name, profile FROM employees WHERE id IN ($team_ids)";
                                     if ($team_result = mysqli_query($conn, $team_query)) {
                                         while ($member = mysqli_fetch_assoc($team_result)) {
                                             $team_members[] = [
                                                 'employee_id' => $member['id'],
                                                 'first_name' => $member['first_name'],
-                                                'last_name' => $member['last_name']
+                                                'last_name' => $member['last_name'],
+                                                'profile' => $member['profile']
                                             ];
                                         }
                                     }
