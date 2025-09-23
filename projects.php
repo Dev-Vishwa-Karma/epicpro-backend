@@ -44,16 +44,16 @@
                             p.team_member_ids
                         FROM projects p
                         LEFT JOIN clients c ON p.client_id = c.id
-                        WHERE p.id = $project_id AND c.status = 1
+                        WHERE p.id = $project_id
                     ";
                     if (!isAdminCheck()) {
                         $query .= " AND c.status = 1";
                     }
 
-                    // Add project name filter if set (case-insensitive partial match)
+                    // Add project search filter if set (name or technology)
                     if (!empty($project_name_filter)) {
                         $project_name_filter_safe = mysqli_real_escape_string($conn, $project_name_filter);
-                        $query .= " AND p.name LIKE '%$project_name_filter_safe%'";
+                        $query .= " AND (p.name LIKE '%$project_name_filter_safe%' OR p.technology LIKE '%$project_name_filter_safe%')";
                     }
 
                     $result = mysqli_query($conn, $query);
@@ -136,21 +136,22 @@
                             p.team_member_ids
                         FROM projects p
                         LEFT JOIN clients c ON p.client_id = c.id
+                        WHERE 1=1
                     ";
 
                     if (!isAdminCheck()) {
-                        $query .= "  WHERE c.status = 1";
+                        $query .= " AND c.status = 1";
                     }
 
                     // Role-based filtering
-                   if ($role === 'employee' && !empty($logged_in_employee_id)) {
-                      $query .= " AND p.is_active = 1 AND JSON_CONTAINS(p.team_member_ids, '\"$logged_in_employee_id\"')";
+                    if ($role === 'employee' && !empty($logged_in_employee_id)) {
+                        $query .= " AND p.is_active = 1 AND JSON_CONTAINS(p.team_member_ids, '\"$logged_in_employee_id\"')";
                     }
 
-                    // Add project name filter if set
+                    // Add project search filter if set (name or technology)
                     if (!empty($project_name_filter)) {
                         $project_name_filter_safe = mysqli_real_escape_string($conn, $project_name_filter);
-                        $query .= " AND p.name LIKE '%$project_name_filter_safe%'";
+                        $query .= " AND (p.name LIKE '%$project_name_filter_safe%' OR p.technology LIKE '%$project_name_filter_safe%')";
                     }
 
                     $query .= " ORDER BY p.created_at DESC";
