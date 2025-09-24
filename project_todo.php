@@ -57,6 +57,9 @@ ini_set('display_errors', '1');
                 case 'tomorrow':
                     $t = clone $today; $t->modify('+1 day');
                     return [$t->format('Y-m-d'), $t->format('Y-m-d')];
+                case 'upto_tomorrow':
+                    $t = clone $today; $t->modify('+1 day');
+                    return ['1970-01-01', $t->format('Y-m-d')];
                 case 'this_week':
                     // Monday to Sunday of current week
                     $start = clone $today; $start->modify('monday this week');
