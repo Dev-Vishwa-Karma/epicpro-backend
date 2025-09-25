@@ -517,12 +517,29 @@ ini_set('display_errors', '1');
             case 'update_status':
                 $id = $_POST['id'] ?? null;
                 $status = $_POST['status'] ?? null;
+                $due_date = $_POST['due_date'] ?? null;
                 $to_do_created_by = $_POST['to_do_created_by'] ?? null; // Who created the task
                 $to_do_created_for = $_POST['to_do_created_for'] ?? null; // Who the task is assigned to
                 $logged_in_employee_role =  $_POST['logged_in_employee_role'] ?? null;
                 $logged_in_employee_name =  $_POST['logged_in_employee_name'] ?? null;
                 $updated_at = date('Y-m-d H:i:s');
                 $updated_by = null;
+
+                // Get the title and due_date for notification
+                $title = '';
+                $due_date = '';
+                if ($id) {
+                    $info_query = $conn->query("SELECT title, due_date FROM project_todo WHERE id = $id LIMIT 1");
+                    if ($info_query && $info_query->num_rows > 0) {
+                        $info_row = $info_query->fetch_assoc();
+                        $title = $info_row['title'];
+                        // Format due_date as "02 Sep 2024"
+                        $raw_due_date = $info_row['due_date'];
+                        if (!empty($raw_due_date)) {
+                            $due_date = date('d M Y', strtotime($raw_due_date));
+                        }
+                    }
+                }
 
                 if (!$id || !$status) {
                     sendJsonResponse('error', null, 'Task id and status are required');
@@ -538,7 +555,7 @@ ini_set('display_errors', '1');
                         // Notify the relevant person based on who updated the task
                         if ($logged_in_employee_role == 'employee') {
                             // Employee completes the task, notify the admin
-                            $notification_body = $conn->real_escape_string("Task completed by $logged_in_employee_name. Task ID: $id.");
+                            $notification_body = $conn->real_escape_string("Task: $title Due Date: $due_date");
                             $notification_title = "Task Completed by $logged_in_employee_name";
                             $notification_type = "task_completed";
                             $notification_recipient = $to_do_created_by; // Notify the admin (the creator)
@@ -550,9 +567,8 @@ ini_set('display_errors', '1');
                             ";
                             $conn->query($notif_sql);
                         } elseif ($logged_in_employee_role == 'super_admin' || $logged_in_employee_role == 'admin') {
-                             
                             // Admin completes the task, notify the employee
-                            $notification_body = $conn->real_escape_string("Task completed by admin. Task ID: $id.");
+                            $notification_body = $conn->real_escape_string("Task: $title Due Date: $due_date");
                             $notification_title = "Task Completed by Admin";
                             $notification_type = "task_completed";
                             $notification_recipient = $to_do_created_for; // Notify the employee (the assignee)
@@ -562,7 +578,6 @@ ini_set('display_errors', '1');
                                 (employee_id, body, title, type) 
                                 VALUES ($notification_recipient, '$notification_body', '$notification_title', '$notification_type')
                             ";
-
                             $conn->query($notif_sql);
                         }
                     }
