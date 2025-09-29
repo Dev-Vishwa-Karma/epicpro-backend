@@ -144,9 +144,21 @@
 
             case 'delete':
                 if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
+                    $deptId = intval($_GET['id']);
+                    // If any department associate with single employee. Then not allow to delete.
+                    $check = $conn->prepare("SELECT COUNT(*) AS cnt FROM employees WHERE department_id = ? AND deleted_at IS NULL");
+                    $check->bind_param('i', $deptId);
+                    $check->execute();
+                    $res = $check->get_result();
+                    $row = $res ? $res->fetch_assoc() : null;
+                    if ($row && intval($row['cnt']) > 0) {
+                        http_response_code(400);
+                        echo json_encode(['error' => 'Accosiated department not deleted.']);
+                        exit;
+                    }
                     // Prepare DELETE statement
                     $stmt = $conn->prepare("DELETE FROM departments WHERE id = ?");
-                    $stmt->bind_param('i', $_GET['id']);
+                    $stmt->bind_param('i', $deptId);
                     if ($stmt->execute()) {
                         echo json_encode(['success' => 'Record deleted successfully']);
                     } else {

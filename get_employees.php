@@ -805,6 +805,17 @@ if (isset($action)) {
                     $id = $user_id;
                     $deleted_by = null;
 
+                    // Admin cannot deleted to super admin
+                    $roleCheck = $conn->prepare("SELECT role FROM employees WHERE id = ? AND deleted_at IS NULL");
+                    $roleCheck->bind_param('i', $id);
+                    $roleCheck->execute();
+                    $roleResult = $roleCheck->get_result();
+                    if ($roleResult && $roleRow = $roleResult->fetch_assoc()) {
+                        if (strtolower($roleRow['role']) === 'super_admin') {
+                            sendJsonResponse('error', null, 'Super Admin cannot be deleted.');
+                        }
+                    }
+
                     // Check if logged-in user ID and role are provided
                     if ($logged_in_employee_id && $logged_in_employee_role) {
                         $logged_in_user_id = $logged_in_employee_id;
