@@ -492,6 +492,27 @@ if (isset($action)) {
                 $logged_in_user_id = $_POST['logged_in_employee_id'];
                 $logged_in_role = $_POST['logged_in_employee_role'];
 
+                // Fetch target user's current role for permission checks
+                $editRole = null;
+                $rolesCheck = $conn->prepare("SELECT role FROM employees WHERE id = ? AND deleted_at IS NULL");
+                $rolesCheck->bind_param('i', $id);
+                $rolesCheck->execute();
+                $roleRes = $rolesCheck->get_result();
+                if ($roleRes && $roleRow = $roleRes->fetch_assoc()) {
+                    $editRole = strtolower($roleRow['role']);
+                }
+
+                // Permissions: Admin cannot edit a Super Admin (except editing themselves)
+                if (strtolower($logged_in_role) === 'admin') {
+                    if (($logged_in_user_id != $id) && $editRole === 'super_admin') {
+                        sendJsonResponse('error', null, 'Admins cannot edit Super Admin users.');
+                    }
+                    // Admin cannot assign Super Admin role
+                    if (isset($_POST['selected_role']) && strtolower($_POST['selected_role']) === 'super_admin') {
+                        sendJsonResponse('error', null, 'Admins cannot assign the Super Admin role.');
+                    }
+                }
+
                 // Initialize data array
                 $data = [];
 
