@@ -33,13 +33,24 @@ if (isset($action)) {
         case 'view':
             $searchQuery = isset($_GET['searchQuery']) ? $_GET['searchQuery'] : '';
             $whereClause = '';
-            if ($id !== null) {
-                $whereClause = " WHERE tickets.assigned_to = " . $id;
+            // Only filter by assigned user when a numeric id is provided
+            if ($id !== null && is_numeric($id)) {
+                $whereClause = " WHERE tickets.assigned_to = " . intval($id);
             }
 
             if (!empty($searchQuery)) {
                 $searchQuery = $conn->real_escape_string($searchQuery);
-                $whereClause .= ($whereClause ? " AND" : " WHERE") . " tickets.title LIKE '%$searchQuery%'";
+                $like = "%$searchQuery%";
+                // Build comprehensive search across ticket fields and assignee fields
+                $whereClause .= ($whereClause ? " AND" : " WHERE") . " (" .
+                    " tickets.title LIKE '$like'" .
+                    " OR tickets.description LIKE '$like'" .
+                    " OR tickets.priority LIKE '$like'" .
+                    " OR tickets.status LIKE '$like'" .
+                    " OR employees.first_name LIKE '$like'" .
+                    " OR employees.last_name LIKE '$like'" .
+                    " OR employees.email LIKE '$like'" .
+                ")";
             }
 
             $query = "SELECT
@@ -61,7 +72,7 @@ if (isset($action)) {
             FROM tickets
             LEFT JOIN employees ON tickets.assigned_to = employees.id
             $whereClause
-            ORDER BY tickets.created_at DESC";
+            ORDER BY tickets.assigned_at DESC";
 
             $result = $conn->query($query);
 
@@ -146,14 +157,12 @@ if (isset($action)) {
             break;
         case 'get':
             if (isset($_GET['ticket_id']) && is_numeric($_GET['ticket_id']) && $_GET['ticket_id'] > 0) {
-
-                $sql .= "SELECT * FROM tickets WHERE id = ?";
-                $stmt = $conn->prepare($sql);
+                $stmt = $conn->prepare("SELECT * FROM tickets WHERE id = ?");
                 $stmt->bind_param("i", $_GET['ticket_id']);
                 $stmt->execute();
                 $result = $stmt->get_result();
             } else {
-                $result = $conn->query($sql);
+                $result = $conn->query("SELECT * FROM tickets ORDER BY assigned_at DESC");
             }
 
             if ($result) {
