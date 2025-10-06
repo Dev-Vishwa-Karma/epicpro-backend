@@ -67,7 +67,7 @@ if (isset($action)) {
             $url = $_POST['url'] ?? '';
             $filePath = '';
             if (!validateType($type)) {
-                sendJsonResponse('error', null, 'Invalid type');
+                sendJsonResponse('error', null, 'Invalid file type');
             }
             if (!$title) {
                 sendJsonResponse('error', null, 'Title is required');
@@ -109,7 +109,7 @@ if (isset($action)) {
             $url = $_POST['url'] ?? '';
             $filePath = $_POST['file_path'] ?? '';
             if (!validateType($type)) {
-                sendJsonResponse('error', null, 'Invalid type');
+                sendJsonResponse('error', null, 'Invalid file type');
             }
             if (!$id || !$title) {
                 sendJsonResponse('error', null, 'ID and Title are required');
