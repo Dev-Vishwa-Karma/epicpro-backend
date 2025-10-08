@@ -635,7 +635,7 @@ ini_set('display_errors', '1');
                                 $title = $conn->real_escape_string($task['title']);
                                 $due_date = $conn->real_escape_string($task['due_date']);
 
-                                $notification_body = $conn->real_escape_string("Task due on: $title (Due: $due_date)");
+                                $notification_body = $conn->real_escape_string("Task due on: $title <br> Due: $due_date");
                                 $notification_title = $conn->real_escape_string("Task Due");
                                 $notification_type = $conn->real_escape_string("task_due");
 
