@@ -56,6 +56,7 @@ if (isset($action)) {
                     employee_leaves.created_at, 
                     employees.first_name, 
                     employees.last_name, 
+                    employees.profile,
                     employees.email
                 FROM employee_leaves
                 INNER JOIN employees ON employee_leaves.employee_id = employees.id
@@ -102,6 +103,7 @@ if (isset($action)) {
                     employee_leaves.created_at, 
                     employees.first_name, 
                     employees.last_name, 
+                    employees.profile,
                     employees.email
                 FROM employee_leaves
                 INNER JOIN employees ON employee_leaves.employee_id = employees.id
