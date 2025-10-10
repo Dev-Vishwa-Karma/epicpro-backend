@@ -31,35 +31,32 @@ if (isset($action)) {
     switch ($action) {
         case 'get-dashboard-preferences':
             $user_id = $_GET['user_id'] ?? null;
+            // user_id = logged in user id
             
             if (!$user_id) {
                 sendJsonResponse('error', null, 'User ID is required');
             }
 
-            // Get todo preference
-            $todoQuery = "SELECT preference_value FROM user_preferences_todo 
-                         WHERE user_id = ? AND module = 'dashboard' AND preference_key = 'show_todo'";
-            $stmt = $conn->prepare($todoQuery);
+            // Get all dashboard preferences for user
+            $query = "SELECT preference_key, preference_value FROM user_preferences 
+                     WHERE user_id = ? AND module = 'dashboard'";
+            $stmt = $conn->prepare($query);
             $stmt->bind_param("i", $user_id);
             $stmt->execute();
-            $todoResult = $stmt->get_result();
-            $todoPreference = $todoResult->fetch_assoc();
-            $showTodo = $todoPreference ? $todoPreference['preference_value'] : 'true';
+            $result = $stmt->get_result();
             
-            // Get project preference
-            $projectQuery = "SELECT preference_value FROM user_preferences_project 
-                           WHERE user_id = ? AND module = 'dashboard' AND preference_key = 'show_project'";
-            $stmt = $conn->prepare($projectQuery);
-            $stmt->bind_param("i", $user_id);
-            $stmt->execute();
-            $projectResult = $stmt->get_result();
-            $projectPreference = $projectResult->fetch_assoc();
-            $showProject = $projectPreference ? $projectPreference['preference_value'] : 'true';
-
             $preferences = [
-                'show_todo' => $showTodo === 'true',
-                'show_project' => $showProject === 'true'
+                'show_todo' => true, // Default value 1
+                'show_project' => true // Default value 1
             ];
+            
+            while ($row = $result->fetch_assoc()) {
+                if ($row['preference_key'] === 'todo') {
+                    $preferences['show_todo'] = (bool)$row['preference_value'];
+                } elseif ($row['preference_key'] === 'project') {
+                    $preferences['show_project'] = (bool)$row['preference_value'];
+                }
+            }
 
             sendJsonResponse('success', $preferences, 'Preferences fetched successfully');
             break;
@@ -76,22 +73,22 @@ if (isset($action)) {
 
             // Update todo preference
             if ($show_todo !== null) {
-                $todoValue = $show_todo ? 'true' : 'false';
-                $todoStmt = $conn->prepare("INSERT INTO user_preferences_todo (user_id, module, preference_key, preference_value) 
-                                          VALUES (?, 'dashboard', 'show_todo', ?) 
+                $todoValue = $show_todo ? 1 : 0;
+                $todoStmt = $conn->prepare("INSERT INTO user_preferences (user_id, module, preference_key, preference_value) 
+                                          VALUES (?, 'dashboard', 'todo', ?) 
                                           ON DUPLICATE KEY UPDATE preference_value = ?, updated_at = CURRENT_TIMESTAMP");
-                $todoStmt->bind_param("iss", $user_id, $todoValue, $todoValue);
+                $todoStmt->bind_param("iii", $user_id, $todoValue, $todoValue);
                 $todoStmt->execute();
                 $todoStmt->close();
             }
 
             // Update project preference
             if ($show_project !== null) {
-                $projectValue = $show_project ? 'true' : 'false';
-                $projectStmt = $conn->prepare("INSERT INTO user_preferences_project (user_id, module, preference_key, preference_value) 
-                                             VALUES (?, 'dashboard', 'show_project', ?) 
+                $projectValue = $show_project ? 1 : 0;
+                $projectStmt = $conn->prepare("INSERT INTO user_preferences (user_id, module, preference_key, preference_value) 
+                                             VALUES (?, 'dashboard', 'project', ?) 
                                              ON DUPLICATE KEY UPDATE preference_value = ?, updated_at = CURRENT_TIMESTAMP");
-                $projectStmt->bind_param("iss", $user_id, $projectValue, $projectValue);
+                $projectStmt->bind_param("iii", $user_id, $projectValue, $projectValue);
                 $projectStmt->execute();
                 $projectStmt->close();
             }
@@ -106,16 +103,15 @@ if (isset($action)) {
             }
 
             $preferencesQuery = "SELECT
-                                ut.user_id,
+                                up.user_id,
                                 e.first_name,
                                 e.last_name,
-                                ut.preference_value as show_todo,
-                                up.preference_value as show_project
-                                FROM user_preferences_todo ut
-                                LEFT JOIN user_preferences_project up ON ut.user_id = up.user_id
-                                AND up.module = 'dashboard' AND up.preference_key = 'show_project'
-                                JOIN employees e ON ut.user_id = e.id
-                                WHERE ut.module = 'dashboard' AND ut.preference_key = 'show_todo'
+                                MAX(CASE WHEN up.preference_key = 'todo' THEN up.preference_value END) as show_todo,
+                                MAX(CASE WHEN up.preference_key = 'project' THEN up.preference_value END) as show_project
+                                FROM user_preferences up
+                                JOIN employees e ON up.user_id = e.id
+                                WHERE up.module = 'dashboard'
+                                GROUP BY up.user_id, e.first_name, e.last_name
                                 ORDER BY e.first_name, e.last_name";
 
             $result = $conn->query($preferencesQuery);
@@ -127,8 +123,8 @@ if (isset($action)) {
                         'user_id' => $row['user_id'],
                         'first_name' => $row['first_name'],
                         'last_name' => $row['last_name'],
-                        'show_todo' => $row['show_todo'] === 'true',
-                        'show_project' => $row['show_project'] === 'true'
+                        'show_todo' => (bool)($row['show_todo'] ?? 1),
+                        'show_project' => (bool)($row['show_project'] ?? 1)
                     ];
                 }
             }
@@ -136,63 +132,60 @@ if (isset($action)) {
             sendJsonResponse('success', $preferences, 'Admin preferences fetched successfully');
             break;
 
-       case 'get-global-dashboard-preferences':
-        $todoQuery = "SELECT preference_value FROM global_preferences
-                    WHERE module = 'dashboard' AND preference_key = 'show_todo'";
-        $stmt = $conn->prepare($todoQuery);
-        $stmt->execute();
-        $todoResult = $stmt->get_result();
-        $todoPreference = $todoResult->fetch_assoc();
-        $showTodo = $todoPreference ? $todoPreference['preference_value'] : 'true';
+        case 'get-global-dashboard-preferences':
+            $query = "SELECT preference_key, preference_value FROM global_preferences
+                     WHERE module = 'dashboard'";
+            $stmt = $conn->prepare($query);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            
+            $preferences = [
+                'show_todo' => true, // Default value 1
+                'show_project' => true // Default value 1
+            ];
+            
+            while ($row = $result->fetch_assoc()) {
+                if ($row['preference_key'] === 'todo') {
+                    $preferences['show_todo'] = (bool)$row['preference_value'];
+                } elseif ($row['preference_key'] === 'project') {
+                    $preferences['show_project'] = (bool)$row['preference_value'];
+                }
+            }
 
-        $projectQuery = "SELECT preference_value FROM global_preferences
-                        WHERE module = 'dashboard' AND preference_key = 'show_project'";
-        $stmt = $conn->prepare($projectQuery);
-        $stmt->execute();
-        $projectResult = $stmt->get_result();
-        $projectPreference = $projectResult->fetch_assoc();
-        $showProject = $projectPreference ? $projectPreference['preference_value'] : 'true';
+            sendJsonResponse('success', $preferences, 'Global preferences fetched successfully');
+            break;
 
-        $preferences = [
-            'show_todo' => $showTodo === 'true',
-            'show_project' => $showProject === 'true'
-        ];
+        case 'update-global-dashboard-preferences':
+            if (!isAdminCheck()) {
+                sendJsonResponse('error', null, 'Admin access required');
+            }
 
-        sendJsonResponse('success', $preferences, 'Global preferences fetched successfully');
-        break;
+            $input = json_decode(file_get_contents('php://input'), true);
+            $show_todo = $input['show_todo'] ?? null;
+            $show_project = $input['show_project'] ?? null;
 
-    case 'update-global-dashboard-preferences':
-        if (!isAdminCheck()) {
-            sendJsonResponse('error', null, 'Admin access required');
-        }
-
-        $input = json_decode(file_get_contents('php://input'), true);
-        $show_todo = $input['show_todo'] ?? null;
-        $show_project = $input['show_project'] ?? null;
-
-        if ($show_todo !== null) {
-            $todoValue = $show_todo ? 'true' : 'false';
-            $todoStmt = $conn->prepare("INSERT INTO global_preferences (module, preference_key, preference_value)
-                                    VALUES ('dashboard', 'show_todo', ?)
-                                    ON DUPLICATE KEY UPDATE preference_value = ?, updated_at = CURRENT_TIMESTAMP");
-            $todoStmt->bind_param("ss", $todoValue, $todoValue);
-            $todoStmt->execute();
-            $todoStmt->close();
-        }
-
-        if ($show_project !== null) {
-            $projectValue = $show_project ? 'true' : 'false';
-            $projectStmt = $conn->prepare("INSERT INTO global_preferences (module, preference_key, preference_value)
-                                        VALUES ('dashboard', 'show_project', ?)
+            if ($show_todo !== null) {
+                $todoValue = $show_todo ? 1 : 0;
+                $todoStmt = $conn->prepare("INSERT INTO global_preferences (module, preference_key, preference_value)
+                                        VALUES ('dashboard', 'todo', ?)
                                         ON DUPLICATE KEY UPDATE preference_value = ?, updated_at = CURRENT_TIMESTAMP");
-            $projectStmt->bind_param("ss", $projectValue, $projectValue);
-            $projectStmt->execute();
-            $projectStmt->close();
-        }
+                $todoStmt->bind_param("ii", $todoValue, $todoValue);
+                $todoStmt->execute();
+                $todoStmt->close();
+            }
 
-        sendJsonResponse('success', null, 'Global preferences updated successfully');
-        break;
+            if ($show_project !== null) {
+                $projectValue = $show_project ? 1 : 0;
+                $projectStmt = $conn->prepare("INSERT INTO global_preferences (module, preference_key, preference_value)
+                                            VALUES ('dashboard', 'project', ?)
+                                            ON DUPLICATE KEY UPDATE preference_value = ?, updated_at = CURRENT_TIMESTAMP");
+                $projectStmt->bind_param("ii", $projectValue, $projectValue);
+                $projectStmt->execute();
+                $projectStmt->close();
+            }
 
+            sendJsonResponse('success', null, 'Global preferences updated successfully');
+            break;
 
         default:
             sendJsonResponse('error', null, 'Invalid action');

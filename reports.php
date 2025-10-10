@@ -254,9 +254,8 @@ if (isset($action)) {
                 $todays_total_hours = $_POST['todays_total_hours'];
                 $updated_at = date('Y-m-d H:i:s');
                 $logged_in_employee_role =  $_POST['logged_in_employee_role'] ?? null;
-
                 $logged_in_employee_id = isset($_POST['logged_in_employee_id']) ? (int)$_POST['logged_in_employee_id'] : null;
-                $logged_in_user_role = $_POST['logged_in_employee_role'] ?? "";
+                $logged_in_user_role = strtolower(trim($logged_in_employee_role ?? ""));
 
                 $existingReportRes = $conn->query("SELECT note, employee_id FROM reports WHERE id = $id");
                 if (!$existingReportRes || $existingReportRes->num_rows === 0) {
@@ -267,22 +266,46 @@ if (isset($action)) {
                 $old_note = $existingData['note'] ?? '';
                 $employee_id = $existingData['employee_id'];
 
-                $stmt = $conn->prepare("UPDATE reports SET note = ?, report = ?, start_time = ?, end_time = ?, break_duration_in_minutes = ?, total_working_hours = ?, total_hours = ?, updated_at = ? WHERE id = ?");
-                if (!$stmt) {
-                    sendJsonResponse('error', null, 'Prepare failed: ' . $conn->error);
-                    exit;
+                // Restrict employees only allow updating "report" field
+                if ($logged_in_user_role === 'employee') {
+                    $stmt = $conn->prepare("UPDATE reports SET report = ?, updated_at = ? WHERE id = ?");
+                    if (!$stmt) {
+                        sendJsonResponse('error', null, 'Prepare failed: ' . $conn->error);
+                        exit;
+                    }
+                    $stmt->bind_param("ssi", $report, $updated_at, $id);
+                } else {
+                    // Admin / Super Admin can update all fields
+                    $stmt = $conn->prepare("UPDATE reports 
+                        SET note = ?, report = ?, start_time = ?, end_time = ?, break_duration_in_minutes = ?, 
+                            total_working_hours = ?, total_hours = ?, updated_at = ? 
+                        WHERE id = ?");
+                    if (!$stmt) {
+                        sendJsonResponse('error', null, 'Prepare failed: ' . $conn->error);
+                        exit;
+                    }
+                    $stmt->bind_param(
+                        "ssssssssi",
+                        $id,
+                        $note,
+                        $report,
+                        $start_time,
+                        $end_time,
+                        $break_duration_in_minutes,
+                        $todays_working_hours,
+                        $todays_total_hours,
+                        $updated_at
+                    );
                 }
-
-                $stmt->bind_param("ssssssssi", $note, $report, $start_time, $end_time, $break_duration_in_minutes, $todays_working_hours, $todays_total_hours, $updated_at, $id);
 
                 if ($stmt->execute()) {
                     $note_trimmed = trim($note ?? '');
                     $old_note_trimmed = trim($old_note ?? '');
 
                     if (
-                        !empty($note_trimmed) && 
+                        !empty($note_trimmed) &&
                         $note_trimmed !== $old_note_trimmed &&
-                        in_array(strtolower($logged_in_user_role), ['admin', 'super_admin'])
+                        in_array($logged_in_user_role, ['admin', 'super_admin'])
                     ) {
                         
                         $notification_body = $conn->real_escape_string("Note:.$note_trimmed.");
@@ -316,7 +339,6 @@ if (isset($action)) {
                 } else {
                     sendJsonResponse('error', null, 'Failed to update report: ' . $stmt->error);
                 }
-
             } else {
                 http_response_code(400);
                 sendJsonResponse('error', null, 'Invalid Report ID');
