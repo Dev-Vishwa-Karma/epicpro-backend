@@ -245,6 +245,18 @@ if (isset($action)) {
                 'status' => $_POST['status'] ?? 1,
                 'statistics_visibility_status' => $_POST['statistics_visibility_status'] ?? 0,
             ];
+            // Check if email already exists
+            if (!empty($data['email'])) {
+                $checkStmt = $conn->prepare("SELECT id FROM employees WHERE email = ? AND deleted_at IS NULL");
+                $checkStmt->bind_param('s', $data['email']);
+                $checkStmt->execute();
+                $checkResult = $checkStmt->get_result();
+                if ($checkResult->num_rows > 0) {
+                    sendJsonResponse('error', null, 'Email Already exist');
+                    exit;
+                }
+                $checkStmt->close();
+            }
 
             // Upload profile image
             $profileImage = $_FILES['photo'] ?? "";
@@ -934,6 +946,11 @@ if (isset($action)) {
             }
 
             sendJsonResponse('success', $uploadedImages, "Images added successfully");
+
+        case 'check_status':
+            // Check if user is active (auth_validate handles deletion check)
+            sendJsonResponse('success', null, 'User is active');
+            break;
 
         default:
             sendJsonResponse('error', null, 'Invalid action');

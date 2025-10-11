@@ -44,7 +44,7 @@ if (isset($action)) {
             }
 
             $password = md5($password);
-            $stmt = $conn->prepare("SELECT id, first_name, last_name, email, role, dob, gender, status, profile, deleted_at FROM employees WHERE email = ? AND password = ? LIMIT 1");
+            $stmt = $conn->prepare("SELECT id, first_name, last_name, email, role, dob, gender, status, profile, deleted_at FROM employees WHERE email = ? AND password = ? ORDER BY id DESC LIMIT 1");
             $stmt->bind_param("ss", $email, $password);
             $stmt->execute();
             $result = $stmt->get_result();

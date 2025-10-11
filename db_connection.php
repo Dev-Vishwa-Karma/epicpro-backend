@@ -2,8 +2,8 @@
 // Database configuration
 $host = "localhost";
 $username = "root";
-$password = "root";
-$database = "epic_hr";
+$password = "";
+$database = "epic_hrr";
 
 // Create a connection
 $conn = new mysqli($host, $username, $password, $database);

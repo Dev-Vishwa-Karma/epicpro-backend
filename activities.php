@@ -427,9 +427,8 @@ if (isset($action)) {
                 }
             } elseif ($activity_type == 'Punch' && $status == 'active') {
                 $punch_in_time = date('Y-m-d H:i:s');
-
                 // Check if the employee already has an active break
-                $stmt = $conn->prepare("SELECT * FROM activities WHERE employee_id = ? AND activity_type = 'Punch' AND DATE(in_time) = ? AND deleted_at IS NULL LIMIT 1");
+                $stmt = $conn->prepare("SELECT * FROM activities WHERE employee_id = ? AND activity_type = 'Punch' AND DATE(in_time) = ? AND deleted_at IS NULL ORDER BY in_time DESC LIMIT 1");
                 $current_date = date('Y-m-d');
                 $stmt->bind_param("is", $employee_id, $current_date);
                 $stmt->execute();
