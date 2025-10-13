@@ -20,7 +20,7 @@
     (SELECT COUNT(*) FROM employees WHERE role = 'employee' AND status = 1 AND deleted_at IS NULL) AS total_employees,
     (SELECT COUNT(*) FROM events WHERE event_type = 'holiday' AND DATE(event_date) >= CURDATE()) AS total_holidays,
     (SELECT COUNT(*) FROM events WHERE event_type = 'event' AND DATE(event_date) >= CURDATE()) AS total_events,
-    (SELECT COUNT(*) FROM project_todo WHERE status = 'pending') AS total_pending_todos";
+    (SELECT COUNT(*) FROM project_todo WHERE status = 'pending' AND deleted_at IS NULL) AS total_pending_todos";
 
 
 

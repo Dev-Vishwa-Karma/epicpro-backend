@@ -102,7 +102,15 @@ if (isset($action)) {
             if ($stmt->execute()) {
                 $id = $conn->insert_id;
 
-                // Get the list of all employees, excluding the one who created the event
+                // Send notifications to all employees for both events and holidays
+                if ($event_type === 'holiday') {
+                    // For holidays, notify all employees including the creator
+                    $notif_sql = "SELECT id, first_name, last_name FROM employees";
+                    $notif_stmt = $conn->prepare($notif_sql);
+                    $notif_stmt->execute();
+                    $result = $notif_stmt->get_result();
+                } else {
+                // For events, exclude the creator
                 $notif_sql = "SELECT id, first_name, last_name FROM employees WHERE id != ?";
                 $notif_stmt = $conn->prepare($notif_sql);
                 
@@ -114,12 +122,19 @@ if (isset($action)) {
                 $notif_stmt->bind_param("i", $created_by);
                 $notif_stmt->execute();
                 $result = $notif_stmt->get_result();
+                }
 
                 // Send notifications to all employees
                 while ($employee = $result->fetch_assoc()) {
+                if ($event_type === 'holiday') {
+                    $notification_body = $conn->real_escape_string("$event_name holiday has been scheduled on $event_date.");
+                    $notification_title = "New Holiday";
+                    $notification_type = "holiday_added";
+                } else {
                     $notification_body = $conn->real_escape_string("$event_name has been on $event_date.");
                     $notification_title = "New Event";
                     $notification_type = "event_added";
+                }
                     $notification_recipient = $employee['id']; // Notify the current employee
 
                     $notif_insert_sql = "
@@ -162,6 +177,50 @@ if (isset($action)) {
     
                 // Execute the statement and check for success
                 if ($stmt->execute()) {
+
+                    // Send notifications to all employees for both events and holidays
+                if ($event_type === 'holiday') {
+                    // For holidays, notify all employees including the creator
+                    $notif_sql = "SELECT id, first_name, last_name FROM employees";
+                    $notif_stmt = $conn->prepare($notif_sql);
+                    $notif_stmt->execute();
+                    $result = $notif_stmt->get_result();
+                } else {
+                // For events, exclude the creator
+                $notif_sql = "SELECT id, first_name, last_name FROM employees WHERE id != ?";
+                $notif_stmt = $conn->prepare($notif_sql);
+                
+                // Check if the prepare statement failed
+                if ($notif_stmt === false) {
+                    die('SQL Error: ' . $conn->error);
+                }
+
+                $notif_stmt->bind_param("i", $created_by);
+                $notif_stmt->execute();
+                $result = $notif_stmt->get_result();
+                }
+
+                // Send notifications to all employees
+                while ($employee = $result->fetch_assoc()) {
+                if ($event_type === 'holiday') {
+                    $notification_body = $conn->real_escape_string("$event_name holiday updated on $event_date Please check.");
+                    $notification_title = "Holiday Updated By Admin";
+                    $notification_type = "holiday_added";
+                } else {
+                    $notification_body = $conn->real_escape_string("$event_name updated on $event_date.");
+                    $notification_title = "Event Updated By Admin";
+                    $notification_type = "event_added";
+                }
+                    $notification_recipient = $employee['id']; // Notify the current employee
+
+                    $notif_insert_sql = "
+                        INSERT INTO notifications 
+                        (employee_id, body, title, type) 
+                        VALUES ($notification_recipient, '$notification_body', '$notification_title', '$notification_type')
+                    ";
+
+                    $conn->query($notif_insert_sql);
+                }
 
                     $updatedEventData = [
                         'id' => $id,

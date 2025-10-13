@@ -334,7 +334,7 @@ ini_set('display_errors', '1');
                 if ($title && $due_date) {
                     if ($employee_id === 'all') {
                         //ACTIVE USERS ONLY
-                        $result = $conn->query("SELECT id, first_name, last_name FROM employees WHERE role ='employee'");
+                        $result = $conn->query("SELECT id, first_name, last_name FROM employees WHERE role = 'employee' AND status = 1 AND deleted_at IS NULL");
                          
                         if ($result && $result->num_rows > 0) {
                             $todosCreated = [];

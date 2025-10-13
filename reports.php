@@ -286,7 +286,6 @@ if (isset($action)) {
                     }
                     $stmt->bind_param(
                         "ssssssssi",
-                        $id,
                         $note,
                         $report,
                         $start_time,
@@ -294,7 +293,8 @@ if (isset($action)) {
                         $break_duration_in_minutes,
                         $todays_working_hours,
                         $todays_total_hours,
-                        $updated_at
+                        $updated_at,
+                        $id
                     );
                 }
 
