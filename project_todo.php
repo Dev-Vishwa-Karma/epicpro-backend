@@ -125,7 +125,7 @@ ini_set('display_errors', '1');
                             e.profile
                         FROM project_todo pt
                         LEFT JOIN employees e ON pt.employee_id = e.id
-                        WHERE pt.employee_id = ? AND pt.status = ? AND e.deleted_at IS NULL" . $dateCondition . "
+                        WHERE pt.employee_id = ? AND pt.status = ? AND e.deleted_at IS NULL AND e.status = 1" . $dateCondition . "
                         ORDER BY 
                             ABS(DATEDIFF(pt.due_date, CURDATE())) ASC,
                             CASE 
@@ -157,7 +157,7 @@ ini_set('display_errors', '1');
                                 e.profile
                             FROM project_todo pt
                             LEFT JOIN employees e ON pt.employee_id = e.id
-                            WHERE pt.employee_id = ? AND e.deleted_at IS NULL" . $dateCondition . "
+                            WHERE pt.employee_id = ? AND e.deleted_at IS NULL AND e.status = 1" . $dateCondition . "
                             ORDER BY 
                                 ABS(DATEDIFF(pt.due_date, CURDATE())) ASC,
                                 CASE 
@@ -224,7 +224,7 @@ ini_set('display_errors', '1');
                             e.profile
                         FROM project_todo pt
                         LEFT JOIN employees e ON pt.employee_id = e.id
-                        WHERE pt.status = ? AND e.deleted_at IS NULL" . $dateCondition;
+                        WHERE pt.status = ? AND e.deleted_at IS NULL AND e.status = 1" . $dateCondition;
                     if ($role === 'employee') {
                         $query .= " AND pt.employee_id = ?";
                     }
@@ -265,7 +265,7 @@ ini_set('display_errors', '1');
                                 e.profile
                             FROM project_todo pt
                             LEFT JOIN employees e ON pt.employee_id = e.id
-                            WHERE e.deleted_at IS NULL" . $dateCondition;
+                            WHERE e.deleted_at IS NULL AND e.status = 1" . $dateCondition;
                         if ($role === 'employee') {
                             $query .= " AND pt.employee_id = ?";
                         }

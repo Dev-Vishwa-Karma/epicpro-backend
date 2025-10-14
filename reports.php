@@ -60,7 +60,7 @@ if (isset($action)) {
                 $conditions[] = "DATE(reports.created_at) = '$end_date'";
             }
 
-            $conditions[] = "e.deleted_at IS NULL";
+            $conditions[] = "e.deleted_at IS NULL AND e.status = 1";
         
             // Base query
             $query = "

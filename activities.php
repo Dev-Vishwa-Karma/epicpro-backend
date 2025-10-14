@@ -125,7 +125,7 @@ if (isset($action)) {
                     ea.description
                 FROM activities ea
                 JOIN employees e ON ea.employee_id = e.id
-                WHERE ea.deleted_at IS NULL
+                WHERE ea.deleted_at IS NULL AND e.status = 1
                 AND e.deleted_at IS NULL";
 
             // Add conditions to the query if any are collected

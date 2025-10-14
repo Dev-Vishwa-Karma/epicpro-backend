@@ -85,10 +85,11 @@
                                 // Prepare query to fetch team members (employees)
                                 $team_member_ids_placeholder = implode(",", $team_member_ids);
                                 $team_query = "
-                                    SELECT id, first_name, last_name, profile 
-                                    FROM employees 
+                                    SELECT id, first_name, last_name, profile
+                                    FROM employees
                                     WHERE id IN ($team_member_ids_placeholder)
                                     AND deleted_at IS NULL
+                                    AND status = 1
                                 ";
 
                                 $team_result = mysqli_query($conn, $team_query);
@@ -189,7 +190,7 @@
                                 // Prepare the query to fetch team members
                                 $team_member_ids_placeholder = implode(",", $team_member_ids);
                                 $team_query = "
-                                    SELECT id, first_name, last_name, profile FROM employees WHERE id IN ($team_member_ids_placeholder) AND deleted_at IS NULL
+                                    SELECT id, first_name, last_name, profile FROM employees WHERE id IN ($team_member_ids_placeholder) AND deleted_at IS NULL AND status = 1
                                 ";
 
                                 $team_result = mysqli_query($conn, $team_query);
@@ -281,7 +282,7 @@
                             $team_members = [];
                             if (!empty($team_members_id)) {
                                 $team_ids = implode(',', $team_members_id); // Join IDs for the query
-                                $team_query = "SELECT id, first_name, last_name, profile FROM employees WHERE id IN ($team_ids)";
+                                $team_query = "SELECT id, first_name, last_name, profile FROM employees WHERE id IN ($team_ids) AND deleted_at IS NULL AND status = 1";
                                 
                                 if ($team_result = mysqli_query($conn, $team_query)) {
                                     while ($member = mysqli_fetch_assoc($team_result)) {
@@ -403,7 +404,7 @@
                                 $team_members = [];
                                 if (!empty($team_member_ids)) {
                                     $team_ids = implode(',', $team_member_ids); // Join IDs for the query
-                                    $team_query = "SELECT id, first_name, last_name, profile FROM employees WHERE id IN ($team_ids)";
+                                    $team_query = "SELECT id, first_name, last_name, profile FROM employees WHERE id IN ($team_ids) AND deleted_at IS NULL AND status = 1";
                                     if ($team_result = mysqli_query($conn, $team_query)) {
                                         while ($member = mysqli_fetch_assoc($team_result)) {
                                             $team_members[] = [

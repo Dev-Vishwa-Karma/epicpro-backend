@@ -80,6 +80,7 @@ if (isset($action)) {
                     " OR employees.email LIKE '$like'" .
                 ")";
             }
+            $whereClause .= ($whereClause ? " AND" : " WHERE") . " employees.status = 1";
 
             $query = "SELECT
                 tickets.id AS ticket_id,
