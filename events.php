@@ -243,19 +243,65 @@ if (isset($action)) {
 
         case 'delete':
             if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
-                // Prepare DELETE statement
+                $id = (int)$_GET['id'];
+
+                // Fetch event details before deleting (to use in notification)
+                $fetch_stmt = $conn->prepare("SELECT event_name, event_date, event_type FROM events WHERE id = ?");
+                $fetch_stmt->bind_param('i', $id);
+                $fetch_stmt->execute();
+                $event_result = $fetch_stmt->get_result();
+
+                if ($event_result->num_rows === 0) {
+                    sendJsonResponse('error', null, 'Event not found');
+                    exit;
+                }
+
+                $event = $event_result->fetch_assoc();
+                $event_name = $event['event_name'];
+                $event_date = $event['event_date'];
+                $event_type = $event['event_type'];
+
+                // Now delete the event
                 $stmt = $conn->prepare("DELETE FROM events WHERE id = ?");
-                $stmt->bind_param('i', $_GET['id']);
+                $stmt->bind_param('i', $id);
+
                 if ($stmt->execute()) {
-                    sendJsonResponse('success', null, 'Holiday deleted successfully');
+                    // After deletion, notify all employees
+                    $notif_sql = "SELECT id, first_name, last_name FROM employees";
+                    $notif_stmt = $conn->prepare($notif_sql);
+                    $notif_stmt->execute();
+                    $employees = $notif_stmt->get_result();
+
+                    while ($employee = $employees->fetch_assoc()) {
+                        if ($event_type === 'holiday') {
+                            $notification_body = $conn->real_escape_string("The holiday '$event_name' scheduled on $event_date has been deleted by Admin.");
+                            $notification_title = "Holiday Deleted";
+                            $notification_type = "holiday_deleted";
+                        } else {
+                            $notification_body = $conn->real_escape_string("The event '$event_name' scheduled on $event_date has been suspended by Admin.");
+                            $notification_title = "Event Deleted";
+                            $notification_type = "event_deleted";
+                        }
+
+                        $notification_recipient = $employee['id'];
+
+                        $notif_insert_sql = "
+                            INSERT INTO notifications 
+                            (employee_id, body, title, type) 
+                            VALUES ($notification_recipient, '$notification_body', '$notification_title', '$notification_type')
+                        ";
+                        $conn->query($notif_insert_sql);
+                    }
+
+                    sendJsonResponse('success', null, ucfirst($event_type) . ' deleted successfully and notifications sent');
                 } else {
                     http_response_code(500);
-                    sendJsonResponse('error', null, 'Failed to delete holiday');
+                    sendJsonResponse('error', null, 'Failed to delete ' . $event_type);
                 }
                 exit;
             } else {
                 http_response_code(400);
-                sendJsonResponse('error', null, 'Invalid holiday ID');
+                sendJsonResponse('error', null, 'Invalid event ID');
                 exit;
             }
             break;
