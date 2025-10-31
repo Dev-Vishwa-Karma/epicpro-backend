@@ -384,14 +384,15 @@ switch ($action) {
         
         if ($applicantData) {
             $insertedApplicants = 0;
-            $duplicateApplicants = []; 
+            $duplicateApplicants = [];
+            $autoUpdated = 0;
 
             foreach ($applicantData['data'] as $applicant) {
                 $email = $applicant['email'] ?? '';
                 
                 if (!empty($email)) {
                     // Fetch existing record by email (id and fullname) to properly build duplicate payload
-                    $stmtExisting = $conn->prepare('SELECT id, fullname FROM applicants WHERE email = ? LIMIT 1');
+                    $stmtExisting = $conn->prepare('SELECT * FROM applicants WHERE email = ? LIMIT 1');
                     $stmtExisting->bind_param('s', $email);
                     $stmtExisting->execute();
                     $resultExisting = $stmtExisting->get_result();
@@ -410,16 +411,17 @@ switch ($action) {
                         $experience = $applicant['experience'] ?? null;
                         $joining_timeframe = $applicant['joining_timeframe'] ?? null;
                         $bond_agreement = $applicant['bond_agreement'] ?? null;
+                        $resume_path = $applicant['resume_path'] ?? null;
                         $branch = $applicant['branch'] ?? null;
                         $graduate_year = $applicant['graduate_year'] ?? null;
 
                         $stmtInsert = $conn->prepare('INSERT INTO applicants 
-                            (fullname, email, phone, alternate_phone, dob, marital_status, experience, address, skills, joining_timeframe, bond_agreement, branch, graduate_year, status, source) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+                            (fullname, email, phone, alternate_phone, dob, marital_status, experience, address, skills, joining_timeframe, bond_agreement, resume_path, branch, graduate_year, status, source) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
                         $stmtInsert->bind_param(
-                            'sssssssssssssss',
+                            'ssssssssssssssss',
                             $fullname, $email, $phone, $alternate_phone, $dob, $marital_status, $experience,
-                            $address, $skills, $joining_timeframe, $bond_agreement, $branch, $graduate_year, $status, $source_sync
+                            $address, $skills, $joining_timeframe, $bond_agreement, $resume_path, $branch, $graduate_year, $status, $source_sync
                         );
 
                         if ($stmtInsert->execute()) {
@@ -437,33 +439,109 @@ switch ($action) {
                         $incomingExperience = $applicant['experience'] ?? null;
                         $incomingJoiningTimeframe = $applicant['joining_timeframe'] ?? null;
                         $incomingBondAgreement = $applicant['bond_agreement'] ?? null;
+                        $incomingResumepath = $applicant['resume_path'] ?? null;
                         $incomingBranch = $applicant['branch'] ?? null;
                         $incomingGraduateYear = $applicant['graduate_year'] ?? null;
                         $incomingSkills = isset($applicant['skills']) ? (is_array($applicant['skills']) ? json_encode($applicant['skills']) : (string)$applicant['skills']) : null;
                         $incomingEmployeeCode = $applicant['employee_id'] ?? null;
                         $incomingEmployeeName = $applicant['employee_name'] ?? null;
 
-                        $duplicateApplicants[] = [
-                            'email' => $email,
-                            'existing_id' => $existing['id'],
-                            'existing_name' => $existing['fullname'],
-                            'new_data' => [
-                                'fullname' => $incomingFullname,
-                                'phone' => $applicant['phone'] ?? '',
-                                'alternate_phone' => $applicant['alternate_phone'] ?? '',
-                                'dob' => $incomingDob,
-                                'address' => $incomingAddress,
-                                'marital_status' => $incomingMaritalStatus,
-                                'experience' => $incomingExperience,
-                                'joining_timeframe' => $incomingJoiningTimeframe,
-                                'bond_agreement' => $incomingBondAgreement,
-                                'branch' => $incomingBranch,
-                                'graduate_year' => $incomingGraduateYear,
-                                'skills' => $incomingSkills,
-                                'employee_id' => $incomingEmployeeCode,
-                                'employee_name' => $incomingEmployeeName,
-                            ]
+                        // Check if there are actual differences
+                        $incomingValues = [
+                            'fullname' => $incomingFullname,
+                            'phone' => $applicant['phone'] ?? '',
+                            'alternate_phone' => $applicant['alternate_phone'] ?? '',
+                            'dob' => $incomingDob,
+                            'address' => $incomingAddress,
+                            'marital_status' => $incomingMaritalStatus,
+                            'experience' => $incomingExperience,
+                            'joining_timeframe' => $incomingJoiningTimeframe,
+                            'bond_agreement' => $incomingBondAgreement,
+                            'resume_path' => $incomingResumepath,
+                            'branch' => $incomingBranch,
+                            'graduate_year' => $incomingGraduateYear,
+                            'skills' => $incomingSkills,
+                            'employee_id' => $incomingEmployeeCode,
+                            'employee_name' => $incomingEmployeeName,
                         ];
+
+                        $fieldsToCheck = ['fullname', 'phone', 'alternate_phone', 'dob', 'address', 'marital_status', 'experience', 'joining_timeframe', 'bond_agreement', 'resume_path', 'branch', 'graduate_year', 'skills', 'employee_id', 'employee_name'];
+                        $hasDifference = false;
+
+                        foreach ($fieldsToCheck as $field) {
+                            $existingValue = $existing[$field];
+                            $incomingValue = $incomingValues[$field];
+
+                            // Normalize null and empty values for comparison
+                            $existingValue = ($existingValue === null || $existingValue === '') ? null : $existingValue;
+                            $incomingValue = ($incomingValue === null || $incomingValue === '') ? null : $incomingValue;
+
+                            // Special handling for skills (JSON comparison)
+                            if ($field === 'skills') {
+                                $existingSkills = json_decode($existingValue, true);
+                                $incomingSkills = json_decode($incomingValue, true);
+                                if (json_last_error() === JSON_ERROR_NONE) {
+                                    $existingValue = $existingSkills;
+                                    $incomingValue = $incomingSkills;
+                                }
+                                // Compare as arrays if both are arrays
+                                if (is_array($existingValue) && is_array($incomingValue)) {
+                                    if (count($existingValue) !== count($incomingValue) || array_diff($existingValue, $incomingValue) !== array_diff($incomingValue, $existingValue)) {
+                                        $hasDifference = true;
+                                        break;
+                                    }
+                                    continue; // Skip the general comparison
+                                }
+                            }
+
+                            // General comparison
+                            if ($existingValue !== $incomingValue) {
+                                $hasDifference = true;
+                                break;
+                            }
+                        }
+
+                        if ($hasDifference) {
+                            $duplicateApplicants[] = [
+                                'email' => $email,
+                                'existing_id' => $existing['id'],
+                                'existing_name' => $existing['fullname'],
+                                'existing_fullname' => $existing['fullname'],
+                                'existing_email' => $existing['email'],
+                                'existing_phone' => $existing['phone'],
+                                'existing_alternate_phone' => $existing['alternate_phone'],
+                                'existing_dob' => $existing['dob'],
+                                'existing_marital_status' => $existing['marital_status'],
+                                'existing_experience' => $existing['experience'],
+                                'existing_address' => $existing['address'],
+                                'existing_skills' => $existing['skills'],
+                                'existing_joining_timeframe' => $existing['joining_timeframe'],
+                                'existing_bond_agreement' => $existing['bond_agreement'],
+                                'existing_resume_path' => $existing['resume_path'],
+                                'existing_branch' => $existing['branch'],
+                                'existing_graduate_year' => $existing['graduate_year'],
+                                'existing_employee_id' => $existing['employee_id'],
+                                'existing_employee_name' => $existing['employee_name'],
+                                'new_data' => [
+                                    'fullname' => $incomingFullname,
+                                    'email' => $applicant['email'],
+                                    'phone' => $applicant['phone'] ?? '',
+                                    'alternate_phone' => $applicant['alternate_phone'] ?? '',
+                                    'dob' => $incomingDob,
+                                    'address' => $incomingAddress,
+                                    'marital_status' => $incomingMaritalStatus,
+                                    'experience' => $incomingExperience,
+                                    'joining_timeframe' => $incomingJoiningTimeframe,
+                                    'bond_agreement' => $incomingBondAgreement,
+                                    'resume_path' => $incomingResumepath,
+                                    'branch' => $incomingBranch,
+                                    'graduate_year' => $incomingGraduateYear,
+                                    'skills' => $incomingSkills,
+                                    'employee_id' => $incomingEmployeeCode,
+                                    'employee_name' => $incomingEmployeeName,
+                                ]
+                            ];
+                        }
                     }
                 }
             }

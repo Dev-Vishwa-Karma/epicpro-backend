@@ -257,7 +257,7 @@ if (isset($action)) {
                 $logged_in_employee_id = isset($_POST['logged_in_employee_id']) ? (int)$_POST['logged_in_employee_id'] : null;
                 $logged_in_user_role = strtolower(trim($logged_in_employee_role ?? ""));
 
-                $existingReportRes = $conn->query("SELECT note, employee_id FROM reports WHERE id = $id");
+                $existingReportRes = $conn->query("SELECT note, employee_id, report, start_time, end_time, break_duration_in_minutes, total_working_hours, total_hours FROM reports WHERE id = $id");
                 if (!$existingReportRes || $existingReportRes->num_rows === 0) {
                     sendJsonResponse('error', null, 'Report not found');
                     exit;
@@ -266,89 +266,111 @@ if (isset($action)) {
                 $old_note = $existingData['note'] ?? '';
                 $employee_id = $existingData['employee_id'];
 
-                // Restrict employees only allow updating "report" field
-                if ($logged_in_user_role === 'employee') {
-                    $stmt = $conn->prepare("UPDATE reports SET report = ?, updated_at = ? WHERE id = ?");
-                    if (!$stmt) {
-                        sendJsonResponse('error', null, 'Prepare failed: ' . $conn->error);
-                        exit;
-                    }
-                    $stmt->bind_param("ssi", $report, $updated_at, $id);
-                } else {
-                    // Admin / Super Admin can update all fields
-                    $stmt = $conn->prepare("UPDATE reports 
-                        SET note = ?, report = ?, start_time = ?, end_time = ?, break_duration_in_minutes = ?, 
-                            total_working_hours = ?, total_hours = ?, updated_at = ? 
-                        WHERE id = ?");
-                    if (!$stmt) {
-                        sendJsonResponse('error', null, 'Prepare failed: ' . $conn->error);
-                        exit;
-                    }
-                    $stmt->bind_param(
-                        "ssssssssi",
-                        $note,
-                        $report,
-                        $start_time,
-                        $end_time,
-                        $break_duration_in_minutes,
-                        $todays_working_hours,
-                        $todays_total_hours,
-                        $updated_at,
-                        $id
-                    );
-                }
-
-                if ($stmt->execute()) {
-                    $note_trimmed = trim($note ?? '');
-                    $old_note_trimmed = trim($old_note ?? '');
-
-                    if (
-                        !empty($note_trimmed) &&
-                        $note_trimmed !== $old_note_trimmed &&
-                        in_array($logged_in_user_role, ['admin', 'super_admin'])
-                    ) {
-                        
-                        $notification_body = $conn->real_escape_string("Note:.$note_trimmed.");
-                        $notification_title = "Admin Note";
-                        $notification_type = "report_note";
-
-                        $notif_sql = "
-                            INSERT INTO notifications (
-                                employee_id, body, title, `type`
-                            ) VALUES (
-                                $employee_id, '$notification_body', '$notification_title', '$notification_type'
-                            )
-                        ";
-                       
-                        $conn->query($notif_sql); // optional: check for failure
-                    }
-                        
-                    $updatedReportData = [
-                        'id' => $id,
-                        'employee_id' => $employee_id,
-                        'note' => $note,
-                        'report' => $report,
-                        'start_time' => $start_time,
-                        'end_time' => $end_time,
-                        'break_duration_in_minutes' => $break_duration_in_minutes,
-                        'todays_working_hours' => $todays_working_hours,
-                        'todays_hours' => $todays_total_hours,
-                        'updated_at' => $updated_at
-                    ];
-                    sendJsonResponse('success', $updatedReportData, 'Report has been updated successfully.');
-                } else {
-                    sendJsonResponse('error', null, 'Failed to update report: ' . $stmt->error);
-                }
-            } else {
-                http_response_code(400);
-                sendJsonResponse('error', null, 'Invalid Report ID');
+        // Restrict employees only allow updating "report" field
+        if ($logged_in_user_role === 'employee') {
+            // Check if report field is actually being changed
+            $is_report_changed = ($report != $existingData['report']);
+            
+            // If report is not being changed and no other fields are being modified, just return success
+            if (!$is_report_changed) {
+                sendJsonResponse('success', [
+                    'id' => $id,
+                    'employee_id' => $employee_id,
+                    'report' => $report,
+                    'updated_at' => $updated_at
+                ], 'No changes detected.');
+                exit;
             }
-            break;
 
+            // Only update the report field for employees
+            $stmt = $conn->prepare("UPDATE reports SET report = ?, updated_at = ? WHERE id = ?");
+            if (!$stmt) {
+                sendJsonResponse('error', null, 'Prepare failed: ' . $conn->error);
+                exit;
+            }
+            $stmt->bind_param("ssi", $report, $updated_at, $id);
+            
+            if ($stmt->execute()) {
+                $updatedReportData = [
+                    'id' => $id,
+                    'employee_id' => $employee_id,
+                    'report' => $report,
+                    'updated_at' => $updated_at
+                ];
+                sendJsonResponse('success', $updatedReportData, 'Report has been updated successfully.');
+            } else {
+                sendJsonResponse('error', null, 'Failed to update report: ' . $stmt->error);
+            }
+        } else {
+            // Admin / Super Admin can update all fields
+            $stmt = $conn->prepare("UPDATE reports 
+                SET note = ?, report = ?, start_time = ?, end_time = ?, break_duration_in_minutes = ?, 
+                    total_working_hours = ?, total_hours = ?, updated_at = ? 
+                WHERE id = ?");
+            if (!$stmt) {
+                sendJsonResponse('error', null, 'Prepare failed: ' . $conn->error);
+                exit;
+            }
+            $stmt->bind_param(
+                "ssssssssi",
+                $note,
+                $report,
+                $start_time,
+                $end_time,
+                $break_duration_in_minutes,
+                $todays_working_hours,
+                $todays_total_hours,
+                $updated_at,
+                $id
+            );
 
-        default:
-            sendJsonResponse('error', null, 'Invalid action');
-            break;
+            if ($stmt->execute()) {
+                $note_trimmed = trim($note ?? '');
+                $old_note_trimmed = trim($old_note ?? '');
+
+                if (
+                    !empty($note_trimmed) &&
+                    $note_trimmed !== $old_note_trimmed &&
+                    in_array($logged_in_user_role, ['admin', 'super_admin'])
+                ) {
+                    
+                    $notification_body = $conn->real_escape_string("Note:.$note_trimmed.");
+                    $notification_title = "Admin Note";
+                    $notification_type = "report_note";
+
+                    $notif_sql = "
+                        INSERT INTO notifications (
+                            employee_id, body, title, `type`
+                        ) VALUES (
+                            $employee_id, '$notification_body', '$notification_title', '$notification_type'
+                        )
+                    ";
+                   
+                    $conn->query($notif_sql); // optional: check for failure
+                }
+                    
+                $updatedReportData = [
+                    'id' => $id,
+                    'employee_id' => $employee_id,
+                    'note' => $note,
+                    'report' => $report,
+                    'start_time' => $start_time,
+                    'end_time' => $end_time,
+                    'break_duration_in_minutes' => $break_duration_in_minutes,
+                    'todays_working_hours' => $todays_working_hours,
+                    'todays_hours' => $todays_total_hours,
+                    'updated_at' => $updated_at
+                ];
+                sendJsonResponse('success', $updatedReportData, 'Report has been updated successfully.');
+            } else {
+                sendJsonResponse('error', null, 'Failed to update report: ' . $stmt->error);
+            }
+        }
+    } else {
+        http_response_code(400);
+        sendJsonResponse('error', null, 'Invalid Report ID');
+    }
+    break;
     }
 } else {
     sendJsonResponse('error', null, 'Action parameter is missing');
