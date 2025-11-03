@@ -104,8 +104,8 @@ if (isset($action)) {
 
                 // Send notifications to all employees for both events and holidays
                 if ($event_type === 'holiday') {
-                    // For holidays, notify all employees including the creator
-                    $notif_sql = "SELECT id, first_name, last_name FROM employees";
+                    // For holidays, notify all employees except Admin and Super Admin
+                    $notif_sql = "SELECT id, first_name, last_name FROM employees WHERE role NOT IN ('admin', 'super_admin')";
                     $notif_stmt = $conn->prepare($notif_sql);
                     $notif_stmt->execute();
                     $result = $notif_stmt->get_result();
@@ -180,8 +180,8 @@ if (isset($action)) {
 
                     // Send notifications to all employees for both events and holidays
                 if ($event_type === 'holiday') {
-                    // For holidays, notify all employees including the creator
-                    $notif_sql = "SELECT id, first_name, last_name FROM employees";
+                    // For holidays, notify all employees except Admin and Super Admin
+                    $notif_sql = "SELECT id, first_name, last_name FROM employees WHERE role NOT IN ('admin', 'super_admin')";
                     $notif_stmt = $conn->prepare($notif_sql);
                     $notif_stmt->execute();
                     $result = $notif_stmt->get_result();
@@ -266,8 +266,8 @@ if (isset($action)) {
                 $stmt->bind_param('i', $id);
 
                 if ($stmt->execute()) {
-                    // After deletion, notify all employees
-                    $notif_sql = "SELECT id, first_name, last_name FROM employees";
+                    // After deletion, notify all employees except Admin and Super Admin
+                    $notif_sql = "SELECT id, first_name, last_name FROM employees WHERE role NOT IN ('admin', 'super_admin')";
                     $notif_stmt = $conn->prepare($notif_sql);
                     $notif_stmt->execute();
                     $employees = $notif_stmt->get_result();
