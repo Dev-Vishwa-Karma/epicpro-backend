@@ -4,14 +4,9 @@ header("Access-Control-Allow-Methods: GET, POST, DELETE, PUT, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type");
 header("Access-Control-Allow-Credentials: true");
 
+include 'helpers.php';
 include 'db_connection.php';
 include 'mailer.php';
-include 'helpers.php';
-
-//Add for mails
-require 'PHPMailer/src/Exception.php';
-require 'PHPMailer/src/PHPMailer.php';
-require 'PHPMailer/src/SMTP.php';
 
 header('Content-Type: application/json');
 
