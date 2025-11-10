@@ -8,26 +8,27 @@ require 'PHPMailer/src/SMTP.php';
 
 function sendEmail($to, $subject, $body) {
     $mail = new PHPMailer(true);
-    
+
     try {
         // Server settings
         $mail->isSMTP();
         $mail->Host       = 'smtp.gmail.com';
         $mail->SMTPAuth   = true;
         $mail->Username   = 'akash.profilics@gmail.com';
-        $mail->Password   = 'pojb qwmq wngv alhw';
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
-        
+        $mail->Password   = 'pojbqwmqwngvalhw';
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+        $mail->Port       = 465;
+        $mail->Timeout    = 30;
+
         // Recipients
         $mail->setFrom('akash.profilics@gmail.com', 'Profilics Systems');
         $mail->addAddress($to);
-        
+
         // Content
         $mail->isHTML(true);
         $mail->Subject = $subject;
         $mail->Body    = $body;
-        
+
         $mail->send();
         return true;
     } catch (Exception $e) {
