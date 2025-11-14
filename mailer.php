@@ -9,11 +9,16 @@ require 'PHPMailer/src/SMTP.php';
 function sendEmail($to, $subject, $body) {
     $mail = new PHPMailer(true);
 
-    // Enable full SMTP debug output to error_log
-    $mail->SMTPDebug = 2;
-    $mail->Debugoutput = function($str, $level) {
-        error_log("SMTP Debug level {$level}: {$str}");
-    };
+    // Enable SMTP debug output only on localhost
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    if ($host === 'hr.profilics.com') {
+        $mail->SMTPDebug = 0;
+    } else {
+        $mail->SMTPDebug = 2;
+        $mail->Debugoutput = function($str, $level) {
+            error_log("SMTP Debug level {$level}: {$str}");
+        };
+    }
 
     try {
         // Server settings
@@ -41,9 +46,9 @@ function sendEmail($to, $subject, $body) {
         error_log("Mail successfully sent to {$to}");
         return true;
     } catch (Exception $e) {
-        error_log("Message could not be sent. PHPMailer Error: " . $mail->ErrorInfo);
-        error_log("Exception message: " . $e->getMessage());
-        return false;
+        $error = "PHPMailer Error: " . $mail->ErrorInfo . " | Exception: " . $e->getMessage();
+        error_log($error);
+        return $error;
     }
 }
 ?>

@@ -112,10 +112,11 @@ if (isset($action)) {
             </html>
             ";
 
-            if (sendEmail($email, $subject, $body)) {
+            $result = sendEmail($email, $subject, $body);
+            if ($result === true) {
                 sendJsonResponse('success', null, 'Password reset link has been sent to your email address.');
             } else {
-                sendJsonResponse('error', null, 'Failed to send email. Please try again.');
+                sendJsonResponse('error', null, $result);
             }
 
             break;
