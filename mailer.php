@@ -27,9 +27,9 @@ function sendEmail($to, $subject, $body) {
         $mail->SMTPAuth   = true;
         $mail->Username   = 'akash.profilics@gmail.com';
         // $mail->Password   = 'pojbqwmqwngvalhw';
-        $mail->Password   = 'hjwftnvbytezjbof';
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
-        $mail->Port       = 465;
+        $mail->Password   = 'vcluiuwfpvpmmhwk';
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = 587;
         $mail->Timeout    = 30;
 
         // Recipients

@@ -32,6 +32,14 @@ function validateId($id)
     return isset($id) && is_numeric($id) && $id > 0;
 }
 
+// Helper function to format minutes to HH:MM
+function formatMinutesToHHMM($minutes)
+{
+    $hours = floor($minutes / 60);
+    $mins = floor($minutes % 60);
+    return sprintf('%02d:%02d', $hours, $mins);
+}
+
 $action = !empty($_GET['action']) ? $_GET['action'] : 'view';
 
 // Main action handler
@@ -193,16 +201,56 @@ if (isset($action)) {
                     }
                 }
             break;
-        
+
+            case 'calculate-report-times':
+                $start_time = $_POST['start_time'] ?? null;
+                $break_duration_in_minutes = (int)($_POST['break_duration_in_minutes'] ?? 0);
+
+                if (!$start_time) {
+                    sendJsonResponse('error', null, 'Start time is required');
+                }
+
+                date_default_timezone_set('Asia/Kolkata');
+                $end_time = date('Y-m-d H:i:s');
+
+                $start_dt = new DateTime($start_time);
+                $end_dt = new DateTime($end_time);
+                $interval = $start_dt->diff($end_dt);
+                $total_seconds = ($interval->days * 86400) + ($interval->h * 3600) + ($interval->i * 60) + $interval->s;
+                $total_minutes = $total_seconds / 60;
+                $working_minutes = $total_minutes - $break_duration_in_minutes;
+
+                $todays_total_hours = formatMinutesToHHMM($total_minutes);
+                $todays_working_hours = formatMinutesToHHMM($working_minutes);
+
+                sendJsonResponse('success', [
+                    'todays_working_hours' => $todays_working_hours,
+                    'todays_total_hours' => $todays_total_hours,
+                    'end_time' => $end_time
+                ], 'Times calculated successfully');
+            break;
+
             case 'add-report-by-user':
                 // Capture POST data
                 $employee_id = $_POST['employee_id'] ?? null;
                 $report = $_POST['report'] ?? null;
                 $start_time = $_POST['start_time'] ?? null;
-                $break_duration_in_minutes = $_POST['break_duration_in_minutes'] ?? null;
-                $end_time = $_POST['end_time'] ?? null;
-                $todays_working_hours = $_POST['todays_working_hours'] ?? null;
-                $todays_total_hours = $_POST['todays_total_hours'] ?? null;
+                $break_duration_in_minutes = (int)($_POST['break_duration_in_minutes'] ?? 0);
+                // $end_time = $_POST['end_time'] ?? null;
+                // now get current time
+                date_default_timezone_set('Asia/Kolkata');
+                $end_time = date('Y-m-d H:i:s');
+
+                // Calculate working hours
+                $start_dt = new DateTime($start_time);
+                $end_dt = new DateTime($end_time);
+                $interval = $start_dt->diff($end_dt);
+                $total_seconds = ($interval->days * 86400) + ($interval->h * 3600) + ($interval->i * 60) + $interval->s;
+                $total_minutes = $total_seconds / 60;
+                $working_minutes = $total_minutes - $break_duration_in_minutes;
+                $todays_total_hours = formatMinutesToHHMM($total_minutes);
+                $todays_working_hours = formatMinutesToHHMM($working_minutes);
+
                 $created_at = date('Y-m-d H:i:s');
                 $updated_at = $created_at;
             
@@ -230,8 +278,8 @@ if (isset($action)) {
                         'start_time' => $start_time,
                         'end_time' => $end_time,
                         'break_duration_in_minutes' => $break_duration_in_minutes,
-                        'total_working_hours' => $todays_working_hours,
-                        'total_hours' => $todays_total_hours,
+                        'todays_working_hours' => $todays_working_hours,
+                        'todays_total_hours' => $todays_total_hours,
                         'created_at' => $created_at
                     ];
                     // If successful, send success response
