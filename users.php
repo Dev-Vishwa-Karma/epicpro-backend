@@ -53,7 +53,7 @@ if (isset($action)) {
                 }
             } else {
                 // If no user_id provided, fetch all users
-                $stmt = $conn->prepare("SELECT users.id, users.role, users.created_at, employees.user_id, employees.first_name, employees.last_name, employees.email, employees.employee_role 
+                $stmt = $conn->prepare("SELECT users.id, users.role, users.created_at, employees.user_id, employees.first_name, employees.last_name, employees.email, employees.role 
                 FROM users 
                 INNER JOIN employees ON users.id = employees.user_id");
                 $stmt->execute();
