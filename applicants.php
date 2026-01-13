@@ -360,13 +360,12 @@ switch ($action) {
                 $lastSync = $row['last_sync'];
             }
         }
-    
-        // 2. Build API URL with filter (assuming API supports since date filter)
-        $url = "http://localhost/epichr/server-backend/job_applicants.php?action=view";
+
+        // Build API URL with filter (assuming API supports since date filter)
+        $url = "https://qna.profilics.com/api/candidates";
         
         if ($lastSync) {
-            // $url .= "&since=" . urlencode($lastSync);
-            $url .= "&since=" . str_replace(' ', '%20', $lastSync);
+            $url .= "?since=" . str_replace(' ', '%20', $lastSync);
         }
     // var_dump($url);die;
         $response = file_get_contents($url);
@@ -405,7 +404,7 @@ switch ($action) {
                         $dob = !empty($applicant['dob']) ? date('Y-m-d', strtotime($applicant['dob'])) : null;
                         $address = trim(($applicant['address_1'] ?? '') . ' ' . ($applicant['address_2'] ?? ''));
                         $skills = isset($applicant['skills']) ? (is_array($applicant['skills']) ? json_encode($applicant['skills']) : (string)$applicant['skills']) : json_encode([]);
-                        $status = 'pending';
+                        $status = $applicant['status'] ?? 'pending';
                         $source_sync = 'sync';
                         $marital_status = $applicant['marital_status'] ?? null;
                         $experience = $applicant['experience'] ?? null;
@@ -414,6 +413,39 @@ switch ($action) {
                         $resume_path = $applicant['resume_path'] ?? null;
                         $branch = $applicant['branch'] ?? null;
                         $graduate_year = $applicant['graduate_year'] ?? null;
+
+                        // 3. Download the resume if it exists
+                        if ($resume_path) {
+                            $fileContent = file_get_contents($resume_path);
+                            if ($fileContent !== false) {
+                                $resumeDir = 'uploads/resumes/';
+                                if (!file_exists($resumeDir)) {
+                                    mkdir($resumeDir, 0777, true); // Make sure directory exists
+                                }
+
+                                // Extract the file extension from the URL or path
+                                $fileInfo = pathinfo($resume_path);
+                                $fileExtension = strtolower($fileInfo['extension']);
+                                
+                                // Ensure it's a valid file extension (pdf, docx, txt, etc.)
+                                // $validExtensions = ['pdf','doc','docx', 'txt', 'rtf', 'odt'];
+                                // if (!in_array($fileExtension, $validExtensions)) {
+                                //     $fileExtension = 'pdf'; // Default to PDF if the extension is invalid
+                                // }
+
+                                // Generate a unique file name and save the file with the correct extension
+                                $fileName = uniqid('resume_', true) . '.' . $fileExtension;
+                                $filePath = $resumeDir . $fileName;
+
+                                // Save the resume file
+                                file_put_contents($filePath, $fileContent);
+
+                                // Update resume path to the new location
+                                $resume_path = $filePath;
+                            } else {
+                                error_log("Failed to download resume: " . $resume_path);
+                            }
+                        }
 
                         $stmtInsert = $conn->prepare('INSERT INTO applicants 
                             (fullname, email, phone, alternate_phone, dob, marital_status, experience, address, skills, joining_timeframe, bond_agreement, resume_path, branch, graduate_year, status, source) 
