@@ -121,7 +121,7 @@ switch ($action) {
             $applicants[] = $row;
         }
 
-        $stmt = $conn->prepare("SELECT last_sync FROM sync_log ORDER BY id DESC LIMIT 1");
+        $stmt = $conn->prepare("SELECT last_sync FROM sync_logs ORDER BY id DESC LIMIT 1");
         if ($stmt->execute()) {
             $result = $stmt->get_result();
             if ($row = $result->fetch_assoc()) {
@@ -353,7 +353,7 @@ switch ($action) {
         }
 
         $lastSync = null;
-        $stmt = $conn->prepare("SELECT last_sync FROM sync_log ORDER BY id DESC LIMIT 1");
+        $stmt = $conn->prepare("SELECT last_sync FROM sync_logs ORDER BY id DESC LIMIT 1");
         if ($stmt->execute()) {
             $result = $stmt->get_result();
             if ($row = $result->fetch_assoc()) {
@@ -369,6 +369,7 @@ switch ($action) {
         }
     // var_dump($url);die;
         $response = file_get_contents($url);
+       // var_dump($response);die;
         if ($response === false) {
             error_log("Failed to fetch data from: " . $url);
             respond('error', ['message' => 'Failed to fetch data from external API'], 500);
@@ -579,7 +580,7 @@ switch ($action) {
             }
             $updatedApplicants = count($duplicateApplicants);
             if ($insertedApplicants > 0 || $updatedApplicants > 0 ) {
-                $stmt = $conn->prepare("INSERT INTO sync_log (last_sync) VALUES (NOW())");
+                $stmt = $conn->prepare("INSERT INTO sync_logs (last_sync) VALUES (NOW())");
                 $stmt->execute();
             }
 
