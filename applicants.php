@@ -595,6 +595,104 @@ switch ($action) {
         break;
 
 
+    case 'get_attempts':
+        $applicant_id = $_GET['applicant_id'] ?? null;
+        if (!$applicant_id) respond('error', ['message' => 'Applicant ID required'], 400);
+
+        $stmt = $conn->prepare('SELECT * FROM applicant_attempts WHERE applicant_id = ? AND is_deleted = 0 ORDER BY applied_date DESC');
+        $stmt->bind_param('i', $applicant_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $attempts = [];
+        while ($row = $result->fetch_assoc()) {
+            $attempts[] = $row;
+        }
+        respond('success', $attempts);
+        break;
+
+    case 'update_attempt':
+        $id = $_POST['id'] ?? null;
+        if (!$id) respond('error', ['message' => 'Attempt ID required'], 400);
+
+        $applicant_id = $_POST['applicant_id'] ?? null;
+        $applied_date = !empty($_POST['applied_date']) ? $_POST['applied_date'] : null;
+        $contacted_date = !empty($_POST['contacted_date']) ? $_POST['contacted_date'] : null;
+        $interview_date = !empty($_POST['interview_date']) ? $_POST['interview_date'] : null;
+        $result = $_POST['result'] ?? 'pending';
+        $comments = $_POST['comments'] ?? '';
+
+        $sql = 'UPDATE applicant_attempts SET applied_date = ?, contacted_date = ?, interview_date = ?, result = ?, comments = ? WHERE id = ?';
+        $stmt = $conn->prepare($sql);
+        if (!$stmt) respond('error', ['message' => 'Database prepare failed: ' . $conn->error], 500);
+
+        $stmt->bind_param('sssssi', $applied_date, $contacted_date, $interview_date, $result, $comments, $id);
+
+        if ($stmt->execute()) {
+            // Optionally update applicant status if result is a valid stage
+            $valid_statuses = ['pending', 'reviewed', 'interviewed', 'hired', 'rejected'];
+            if ($applicant_id && !empty($result) && in_array($result, $valid_statuses)) {
+                $statusUpdateSql = 'UPDATE applicants SET status = ? WHERE id = ?';
+                $statusStmt = $conn->prepare($statusUpdateSql);
+                $statusStmt->bind_param('si', $result, $applicant_id);
+                $statusStmt->execute();
+            }
+            respond('success', ['updated' => $stmt->affected_rows]);
+        } else {
+            respond('error', ['message' => $stmt->error], 400);
+        }
+        break;
+
+    case 'delete_attempt':
+        $id = $_POST['id'] ?? null;
+        if (!$id) respond('error', ['message' => 'Attempt ID required'], 400);
+
+        $stmt = $conn->prepare('UPDATE applicant_attempts SET is_deleted = 1 WHERE id = ?');
+        $stmt->bind_param('i', $id);
+
+        if ($stmt->execute()) {
+            respond('success', ['deleted' => $stmt->affected_rows]);
+        } else {
+            respond('error', ['message' => $stmt->error], 400);
+        }
+        break;
+
+
+    case 'add_attempt':
+        $applicant_id = $_POST['applicant_id'] ?? null;
+        $applied_date = !empty($_POST['applied_date']) ? $_POST['applied_date'] : null;
+        $contacted_date = !empty($_POST['contacted_date']) ? $_POST['contacted_date'] : null;
+        $interview_date = !empty($_POST['interview_date']) ? $_POST['interview_date'] : null;
+        $result = $_POST['result'] ?? 'pending';
+        $comments = $_POST['comments'] ?? '';
+
+        if (!$applicant_id) {
+            respond('error', ['message' => 'Applicant ID is required.'], 400);
+        }
+
+        $sql = 'INSERT INTO applicant_attempts (applicant_id, applied_date, contacted_date, interview_date, result, comments) VALUES (?, ?, ?, ?, ?, ?)';
+        $stmt = $conn->prepare($sql);
+        if (!$stmt) {
+            respond('error', ['message' => 'Database prepare failed: ' . $conn->error], 500);
+        }
+
+        $stmt->bind_param('isssss', $applicant_id, $applied_date, $contacted_date, $interview_date, $result, $comments);
+
+        if ($stmt->execute()) {
+            // Optionally update applicant status if result is a valid stage
+            $valid_statuses = ['pending', 'reviewed', 'interviewed', 'hired', 'rejected'];
+            if (!empty($result) && in_array($result, $valid_statuses)) {
+                $statusUpdateSql = 'UPDATE applicants SET status = ? WHERE id = ?';
+                $statusStmt = $conn->prepare($statusUpdateSql);
+                $statusStmt->bind_param('si', $result, $applicant_id);
+                $statusStmt->execute();
+            }
+            respond('success', ['id' => $conn->insert_id]);
+        } else {
+            respond('error', ['message' => $stmt->error], 400);
+        }
+        break;
+
+
     default:
         respond('error', ['message' => 'Invalid action'], 400);
 }
