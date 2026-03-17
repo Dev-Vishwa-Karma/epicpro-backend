@@ -70,11 +70,12 @@ switch ($action) {
 
         if (!empty($_GET['search'])) {
             $search = '%' . $_GET['search'] . '%';
-            $where[] = "(fullname LIKE ? OR email LIKE ? OR phone LIKE ?)";
+            $where[] = "(fullname LIKE ? OR email LIKE ? OR phone LIKE ? OR location LIKE ?)";
             $params[] = $search;
             $params[] = $search;
             $params[] = $search;
-            $types .= 'sss';
+            $params[] = $search;
+            $types .= 'ssss';
         }
 
         if (!empty($_GET['status']) && in_array($_GET['status'], ['pending','reviewed','interviewed','hired','rejected'])) {
@@ -158,6 +159,7 @@ switch ($action) {
         $marital_status = !empty($_POST['marital_status']) ? $_POST['marital_status'] : 'single';
         $experience = $_POST['experience'] ?? '';
         $address = $_POST['address'] ?? '';
+        $location = $_POST['location'] ?? '';
         $skills = $_POST['skills'] ?? [];
         // Ensure skills is stored as valid JSON string
         if (is_array($skills)) {
@@ -169,6 +171,7 @@ switch ($action) {
         $bond_agreement = !empty($_POST['bond_agreement']) ? $_POST['bond_agreement'] : null;
         $branch = $_POST['branch'] ?? '';
         $graduate_year = !empty($_POST['graduate_year']) ? (int)$_POST['graduate_year'] : null;
+        $note = $_POST['note'] ?? '';
         $status = 'pending';
         $resume_path = null;
         $source = $_POST['source'] ?? 'admin';
@@ -200,7 +203,7 @@ switch ($action) {
             }
         }
 
-        $sql = 'INSERT INTO applicants (fullname, email, phone, alternate_phone, dob, marital_status, experience, address, skills, joining_timeframe, bond_agreement, branch, graduate_year, resume_path, status, source, employee_id, employee_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+        $sql = 'INSERT INTO applicants (fullname, email, phone, alternate_phone, dob, marital_status, experience, address, location, note, skills, joining_timeframe, bond_agreement, branch, graduate_year, resume_path, status, source, employee_id, employee_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
         error_log("SQL Query: " . $sql);
         
         $stmt = $conn->prepare($sql);
@@ -209,7 +212,7 @@ switch ($action) {
             respond('error', ['message' => 'Database prepare failed: ' . $conn->error], 500);
         }
         
-        $bindResult = $stmt->bind_param('ssssssssssssisssss', $fullname, $email, $phone, $alternate_phone, $dob, $marital_status, $experience, $address, $skills, $joining_timeframe, $bond_agreement, $branch, $graduate_year, $resume_path, $status, $source, $employee_id, $employee_name);
+        $bindResult = $stmt->bind_param('sssssssssssissssssss', $fullname, $email, $phone, $alternate_phone, $dob, $marital_status, $experience, $address, $location, $note, $skills, $joining_timeframe, $bond_agreement, $branch, $graduate_year, $resume_path, $status, $source, $employee_id, $employee_name);
 
         if (!$bindResult) {
             error_log("Bind failed: " . $stmt->error);
@@ -245,7 +248,7 @@ switch ($action) {
         $emailForUpdate = $_POST['email'] ?? null;
         if (!$id && !$emailForUpdate) respond('error', ['message' => 'ID or Email required'], 400);
 
-        $fields = ['fullname', 'email', 'phone', 'alternate_phone', 'dob', 'marital_status', 'experience', 'address', 'skills', 'joining_timeframe', 'bond_agreement', 'branch', 'graduate_year', 'reject_reason', 'status', 'employee_id', 'employee_name'];
+        $fields = ['fullname', 'email', 'phone', 'alternate_phone', 'dob', 'marital_status', 'experience', 'address', 'location', 'note', 'skills', 'joining_timeframe', 'bond_agreement', 'branch', 'graduate_year', 'reject_reason', 'status', 'employee_id', 'employee_name'];
         $updates = [];
         $params = [];
         $types = '';
@@ -404,6 +407,7 @@ switch ($action) {
                         $alternate_phone = $applicant['alternate_phone'] ?? '';
                         $dob = !empty($applicant['dob']) ? date('Y-m-d', strtotime($applicant['dob'])) : null;
                         $address = trim(($applicant['address_1'] ?? '') . ' ' . ($applicant['address_2'] ?? ''));
+                        $location = $applicant['location'] ?? null;
                         $skills = isset($applicant['skills']) ? (is_array($applicant['skills']) ? json_encode($applicant['skills']) : (string)$applicant['skills']) : json_encode([]);
                         $status = $applicant['status'] ?? 'pending';
                         $source_sync = 'sync';
@@ -449,12 +453,12 @@ switch ($action) {
                         }
 
                         $stmtInsert = $conn->prepare('INSERT INTO applicants 
-                            (fullname, email, phone, alternate_phone, dob, marital_status, experience, address, skills, joining_timeframe, bond_agreement, resume_path, branch, graduate_year, status, source) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+                            (fullname, email, phone, alternate_phone, dob, marital_status, experience, address, location, skills, joining_timeframe, bond_agreement, resume_path, branch, graduate_year, status, source) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
                         $stmtInsert->bind_param(
-                            'ssssssssssssssss',
+                            'sssssssssssssssss',
                             $fullname, $email, $phone, $alternate_phone, $dob, $marital_status, $experience,
-                            $address, $skills, $joining_timeframe, $bond_agreement, $resume_path, $branch, $graduate_year, $status, $source_sync
+                            $address, $location, $skills, $joining_timeframe, $bond_agreement, $resume_path, $branch, $graduate_year, $status, $source_sync
                         );
 
                         if ($stmtInsert->execute()) {
@@ -486,6 +490,7 @@ switch ($action) {
                             'alternate_phone' => $applicant['alternate_phone'] ?? '',
                             'dob' => $incomingDob,
                             'address' => $incomingAddress,
+                            'location' => $location,
                             'marital_status' => $incomingMaritalStatus,
                             'experience' => $incomingExperience,
                             'joining_timeframe' => $incomingJoiningTimeframe,
@@ -498,7 +503,7 @@ switch ($action) {
                             'employee_name' => $incomingEmployeeName,
                         ];
 
-                        $fieldsToCheck = ['fullname', 'phone', 'alternate_phone', 'dob', 'address', 'marital_status', 'experience', 'joining_timeframe', 'bond_agreement', 'resume_path', 'branch', 'graduate_year', 'skills', 'employee_id', 'employee_name'];
+                        $fieldsToCheck = ['fullname', 'phone', 'alternate_phone', 'dob', 'address', 'location', 'marital_status', 'experience', 'joining_timeframe', 'bond_agreement', 'resume_path', 'branch', 'graduate_year', 'skills', 'employee_id', 'employee_name'];
                         $hasDifference = false;
 
                         foreach ($fieldsToCheck as $field) {
@@ -546,6 +551,7 @@ switch ($action) {
                                 'existing_dob' => $existing['dob'],
                                 'existing_marital_status' => $existing['marital_status'],
                                 'existing_experience' => $existing['experience'],
+                                'existing_location' => $existing['location'],
                                 'existing_address' => $existing['address'],
                                 'existing_skills' => $existing['skills'],
                                 'existing_joining_timeframe' => $existing['joining_timeframe'],
@@ -562,6 +568,7 @@ switch ($action) {
                                     'alternate_phone' => $applicant['alternate_phone'] ?? '',
                                     'dob' => $incomingDob,
                                     'address' => $incomingAddress,
+                                    'location' => $location,
                                     'marital_status' => $incomingMaritalStatus,
                                     'experience' => $incomingExperience,
                                     'joining_timeframe' => $incomingJoiningTimeframe,
