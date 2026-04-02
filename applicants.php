@@ -235,6 +235,22 @@ switch ($action) {
             // $subjectApplicant = "Application Received - {$fullname}";
             // $messageApplicant = getApplicantConfirmationEmail($applicant);
             // sendEmail($email, $subjectApplicant, $messageApplicant);
+            $companyDetails = isset($_POST['companyDetails']) ? json_decode($_POST['companyDetails'], true) : [];
+            if (!empty($companyDetails) && is_array($companyDetails)) {
+                $stmtCompany = $conn->prepare('INSERT INTO applicant_company_details (applicant_id, company_name, job_title, start_date, end_date, is_current) VALUES (?, ?, ?, ?, ?, ?)');
+                foreach ($companyDetails as $company) {
+                    if (!empty($company['company_name'])) {
+                        $c_name = $company['company_name'];
+                        $c_title = $company['job_title'] ?? '';
+                        $c_start = $company['start_date'] ?? '';
+                        $c_end = !empty($company['end_date']) ? $company['end_date'] : null;
+                        $c_current = isset($company['is_current']) ? (int)$company['is_current'] : 0;
+                        
+                        $stmtCompany->bind_param('issssi', $applicantId, $c_name, $c_title, $c_start, $c_end, $c_current);
+                        $stmtCompany->execute();
+                    }
+                }
+            }
 
             respond('success', ['id' => $applicantId]);
         } else {
@@ -330,6 +346,35 @@ switch ($action) {
                 //     $stmtNotif->execute();
                 // }
             }
+            if (isset($_POST['companyDetails'])) {
+                $applicantId = (int)($_POST['id'] ?? 0);
+                if ($applicantId > 0) {
+                    // First delete existing
+                    $stmtDel = $conn->prepare('DELETE FROM applicant_company_details WHERE applicant_id = ?');
+                    $stmtDel->bind_param('i', $applicantId);
+                    $stmtDel->execute();
+                    
+                    // Parse JSON
+                    $companyDetails = json_decode($_POST['companyDetails'], true);
+                    if ($companyDetails && is_array($companyDetails)) {
+                        // Then insert new
+                        $stmtCompany = $conn->prepare('INSERT INTO applicant_company_details (applicant_id, company_name, job_title, start_date, end_date, is_current) VALUES (?, ?, ?, ?, ?, ?)');
+                        foreach ($companyDetails as $company) {
+                            if (!empty($company['company_name'])) {
+                                $c_name = $company['company_name'];
+                                $c_title = $company['job_title'] ?? '';
+                                $c_start = $company['start_date'] ?? '';
+                                $c_end = !empty($company['end_date']) ? $company['end_date'] : null;
+                                $c_current = isset($company['is_current']) ? (int)$company['is_current'] : 0;
+                                
+                                $stmtCompany->bind_param('issssi', $applicantId, $c_name, $c_title, $c_start, $c_end, $c_current);
+                                $stmtCompany->execute();
+                            }
+                        }
+                    }
+                }
+            }
+
             respond('success', ['updated' => $stmt->affected_rows]);
         } else {
             respond('error', ['message' => $stmt->error], 400);
@@ -697,6 +742,25 @@ switch ($action) {
         } else {
             respond('error', ['message' => $stmt->error], 400);
         }
+        break;
+
+
+        break;
+
+
+    case 'get_company_details':
+        $applicant_id = $_GET['applicant_id'] ?? null;
+        if (!$applicant_id) respond('error', ['message' => 'Applicant ID required'], 400);
+
+        $stmt = $conn->prepare('SELECT * FROM applicant_company_details WHERE applicant_id = ? ORDER BY start_date DESC');
+        $stmt->bind_param('i', $applicant_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $companies = [];
+        while ($row = $result->fetch_assoc()) {
+            $companies[] = $row;
+        }
+        respond('success', $companies);
         break;
 
 
