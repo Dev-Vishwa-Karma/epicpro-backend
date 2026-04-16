@@ -15,16 +15,42 @@ include 'auth_validate.php';
 header('Content-Type: application/json');
 
 // function to send notifications
-function sendNotification($conn, $employee_id, $title, $body, $type, $created_by = null) {
+function sendNotification($conn, $employee_ids, $title, $body, $type, $created_by = null) {
     $escaped_title = $conn->real_escape_string($title);
     $escaped_body = $conn->real_escape_string($body);
     $escaped_type = $conn->real_escape_string($type);
     $created_by = $created_by ? (int)$created_by : 0;
-    
-    $insert_sql = "INSERT INTO notifications (employee_id, body, title, type, created_by) 
-                   VALUES ($employee_id, '$escaped_body', '$escaped_title', '$escaped_type', $created_by)";
-    
-    return $conn->query($insert_sql);
+    $created_at = date('Y-m-d H:i:s');
+    $updated_at = $created_at;
+
+    $insert_sql = "
+        INSERT INTO push_notifications (title, body, type, created_by, is_automated)
+        VALUES ('$escaped_title', '$escaped_body', '$escaped_type', $created_by,'1')
+    ";
+    $result = $conn->query($insert_sql);
+    if (!$result) {
+        return false;
+    }
+
+    $notification_id = $conn->insert_id;
+
+    if (!is_array($employee_ids)) {
+        $employee_ids = [$employee_ids];
+    }
+
+    foreach ($employee_ids as $employee_id) {
+
+        $employee_id = (int)$employee_id;
+
+        $_sql = "
+            INSERT INTO notifications_user 
+            (notification_id, employee_id, notification_status, created_at, updated_at)
+            VALUES ($notification_id, $employee_id, 'unread', '$created_at', '$updated_at')
+        ";
+
+        $conn->query($_sql);
+    }
+    return $notification_id;
 }
 
 // function to get admin and super_admin IDs for notifications
@@ -441,7 +467,7 @@ if (isset($action)) {
                     $admin_ids = getAdminAndSuperAdminIds($conn);
                     $notification_title = "Ticket Progress Updated";
                     $notification_body = "Ticket updated: $ticket_title <br> Progress to $progress%" . ($status === 'completed' ? " (COMPLETED)" : "");
-                    
+                    sendNotification($conn, $admin_ids, $notification_title, $notification_body, 'ticket_progress_updated', $updated_by);
                     foreach ($admin_ids as $admin_id) {
                         sendNotification($conn, $admin_id, $notification_title, $notification_body, 'ticket_progress_updated', $updated_by);
                     }
