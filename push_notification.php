@@ -151,8 +151,7 @@ if (isset($action)) {
                 empty($_POST['body']) ||
                 empty($_POST['createdBy']) ||
                 empty($_POST['email']) ||
-                empty($_POST['type']) ||
-                empty($_FILES['attach'])
+                empty($_POST['type'])
             ) {
                 echo json_encode([
                     "status" => false,
@@ -165,7 +164,7 @@ if (isset($action)) {
             $message = $_POST['body'];
             $type = $_POST['type'];
             $created_by = $_POST['createdBy'];
-            $file = $_FILES['attach'];
+            $file = $_FILES['attach'] ?? '';
             $to = $_POST['email'];
             $created_at = date('Y-m-d H:i:s');
             $updated_at = $created_at;
@@ -180,36 +179,42 @@ if (isset($action)) {
                 mkdir($baseUploadDir, 0777, true);
             }
 
-            foreach ($_FILES['attach']['name'] as $key => $filename) {
+            if (
+                isset($_FILES['attach']) &&
+                isset($_FILES['attach']['name']) &&
+                !empty($_FILES['attach']['name'][0])
+            ) {
 
-                $tmpName = $_FILES['attach']['tmp_name'][$key];
-                $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+                foreach ($_FILES['attach']['name'] as $key => $filename) {
 
-                // decide folder
-                if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
-                    $folder = 'images/';
-                } elseif (in_array($ext, ['zip', 'rar', '7z'])) {
-                    $folder = 'zip/';
-                } else {
-                    $folder = 'files/';
-                }
+                    $tmpName = $_FILES['attach']['tmp_name'][$key];
+                    $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
 
-                // FULL PATH
-                $uploadDir = $baseUploadDir . $folder;
+                    // decide folder
+                    if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+                        $folder = 'images/';
+                    } elseif (in_array($ext, ['zip', 'rar', '7z'])) {
+                        $folder = 'zip/';
+                    } else {
+                        $folder = 'files/';
+                    }
 
-                // create folder safely
-                if (!is_dir($uploadDir)) {
-                    mkdir($uploadDir, 0777, true);
-                }
+                    // FULL PATH
+                    $uploadDir = $baseUploadDir . $folder;
 
-                $newName = uniqid('file_', true) . "." . $ext;
-                $destination = $uploadDir . $newName;
+                    // create folder safely
+                    if (!is_dir($uploadDir)) {
+                        mkdir($uploadDir, 0777, true);
+                    }
 
-                if (move_uploaded_file($tmpName, $destination)) {
-                    $uploadedFiles[] = 'uploads/' . $folder . $newName;
+                    $newName = uniqid('file_', true) . "." . $ext;
+                    $destination = $uploadDir . $newName;
+
+                    if (move_uploaded_file($tmpName, $destination)) {
+                        $uploadedFiles[] = 'uploads/' . $folder . $newName;
+                    }
                 }
             }
-
             $filePaths = json_encode($uploadedFiles);
             $insertedNotifications = [];
             $errors = [];
