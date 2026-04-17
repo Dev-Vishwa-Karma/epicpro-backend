@@ -76,13 +76,13 @@ if (isset($action)) {
             if($filter === 'sent'){
                 $query = "
                     SELECT 
-                        cp.id,
-                        cp.title,
-                        cp.body,
-                        cp.filePath,
-                        cp.type,
-                        cp.is_automated,
-                        cp.created_at,
+                        pn.id,
+                        pn.title,
+                        pn.body,
+                        pn.filePath,
+                        pn.type,
+                        pn.is_automated,
+                        pn.created_at,
                         CONCAT(e.first_name,' ',e.last_name) AS sender_name,
                         COALESCE(
                             JSON_ARRAYAGG(
@@ -96,14 +96,14 @@ if (isset($action)) {
                             ),
                             JSON_ARRAY()
                         ) AS receiver
-                    FROM push_notifications cp
-                    LEFT JOIN employees e ON e.id = cp.created_by
-                    LEFT JOIN notifications_user ne ON ne.notification_id = cp.id
+                    FROM push_notifications pn
+                    LEFT JOIN employees e ON e.id = pn.created_by
+                    LEFT JOIN notifications_user ne ON ne.notification_id = pn.id
                     LEFT JOIN employees re ON re.id = ne.employee_id
-                    WHERE cp.created_by = $user_id
+                    WHERE pn.created_by = $user_id
                     $where
-                    GROUP BY cp.id
-                    ORDER BY cp.id DESC
+                    GROUP BY pn.id
+                    ORDER BY pn.id DESC
                 ";
             }
 
@@ -384,7 +384,8 @@ if (isset($action)) {
 
                 $stmt = $conn->prepare("
                     UPDATE notifications_user 
-                    SET hidden = ? 
+                    SET hidden = ?, 
+                    hide_date = NOW() 
                     WHERE notification_id = ? 
                     AND employee_id = ?
                 ");
