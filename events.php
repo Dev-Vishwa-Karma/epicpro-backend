@@ -28,38 +28,6 @@ function sendJsonResponse($status, $data = null, $message = null) {
     exit;
 }
 
-function sendNotification($conn, $employee_ids, $notification_title, $notification_body,$notification_type) {
-
-    $employee_ids = is_array($employee_ids) ? $employee_ids : [$employee_ids];
-    $created_at = date('Y-m-d H:i:s');
-    $updated_at = $created_at;
-
-    $insert_sql = "
-        INSERT INTO push_notifications (title, body, type, is_automated)
-        VALUES ('$notification_title', '$notification_body', '$notification_type','1')
-    ";
-    $result = $conn->query($insert_sql);
-    if (!$result) {
-        return false;
-    }
-
-    $notification_id = $conn->insert_id;
-
-   foreach ($employee_ids as $employee_id) {
-
-        $employee_id = (int)$employee_id;
-
-        $_sql = "
-            INSERT INTO notifications_user 
-            (notification_id, employee_id, notification_status, created_at, updated_at)
-            VALUES ($notification_id, $employee_id, 'unread', '$created_at', '$updated_at')
-        ";
-
-        $conn->query($_sql);
-    }
-    return $notification_id;
-}
-
 $action = !empty($_GET['action']) ? $_GET['action'] : 'view';
 
 if (isset($action)) {
@@ -156,7 +124,8 @@ if (isset($action)) {
                 $result = $notif_stmt->get_result();
                 }
 
-
+                // Send notifications to all employees
+                while ($employee = $result->fetch_assoc()) {
                 if ($event_type === 'holiday') {
                     $notification_body = $conn->real_escape_string("$event_name holiday has been scheduled on $event_date.");
                     $notification_title = "New Holiday";
@@ -166,14 +135,16 @@ if (isset($action)) {
                     $notification_title = "New Event";
                     $notification_type = "event_added";
                 }
+                    $notification_recipient = $employee['id']; // Notify the current employee
 
-                $employee_ids = [];
+                    $notif_insert_sql = "
+                        INSERT INTO notifications 
+                        (employee_id, body, title, type) 
+                        VALUES ($notification_recipient, '$notification_body', '$notification_title', '$notification_type')
+                    ";
 
-                while ($employee = $result->fetch_assoc()) {
-                    $employee_ids[] = $employee['id'];
+                    $conn->query($notif_insert_sql);
                 }
-
-                sendNotification($conn, $employee_ids, $notification_title, $notification_body,$notification_type);
 
                 // Prepare the response data
                 $addEventData = [
@@ -229,6 +200,8 @@ if (isset($action)) {
                 $result = $notif_stmt->get_result();
                 }
 
+                // Send notifications to all employees
+                while ($employee = $result->fetch_assoc()) {
                 if ($event_type === 'holiday') {
                     $notification_body = $conn->real_escape_string("$event_name holiday updated on $event_date Please check.");
                     $notification_title = "Holiday Updated By Admin";
@@ -238,14 +211,16 @@ if (isset($action)) {
                     $notification_title = "Event Updated By Admin";
                     $notification_type = "event_added";
                 }
+                    $notification_recipient = $employee['id']; // Notify the current employee
 
-                $employee_ids = [];
+                    $notif_insert_sql = "
+                        INSERT INTO notifications 
+                        (employee_id, body, title, type) 
+                        VALUES ($notification_recipient, '$notification_body', '$notification_title', '$notification_type')
+                    ";
 
-                while ($employee = $result->fetch_assoc()) {
-                    $employee_ids[] = $employee['id'];
+                    $conn->query($notif_insert_sql);
                 }
-
-                sendNotification($conn, $employee_ids, $notification_title, $notification_body,$notification_type);
 
                     $updatedEventData = [
                         'id' => $id,
@@ -297,23 +272,26 @@ if (isset($action)) {
                     $notif_stmt->execute();
                     $employees = $notif_stmt->get_result();
 
-                    if ($event_type === 'holiday') {
-                        $notification_body = $conn->real_escape_string("The holiday '$event_name' scheduled on $event_date has been deleted by Admin.");
-                        $notification_title = "Holiday Deleted";
-                        $notification_type = "holiday_deleted";
-                    } else {
-                        $notification_body = $conn->real_escape_string("The event '$event_name' scheduled on $event_date has been suspended by Admin.");
-                        $notification_title = "Event Deleted";
-                        $notification_type = "event_deleted";
-                    }
-
-                    $employee_ids = [];
-
                     while ($employee = $employees->fetch_assoc()) {
-                        $employee_ids[] = $employee['id'];
-                    }
+                        if ($event_type === 'holiday') {
+                            $notification_body = $conn->real_escape_string("The holiday '$event_name' scheduled on $event_date has been deleted by Admin.");
+                            $notification_title = "Holiday Deleted";
+                            $notification_type = "holiday_deleted";
+                        } else {
+                            $notification_body = $conn->real_escape_string("The event '$event_name' scheduled on $event_date has been suspended by Admin.");
+                            $notification_title = "Event Deleted";
+                            $notification_type = "event_deleted";
+                        }
 
-                    sendNotification($conn, $employee_ids, $notification_title, $notification_body,$notification_type);
+                        $notification_recipient = $employee['id'];
+
+                        $notif_insert_sql = "
+                            INSERT INTO notifications 
+                            (employee_id, body, title, type) 
+                            VALUES ($notification_recipient, '$notification_body', '$notification_title', '$notification_type')
+                        ";
+                        $conn->query($notif_insert_sql);
+                    }
 
                     sendJsonResponse('success', null, ucfirst($event_type) . ' deleted successfully and notifications sent');
                 } else {

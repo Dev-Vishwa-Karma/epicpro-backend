@@ -27,59 +27,6 @@ ini_set('display_errors', '1');
         exit;
     }
 
-    function sendNotification($conn, $employee_ids, $notification_title, $notification_body,$notification_type, $created_by) {
-
-        $employee_ids = is_array($employee_ids) ? $employee_ids : [$employee_ids];
-        $created_at = date('Y-m-d H:i:s');
-        $updated_at = $created_at;
-
-        if (!empty($created_by)) {
-
-            $created_by = (int)$created_by;
-
-            $insert_sql = "
-                INSERT INTO push_notifications 
-                (title, body, type, created_by, is_automated)
-                VALUES 
-                ('$notification_title', '$notification_body', '$notification_type', $created_by, 1)
-            ";
-
-        } else {
-
-            $insert_sql = "
-                INSERT INTO push_notifications 
-                (title, body, type, is_automated)
-                VALUES 
-                ('$notification_title', '$notification_body', '$notification_type', 1)
-            ";
-        }
-
-        $result = $conn->query($insert_sql);
-        if (!$result) {
-            return false;
-        }
-
-        $notification_id = $conn->insert_id;
-
-        foreach ($employee_ids as $employee_id) {
-
-            $employee_id = (int)$employee_id;
-
-            $_sql = "
-                INSERT INTO notifications_user 
-                (notification_id, employee_id, notification_status, created_at, updated_at)
-                VALUES ($notification_id, $employee_id, 'unread', '$created_at', '$updated_at')
-            ";
-
-            $conn->query($_sql);
-        }
-        // return $notification_id;
-        return [
-            'success' => true,
-            'notification_id' => $notification_id
-        ];
-    }
-
     // Helper: Dates from query params
     function buildDateRange()
     {
@@ -388,13 +335,12 @@ ini_set('display_errors', '1');
                     if ($employee_id === 'all') {
                         //ACTIVE USERS ONLY
                         $result = $conn->query("SELECT id, first_name, last_name FROM employees WHERE role = 'employee' AND status = 1 AND deleted_at IS NULL");
+                         
                         if ($result && $result->num_rows > 0) {
-                            $employee_ids = [];
                             $todosCreated = [];
                             while ($employee = $result->fetch_assoc()) {
                                 
                                 $emp_id = (int)$employee['id'];
-                                $employee_ids[] = $emp_id;
 
                                 // Insert into project_todo
                                 $sql = "
@@ -405,6 +351,18 @@ ini_set('display_errors', '1');
                              
                                 if ($conn->query($sql)) {
                                     $todo_id = $conn->insert_id;
+
+                                    // Insert notification
+                                    $notification_body = $conn->real_escape_string("New task assigned: $title <br> due on $due_date.");
+                                    $notification_title = "New Todo Assigned";
+                                    $notification_type = "task_added";
+                                    
+                                    $notif_sql = "
+                                        INSERT INTO notifications 
+                                        (employee_id, body, title, `type`, created_by) 
+                                        VALUES ($emp_id, '$notification_body', '$notification_title', '$notification_type', $created_by)
+                                    ";
+                                    $conn->query($notif_sql);
 
                                     $todosCreated[] = [
                                         'id' => $todo_id,
@@ -419,13 +377,6 @@ ini_set('display_errors', '1');
                                     ];
                                 }
                             }
-                            // Insert notification
-                            $notification_body = $conn->real_escape_string("New task assigned: $title <br> due on $due_date.");
-                            $notification_title = "New Todo Assigned";
-                            $notification_type = "task_added";
-                            sendNotification($conn, $employee_ids, $notification_title, $notification_body, $notification_type, $created_by);
-
-
 
                             sendJsonResponse('success', $todosCreated, 'Todo added for all employees successfully');
                         } else {
@@ -453,8 +404,13 @@ ini_set('display_errors', '1');
                             $notification_body = $conn->real_escape_string("New task assigned: $title <br> due on $due_date.");
                             $notification_title = "New Todo Assigned";
                             $notification_type = "task_added";
-                            $notificationResult = sendNotification($conn, $employee_id, $notification_title, $notification_body, $notification_type, $created_by);
-                            if ($notificationResult['success']) {
+
+                            $notif_sql = "
+                                INSERT INTO notifications 
+                                (employee_id, body, title, `type`, created_by) 
+                                VALUES ($employee_id, '$notification_body', '$notification_title', '$notification_type', $created_by)
+                            ";
+                            if ($conn->query($notif_sql)) {
                                 $todosData = [
                                     'id' => $todo_id,
                                     'employee_id' => $employee_id,
@@ -526,7 +482,12 @@ ini_set('display_errors', '1');
                     $notification_title = "Todo Updated";
                     $notification_type = "task_updated";
 
-                    sendNotification($conn, $employee_id, $notification_title, $notification_body, $notification_type, $logged_in_employee_id);
+                    $notif_sql = "
+                        INSERT INTO notifications 
+                        (employee_id, body, title, type, created_by) 
+                        VALUES ($employee_id, '$notification_body', '$notification_title', '$notification_type', $logged_in_employee_id)
+                    ";
+                    $conn->query($notif_sql);
 
                     // Fetch updated employee name
                     $emp_result = $conn->query("SELECT first_name, last_name, profile FROM employees WHERE id = $employee_id");
@@ -598,16 +559,26 @@ ini_set('display_errors', '1');
                             $notification_title = "Task Completed by $logged_in_employee_name";
                             $notification_type = "task_completed";
                             $notification_recipient = $to_do_created_by; // Notify the admin (the creator)
-                            sendNotification($conn, $notification_recipient, $notification_title, $notification_body, $notification_type);
 
+                            $notif_sql = "
+                                INSERT INTO notifications 
+                                (employee_id, body, title, type) 
+                                VALUES ($notification_recipient, '$notification_body', '$notification_title', '$notification_type')
+                            ";
+                            $conn->query($notif_sql);
                         } elseif ($logged_in_employee_role == 'super_admin' || $logged_in_employee_role == 'admin') {
                             // Admin completes the task, notify the employee
                             $notification_body = $conn->real_escape_string("Task: $title <br> Due Date: $due_date");
                             $notification_title = "Task Completed by Admin";
                             $notification_type = "task_completed";
                             $notification_recipient = $to_do_created_for; // Notify the employee (the assignee)
-                            sendNotification($conn, $notification_recipient, $notification_title, $notification_body, $notification_type);
 
+                            $notif_sql = "
+                                INSERT INTO notifications 
+                                (employee_id, body, title, type) 
+                                VALUES ($notification_recipient, '$notification_body', '$notification_title', '$notification_type')
+                            ";
+                            $conn->query($notif_sql);
                         }
                     }
 
@@ -670,19 +641,20 @@ ini_set('display_errors', '1');
 
                                 // Check for duplicate notification
                                 $checkQuery = "
-                                    SELECT nu.id 
-                                    FROM notifications_user nu
-                                    INNER JOIN push_notifications pn 
-                                        ON pn.id = nu.notification_id
-                                    WHERE nu.employee_id = $employee_id
-                                        AND pn.type = '$notification_type'
-                                        AND DATE(nu.created_at) = CURDATE()
+                                    SELECT * FROM notifications 
+                                    WHERE employee_id = $employee_id 
+                                    AND body = '$notification_body'
+                                    AND DATE(created_at) = CURDATE()
                                     LIMIT 1
                                 ";
                                 $checkResult = $conn->query($checkQuery);
 
                                 if ($checkResult && $checkResult->num_rows == 0) {
-                                    sendNotification($conn, $employee_id, $notification_title, $notification_body, $notification_type, $created_by);
+                                    $insertQuery = "
+                                        INSERT INTO notifications (employee_id, body, title, `type`, created_by)
+                                        VALUES ($employee_id, '$notification_body', '$notification_title', '$notification_type', $created_by)
+                                    ";
+                                    $conn->query($insertQuery);
                                 }
                             }
                         }

@@ -338,26 +338,15 @@ if (isset($action)) {
                     $notification_title = "Admin Note";
                     $notification_type = "report_note";
 
-                    $insert_sql = "
-                        INSERT INTO push_notifications (title, body, type, is_automated)
-                        VALUES ('$notification_title', '$notification_body', '$notification_type','1')
+                    $notif_sql = "
+                        INSERT INTO notifications (
+                            employee_id, body, title, `type`
+                        ) VALUES (
+                            $employee_id, '$notification_body', '$notification_title', '$notification_type'
+                        )
                     ";
-                    $result = $conn->query($insert_sql);
-                    if (!$result) {
-                        return false;
-                    }
-
-                    $notification_id = $conn->insert_id;
-                    $employee_id = (int)$employee_id;
-
-                    $_sql = "
-                        INSERT INTO notifications_user 
-                        (notification_id, employee_id, notification_status, created_at, updated_at)
-                        VALUES ($notification_id, $employee_id, 'unread', NOW(), NOW())
-                    ";
-
-                    $conn->query($_sql);
-
+                   
+                    $conn->query($notif_sql); // optional: check for failure
                 }
                     
                 $updatedReportData = [
