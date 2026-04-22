@@ -69,11 +69,17 @@ if (isset($action)) {
             }else if($filter === 'automated'){
                 $where = " AND pn.is_automated = 1";
             }
+            
+            if($filter === 'draft'){
+                $where = " AND pn.status = 'draft'";
+            }else{
+                $where = " AND pn.status = 'sent'";
+            }
 
             $query = '';
             
             // //SENT NOTIFICATIONS
-            if($filter === 'sent'){
+            if($filter === 'sent' || $filter === 'draft'){
                 $query = "
                     SELECT 
                         pn.id,
@@ -81,7 +87,9 @@ if (isset($action)) {
                         pn.body,
                         pn.filePath,
                         pn.type,
+                        pn.priority,
                         pn.is_automated,
+                        pn.status,
                         pn.created_at,
                         CONCAT(e.first_name,' ',e.last_name) AS sender_name,
                         COALESCE(
@@ -105,9 +113,7 @@ if (isset($action)) {
                     GROUP BY pn.id
                     ORDER BY pn.id DESC
                 ";
-            }
-
-            if($filter !== 'sent'){
+            }else{
                 $query = "
                     SELECT 
                         pn.id,
@@ -151,7 +157,9 @@ if (isset($action)) {
                 empty($_POST['body']) ||
                 empty($_POST['createdBy']) ||
                 empty($_POST['email']) ||
-                empty($_POST['type'])
+                empty($_POST['type']) ||
+                empty($_POST['priority']) ||
+                empty($_POST['status'])
             ) {
                 echo json_encode([
                     "status" => false,
@@ -163,12 +171,13 @@ if (isset($action)) {
             $title = $_POST['title'];
             $message = $_POST['body'];
             $type = $_POST['type'];
+            $priority = $_POST['priority'];
+            $status = $_POST['status'];
             $created_by = $_POST['createdBy'];
             $file = $_FILES['attach'] ?? '';
             $to = $_POST['email'];
             $created_at = date('Y-m-d H:i:s');
             $updated_at = $created_at;
-
 
             // Handle file uploads
             $uploadedFiles = [];
@@ -224,8 +233,8 @@ if (isset($action)) {
                 $conn->begin_transaction();
 
                 // Insert notification {issssiss}:- employee_id, 
-                $stmtMain = $conn->prepare("INSERT INTO push_notifications (title, body, type, filePath, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                $stmtMain->bind_param("ssssiss", $title, $message, $type, $filePaths, $created_by, $created_at, $updated_at);
+                $stmtMain = $conn->prepare("INSERT INTO push_notifications (title, body, type, status, priority, filePath, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmtMain->bind_param("sssssssss", $title, $message, $type, $status, $priority, $filePaths, $created_by, $created_at, $updated_at);
                 
                 if (!$stmtMain->execute()) {
                     echo json_encode([
@@ -237,6 +246,19 @@ if (isset($action)) {
                 }
 
                 $notification_id = $stmtMain->insert_id;
+                $newNotificationData = [
+                    'id' => $notification_id,
+                    'priority' => $priority,
+                    'status' => $status,
+                    'filePath' => $filePaths,
+                    'title' => $title,
+                    'body' => $message,
+                    'type' => $type,
+                    'created_at' => $created_at,
+                    'updated_at' => $updated_at,
+                    'receiver' => []
+                ];
+                
                 $stmtMain->close();
 
                 //Inserted into notification_employee
@@ -246,7 +268,7 @@ if (isset($action)) {
                     VALUES (?, ?, 'Unread', ?, ?)
                 ");
 
-                $insertedNotifications = [];
+                $receiver = [];
                 $errors = [];
 
                 
@@ -256,18 +278,13 @@ if (isset($action)) {
 
                     if ($stmt->execute()) {
 
-                        $newNotificationData = [
-                            'id' => $notification_id,
+                        $receiver[] = [
+                            'id' => $stmt->insert_id,
                             'employee_id' => $empId,
-                            'title' => $title,
-                            'body' => $message,
-                            'type' => $type,
                             'read' => "unread",
                             'created_at' => $created_at,
-                            'updated_at' => $updated_at
+                            'updated_at' => $updated_at,    
                         ];
-
-                        $insertedNotifications[] = $newNotificationData;
 
                         // Trigger pusher event
                         $eventTarget = 'new_notification' . $empId;
@@ -302,9 +319,9 @@ if (isset($action)) {
             $employIds = implode(',', array_map('intval', $selectedEmployee));
             $query = "SELECT id, first_name, last_name, email FROM employees WHERE id IN ($employIds)";
             $result = $conn->query($query);
-
+            
             $users = [];
-
+            
             while ($row = $result->fetch_assoc()) {
                 $users[] = [
                     "id" => $row['id'],
@@ -312,21 +329,27 @@ if (isset($action)) {
                     "name" => $row['first_name']." ".$row['last_name'],
                 ];
             }
-
+            if($status === 'sent'){
+                $emailResults = sendMailToUsers(
+                    $users,
+                    $to,
+                    $title,
+                    $message,
+                    $uploadedFiles,
+                    $config
+                );
+            }
+            foreach ($receiver as &$rec) {
+                $empId = $rec['employee_id'];
+                $rec['receiver_name'] = $users[$empId]['name'] ?? '';
+            }
+            $newNotificationData['receiver'] = $receiver;
             $conn->close();
-            $emailResults = sendMailToUsers(
-                $users,
-                $to,
-                $title,
-                $message,
-                $uploadedFiles,
-                $config
-            );
             echo json_encode([
                 "success" => empty($errors),
-                "email" => $emailResults,
+                "email" => $emailResults ?? null,
                 "message" => empty($errors) ? "Notifications stored & pushed successfully" : "Some notifications failed",
-                "newNotification" => $insertedNotifications,
+                "newNotification" => $newNotificationData,
                 "errors" => $errors
             ]);
             break;
