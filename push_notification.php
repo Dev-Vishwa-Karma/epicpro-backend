@@ -56,24 +56,24 @@ if (isset($action)) {
            // COMMON DATE FILTER
             $where = "";
             if ($start_date && $end_date) {
-                $where = " AND DATE(pn.created_at) BETWEEN '$start_date' AND '$end_date'";
+                $where .= " AND DATE(pn.created_at) BETWEEN '$start_date' AND '$end_date'";
             } elseif ($start_date) {
-                $where = " AND DATE(pn.created_at) >= '$start_date'";
+                $where .= " AND DATE(pn.created_at) >= '$start_date'";
             } elseif ($end_date) {
-                $where = " AND DATE(pn.created_at) <= '$end_date'";
+                $where .= " AND DATE(pn.created_at) <= '$end_date'";
             }
 
             if($filter === 'manual'){
-                $where = " AND pn.is_automated = 0";
+                $where .= " AND pn.is_automated = 0";
 
             }else if($filter === 'automated'){
-                $where = " AND pn.is_automated = 1";
+                $where .= " AND pn.is_automated = 1";
             }
             
             if($filter === 'draft'){
-                $where = " AND pn.status = 'draft'";
+                $where .= " AND pn.status = 'draft'";
             }else{
-                $where = " AND pn.status = 'sent'";
+                $where .= " AND pn.status = 'sent'";
             }
 
             $query = '';
@@ -123,6 +123,7 @@ if (isset($action)) {
                         pn.type,
                         pn.is_automated,
                         pn.created_at,
+                        pn.priority,
                         nu.notification_status AS `read`,
                         CONCAT(e.first_name,' ',e.last_name) AS sender_name,
                         re.profile, 
@@ -341,8 +342,9 @@ if (isset($action)) {
             }
             foreach ($receiver as &$rec) {
                 $empId = $rec['employee_id'];
-                $rec['receiver_name'] = $users[$empId]['name'] ?? '';
+                $rec['receiver_name'] = current(array_filter($users, fn($u) => $u['id'] == $empId))['name'] ?? '';
             }
+            unset($rec);
             $newNotificationData['receiver'] = $receiver;
             $conn->close();
             echo json_encode([
