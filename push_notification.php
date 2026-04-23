@@ -18,6 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
 include 'db_connection.php';
 include 'auth_validate.php';
 require 'send_mail.php';
+require 'pusher.php';
 $config = require __DIR__ . '/config.php';
 
 // Helper function to send JSON response
@@ -36,8 +37,13 @@ function validateId($id) {
     return isset($id) && is_numeric($id) && $id > 0;
 }
 
+if (!isAdminCheck()) {
+    sendJsonResponse('error', null, 'You do not have permission to access this resource');
+}
+
 $action = !empty($_GET['action']) ? $_GET['action'] : 'view';
 $filter = !empty($_GET['filter']) ? $_GET['filter'] : 'all';
+$roleFilter = isset($_GET['role']) ? $_GET['role'] : 'all';
 
 // Main action handler
 if (isset($action)) {
@@ -182,7 +188,6 @@ if (isset($action)) {
 
             // Handle file uploads
             $uploadedFiles = [];
-            // $$baseUploadDir = __DIR__ . '/uploads/';
             $baseUploadDir = __DIR__ . '/uploads/';
             // ensure base folder exists
             if (!is_dir($baseUploadDir)) {
@@ -233,7 +238,6 @@ if (isset($action)) {
 
                 $conn->begin_transaction();
 
-                // Insert notification {issssiss}:- employee_id, 
                 $stmtMain = $conn->prepare("INSERT INTO push_notifications (title, body, type, status, priority, filePath, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmtMain->bind_param("sssssssss", $title, $message, $type, $status, $priority, $filePaths, $created_by, $created_at, $updated_at);
                 
@@ -337,7 +341,7 @@ if (isset($action)) {
                     $title,
                     $message,
                     $uploadedFiles,
-                    $config
+                    $config['email']
                 );
             }
             foreach ($receiver as &$rec) {
@@ -376,7 +380,6 @@ if (isset($action)) {
                     $stmt->bind_param('ii', $user_id, $notification_id);
                     
                 } else {
-                    // Mark all create_push_notification as read for this user
                     $stmt = $conn->prepare("
                         UPDATE notifications_user 
                         SET notification_status = 'read' 

@@ -1,23 +1,11 @@
 <?php
-// Database configuration
-$host = "localhost";
-$username = "root";
-$password = "";
-$database = "epic_hrr";
 
-// require __DIR__ . '/vendor/autoload.php';
-require_once('vendor/autoload.php');
+$config = require __DIR__ . '/config.php';
 
-  $options = array(
-    'cluster' => 'ap2',
-    'useTLS' => true
-  );
-  $pusher = new Pusher\Pusher(
-    'f77b8bad1d56965b1b7c',
-    '89524600f019f2273441',
-    '2138923',
-    $options
-  );
+$host = $config['database']['host'];
+$username = $config['database']['username'];
+$password = $config['database']['password'];
+$database = $config['database']['name'];
 
 // Create a connection
 $conn = new mysqli($host, $username, $password, $database);
