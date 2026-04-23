@@ -9,11 +9,14 @@ return [
         'password' => 'ryvbrhcpojistdjf',
         'from_email' => 'testing.developer01@gmail.com',
         'from_name' => 'hr-profilics',
+        'subject' => 'notification@profilics',
     ],
     'pusher' => [
         'app_id' => '2138923',
         'key' => 'f77b8bad1d56965b1b7c',
         'secret' => '89524600f019f2273441',
+        'cluster' => 'ap2',
+        'useTLS' => true,
     ],
     'database' => [
         'host' => 'localhost',

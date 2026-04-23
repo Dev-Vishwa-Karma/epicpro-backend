@@ -27,7 +27,7 @@ function sendMailToUsers($users, $to, $subject, $message, $attachments = [], $co
             // Email setup
             $mail->setFrom($config['from_email'], $config['from_name']);
             $mail->addAddress($user['email']);
-            $mail->Subject = 'notification@profilics';
+            $mail->Subject = $config['subject'];
 
             $body = EmailTemplate::emailTemplate(
                 $user['name'],
@@ -38,12 +38,6 @@ function sendMailToUsers($users, $to, $subject, $message, $attachments = [], $co
             $mail->isHTML(true);
             $mail->Body = $body;
             $mail->AltBody = strip_tags($message);
-
-            // Attach files
-            // foreach ($attachments as $file) {
-            //     $mail->addAttachment($file);
-            // }
-
             $mail->send();
 
             $results[] = [
