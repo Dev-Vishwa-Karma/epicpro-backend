@@ -58,4 +58,46 @@
         }
     }
 
+    function handleNotificationFileUpload($files) {
+        $uploadedFiles = [];
+        // $baseUploadDir = __DIR__ . '/../uploads/';
+        $baseUploadDir = __DIR__ . '/uploads/';
+
+        if (!is_dir($baseUploadDir)) {
+            mkdir($baseUploadDir, 0777, true);
+        }
+
+        if (isset($files['name']) && !empty($files['name'][0])) {
+            foreach ($files['name'] as $key => $filename) {
+
+                $tmpName = $files['tmp_name'][$key];
+                $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+                if (in_array($ext, ['jpg','jpeg','png','gif','webp'])) {
+                    $folder = 'images/';
+                } elseif (in_array($ext, ['zip','rar','7z'])) {
+                    $folder = 'zip/';
+                } else {
+                    $folder = 'files/';
+                }
+
+                $uploadDir = $baseUploadDir . $folder;
+                if (!is_dir($uploadDir)) {
+                    mkdir($uploadDir, 0777, true);
+                }
+
+                $newName = uniqid('file_', true) . "." . $ext;
+                $destination = $uploadDir . $newName;
+
+                if (move_uploaded_file($tmpName, $destination)) {
+                    $uploadedFiles[] = 'uploads/' . $folder . $newName;
+                }
+            }
+    }
+
+
+
+    return $uploadedFiles;
+}
+
 ?>

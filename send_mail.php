@@ -5,7 +5,7 @@ use PHPMailer\PHPMailer\Exception;
 require 'vendor/autoload.php';
 require_once __DIR__ . '/email_template.php';
 
-function sendMailToUsers($users, $to, $subject, $message, $attachments = [], $config = []) {
+function sendMailToUsers($users, $to, $subject, $message, $config = []) {
     $results = [];
 
     foreach ($users as $user) {

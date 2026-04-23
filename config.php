@@ -17,6 +17,7 @@ return [
         'secret' => '89524600f019f2273441',
         'cluster' => 'ap2',
         'useTLS' => true,
+        'channel' => 'my-channel',
     ],
     'database' => [
         'host' => 'localhost',

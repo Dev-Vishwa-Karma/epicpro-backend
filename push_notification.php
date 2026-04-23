@@ -14,23 +14,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
     exit();
 }
 
-// Include the database connection
 include 'db_connection.php';
 include 'auth_validate.php';
 require 'send_mail.php';
-require 'pusher.php';
+require 'helpers.php';
+require_once __DIR__ . '/pusher.php';
 $config = require __DIR__ . '/config.php';
-
-// Helper function to send JSON response
-function sendJsonResponse($status, $data = null, $message = null) {
-    header('Content-Type: application/json');
-    if ($status === 'success') {
-        echo json_encode(['status' => 'success', 'data' => $data, 'message' => $message]);
-    } else {
-        echo json_encode(['status' => 'error', 'message' => $message]);
-    }
-    exit;
-}
 
 // Helper function to validate user ID
 function validateId($id) {
@@ -39,6 +28,63 @@ function validateId($id) {
 
 if (!isAdminCheck()) {
     sendJsonResponse('error', null, 'You do not have permission to access this resource');
+}
+
+function saveNotification($conn, $data, $id = null) {
+
+    if ($id) {
+        $stmt = $conn->prepare("
+            UPDATE push_notifications 
+            SET title=?, body=?, type=?, status=?, priority=?, filePath=?, updated_at=? 
+            WHERE id=?
+        ");
+        $stmt->bind_param( "sssssssi", $data['title'], $data['body'], $data['type'], $data['status'], $data['priority'], $data['filePath'], $data['updated_at'],$id);
+
+    } else {
+        $stmt = $conn->prepare("
+            INSERT INTO push_notifications 
+            (title, body, type, status, priority, filePath, created_by, created_at, updated_at) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+         $stmt->bind_param( "sssssssss", $data['title'], $data['body'], $data['type'], $data['status'], $data['priority'], $data['filePath'], $data['created_by'], $data['created_at'], $data['updated_at'] );
+    }
+
+    $stmt->execute();
+    return $id ? $id : $stmt->insert_id;
+}
+
+function insertNotificationUsers($conn, $notification_id, $employees, $created_at, $updated_at, $pusher, $title, $message, $config) {
+
+    $stmt = $conn->prepare("
+        INSERT INTO notifications_user 
+        (notification_id, employee_id, notification_status, created_at, updated_at) 
+        VALUES (?, ?, 'Unread', ?, ?)
+    ");
+    $receiver = [];
+    $errors = [];
+
+    foreach ($employees as $empId) {
+
+        $stmt->bind_param("iiss", $notification_id, $empId, $created_at, $updated_at);
+
+        if ($stmt->execute()) {
+
+            $receiver[] = [
+                'employee_id' => $empId,
+                'read' => "unread"
+            ];
+
+            $pusher->trigger($config['pusher']['channel'], 'new_notification'.$empId, [
+                'id' => $notification_id,
+                'title' => $title,
+                'message' => $message
+            ]);
+
+        } else {
+            $errors[] = $stmt->error;
+        }
+    }
+    return [$receiver, $errors];
 }
 
 $action = !empty($_GET['action']) ? $_GET['action'] : 'view';
@@ -158,157 +204,40 @@ if (isset($action)) {
 
 
         case 'add':
-            if (
-                empty($_POST['selectedEmployee']) ||
-                empty($_POST['title']) ||
-                empty($_POST['body']) ||
-                empty($_POST['createdBy']) ||
-                empty($_POST['email']) ||
-                empty($_POST['type']) ||
-                empty($_POST['priority']) ||
-                empty($_POST['status'])
-            ) {
-                echo json_encode([
-                    "status" => false,
-                    "message" => "All fields are required"
-                ]);
-                exit;
-            }
-            $selectedEmployee = $_POST['selectedEmployee'];
-            $title = $_POST['title'];
-            $message = $_POST['body'];
-            $type = $_POST['type'];
-            $priority = $_POST['priority'];
-            $status = $_POST['status'];
-            $created_by = $_POST['createdBy'];
-            $file = $_FILES['attach'] ?? '';
-            $to = $_POST['email'];
-            $created_at = date('Y-m-d H:i:s');
-            $updated_at = $created_at;
 
-            // Handle file uploads
-            $uploadedFiles = [];
-            $baseUploadDir = __DIR__ . '/uploads/';
-            // ensure base folder exists
-            if (!is_dir($baseUploadDir)) {
-                mkdir($baseUploadDir, 0777, true);
-            }
+            $required = ['selectedEmployee','title','body','createdBy','email','type','priority','status'];
 
-            if (
-                isset($_FILES['attach']) &&
-                isset($_FILES['attach']['name']) &&
-                !empty($_FILES['attach']['name'][0])
-            ) {
-
-                foreach ($_FILES['attach']['name'] as $key => $filename) {
-
-                    $tmpName = $_FILES['attach']['tmp_name'][$key];
-                    $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-
-                    // decide folder
-                    if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
-                        $folder = 'images/';
-                    } elseif (in_array($ext, ['zip', 'rar', '7z'])) {
-                        $folder = 'zip/';
-                    } else {
-                        $folder = 'files/';
-                    }
-
-                    // FULL PATH
-                    $uploadDir = $baseUploadDir . $folder;
-
-                    // create folder safely
-                    if (!is_dir($uploadDir)) {
-                        mkdir($uploadDir, 0777, true);
-                    }
-
-                    $newName = uniqid('file_', true) . "." . $ext;
-                    $destination = $uploadDir . $newName;
-
-                    if (move_uploaded_file($tmpName, $destination)) {
-                        $uploadedFiles[] = 'uploads/' . $folder . $newName;
-                    }
+            foreach ($required as $field) {
+                if (empty($_POST[$field])) {
+                    sendJsonResponse('error', null, "$field is required");
                 }
             }
-            $filePaths = json_encode($uploadedFiles);
-            $insertedNotifications = [];
-            $errors = [];
-
+            $data = [
+                'id'          => $_POST['id'] ?? null,
+                'title'       => $_POST['title'],
+                'body'        => $_POST['body'],
+                'type'        => $_POST['type'],
+                'priority'    => $_POST['priority'],
+                'status'      => $_POST['status'],
+                'created_by'  => $_POST['createdBy'],
+                'created_at'  => date('Y-m-d H:i:s'),
+                'updated_at'  => date('Y-m-d H:i:s'),
+            ];
+                
+            $selectedEmployee = $_POST['selectedEmployee'];
+            $to = $_POST['email'];
+            $newFiles = handleNotificationFileUpload($_FILES['attach'] ?? []);
+            $data['filePath'] = json_encode($newFiles);
+            $pusher = getPusher($config);
+            
             try {
 
                 $conn->begin_transaction();
-
-                $stmtMain = $conn->prepare("INSERT INTO push_notifications (title, body, type, status, priority, filePath, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmtMain->bind_param("sssssssss", $title, $message, $type, $status, $priority, $filePaths, $created_by, $created_at, $updated_at);
-                
-                if (!$stmtMain->execute()) {
-                    echo json_encode([
-                        "status" => false,
-                        "message" => "Failed to create notification",
-                        "error" => $stmtMain->error
-                    ]);
-                    exit;
+                $notification_id = saveNotification($conn, $data, $data['id']);
+                if ($data['id']) {
+                    $conn->query("DELETE FROM notifications_user WHERE notification_id = {$data['id']}");
                 }
-
-                $notification_id = $stmtMain->insert_id;
-                $newNotificationData = [
-                    'id' => $notification_id,
-                    'priority' => $priority,
-                    'status' => $status,
-                    'filePath' => $filePaths,
-                    'title' => $title,
-                    'body' => $message,
-                    'type' => $type,
-                    'created_at' => $created_at,
-                    'updated_at' => $updated_at,
-                    'receiver' => []
-                ];
-                
-                $stmtMain->close();
-
-                //Inserted into notification_employee
-                $stmt = $conn->prepare("
-                    INSERT INTO notifications_user 
-                    (notification_id, employee_id, notification_status, created_at, updated_at) 
-                    VALUES (?, ?, 'Unread', ?, ?)
-                ");
-
-                $receiver = [];
-                $errors = [];
-
-                
-                foreach ($selectedEmployee as $empId) {
-
-                    $stmt->bind_param("iiss", $notification_id, $empId, $created_at, $updated_at);
-
-                    if ($stmt->execute()) {
-
-                        $receiver[] = [
-                            'id' => $stmt->insert_id,
-                            'employee_id' => $empId,
-                            'read' => "unread",
-                            'created_at' => $created_at,
-                            'updated_at' => $updated_at,    
-                        ];
-
-                        // Trigger pusher event
-                        $eventTarget = 'new_notification' . $empId;
-                        $pusher->trigger('my-channel', $eventTarget, [
-                            'id' => $notification_id,
-                            'selectedEmployee' => $empId,
-                            'title' => $title,
-                            'message' => $message
-                        ]);
-
-                    } else {
-                        $errors[] = [
-                            'employeeId' => $empId,
-                            'error' => $stmt->error
-                        ];
-                    }
-                }
-                $stmt->close();
-
+                list($receiver, $errors) = insertNotificationUsers( $conn, $notification_id, $selectedEmployee, $data['created_at'], $data['updated_at'], $pusher, $data['title'], $data['body'], $config);
                 $conn->commit();
             } catch (\Throwable $th) {
                 $conn->rollback();
@@ -324,38 +253,30 @@ if (isset($action)) {
             $employIds = implode(',', array_map('intval', $selectedEmployee));
             $query = "SELECT id, first_name, last_name, email FROM employees WHERE id IN ($employIds)";
             $result = $conn->query($query);
-            
-            $users = [];
-            
-            while ($row = $result->fetch_assoc()) {
-                $users[] = [
+            $users = array_map(function ($row) {
+                return [
                     "id" => $row['id'],
                     "email" => $row['email'],
-                    "name" => $row['first_name']." ".$row['last_name'],
+                    "name" => $row['first_name'] . " " . $row['last_name'],
                 ];
-            }
-            if($status === 'sent'){
-                $emailResults = sendMailToUsers(
-                    $users,
-                    $to,
-                    $title,
-                    $message,
-                    $uploadedFiles,
-                    $config['email']
-                );
+            }, $result->fetch_all(MYSQLI_ASSOC));
+            
+            if($data['status'] === 'sent'){
+                $emailResults = sendMailToUsers( $users, $to, $data['title'], $data['body'], $config['email']);
             }
             foreach ($receiver as &$rec) {
                 $empId = $rec['employee_id'];
                 $rec['receiver_name'] = current(array_filter($users, fn($u) => $u['id'] == $empId))['name'] ?? '';
             }
             unset($rec);
-            $newNotificationData['receiver'] = $receiver;
+            $data['id'] = $notification_id;
+            $data['receiver'] = $receiver;
             $conn->close();
             echo json_encode([
                 "success" => empty($errors),
                 "email" => $emailResults ?? null,
                 "message" => empty($errors) ? "Notifications stored & pushed successfully" : "Some notifications failed",
-                "newNotification" => $newNotificationData,
+                "newNotification" => $data,
                 "errors" => $errors
             ]);
             break;
