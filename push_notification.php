@@ -27,9 +27,9 @@ function validateId($id) {
 }
 
 if (!isAdminCheck()) {
-    sendJsonResponse('error', null, 'You do not have permission to access this resource');
+    sendJsonResponse('error', null, 'Access denied. You do not have permission to access this route.');
 }
-
+//Save notifications
 function saveNotification($conn, $data, $id = null) {
 
     if ($id) {
@@ -52,7 +52,7 @@ function saveNotification($conn, $data, $id = null) {
     $stmt->execute();
     return $id ? $id : $stmt->insert_id;
 }
-
+// Save users who will receive the notifications and trigger pusher event
 function insertNotificationUsers($conn, $notification_id, $employees, $created_at, $updated_at, $pusher, $title, $message, $config) {
 
     $stmt = $conn->prepare("
