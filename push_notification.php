@@ -105,8 +105,8 @@ if (isset($action)) {
                 sendJsonResponse('error', null, 'User ID is required');
             }
 
-           // COMMON DATE FILTER
             $where = "";
+
             if ($start_date && $end_date) {
                 $where .= " AND DATE(pn.created_at) BETWEEN '$start_date' AND '$end_date'";
             } elseif ($start_date) {
@@ -115,18 +115,10 @@ if (isset($action)) {
                 $where .= " AND DATE(pn.created_at) <= '$end_date'";
             }
 
-            if($filter === 'manual'){
-                $where .= " AND pn.is_automated = 0";
+            if ($filter && $filter !== 'all') {
+                $where .= " AND pn.status = '$filter'";
+            }
 
-            }else if($filter === 'automated'){
-                $where .= " AND pn.is_automated = 1";
-            }
-            
-            if($filter === 'draft'){
-                $where .= " AND pn.status = 'draft'";
-            }else{
-                $where .= " AND pn.status = 'sent'";
-            }
 
             $query = '';
             
@@ -140,7 +132,6 @@ if (isset($action)) {
                         pn.filePath,
                         pn.type,
                         pn.priority,
-                        pn.is_automated,
                         pn.status,
                         pn.created_at,
                         CONCAT(e.first_name,' ',e.last_name) AS sender_name,
@@ -173,7 +164,6 @@ if (isset($action)) {
                         pn.body,
                         pn.filePath,
                         pn.type,
-                        pn.is_automated,
                         pn.created_at,
                         pn.priority,
                         nu.notification_status AS `read`,
@@ -185,6 +175,7 @@ if (isset($action)) {
                     LEFT JOIN employees e ON e.id = pn.created_by
                     LEFT JOIN employees re ON re.id = nu.employee_id
                     WHERE nu.employee_id = $user_id AND nu.hidden = 0
+                    AND pn.status = 'sent'
                     $where
                     ORDER BY pn.id DESC
                 ";
