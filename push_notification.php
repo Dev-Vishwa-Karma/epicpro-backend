@@ -89,6 +89,7 @@ function insertNotificationUsers($conn, $notification_id, $employees, $created_a
 
 $action = !empty($_GET['action']) ? $_GET['action'] : 'view';
 $filter = !empty($_GET['filter']) ? $_GET['filter'] : 'all';
+$search = !empty($_GET['search']) ? json_decode($_GET['search'], true) : [];
 $roleFilter = isset($_GET['role']) ? $_GET['role'] : 'all';
 
 // Main action handler
@@ -119,6 +120,17 @@ if (isset($action)) {
                 $where .= " AND pn.status = '$filter'";
             }
 
+            if($search){
+                $columnMap = [
+                    'type'   => 'pn.type',
+                    'status' => 'nu.notification_status'
+                ];
+                foreach ($search as $key => $value) {
+                    if (!empty($value) && isset($columnMap[$key])) {
+                        $where .= " AND {$columnMap[$key]} = '$value'";
+                    }
+                }
+            }
 
             $query = '';
             
@@ -167,7 +179,10 @@ if (isset($action)) {
                         pn.created_at,
                         pn.priority,
                         nu.notification_status AS `read`,
-                        CONCAT(e.first_name,' ',e.last_name) AS sender_name,
+                        JSON_OBJECT(
+                            'id', e.id,
+                            'name', CONCAT(e.first_name, ' ', e.last_name)
+                        ) AS sender,
                         re.profile, 
                         re.id As employee_id
                     FROM notifications_user nu
@@ -356,32 +371,49 @@ if (isset($action)) {
 
         case 'update_status':
 
-            if (!isset($_GET['notification_id']) || !is_numeric($_GET['notification_id'])) {
-                sendJsonResponse('error', null, 'Invalid Notification ID');
-                exit;
+            $required = ['id','status','sender','user'];
+            foreach ($required as $field) {
+                if (empty($_POST[$field])) {
+                    sendJsonResponse('error', null, "$field is required");
+                }
             }
+            $data = [
+                'id'          => $_POST['id'] ?? null,
+                'status'      => $_POST['status'],
+                'sender'      => json_decode($_POST['sender'], true),
+                'user'        => json_decode($_POST['user'], true)
+            ];
 
-            $notification_id = (int) $_GET['notification_id'];
-            $status = $_GET['status'] ?? null;
+            $pusher = getPusher($config);
 
              // Allowed statuses
             $allowed_status = ['0', '1', 'unread', 'read', 'completed', 'ready_to_discuss'];
+            $formattedStatus = $allowed_status[$data['status']] ?? ucfirst(str_replace('_', ' ', $data['status']));
 
-            if (!in_array($status, $allowed_status, true)) {
+            if (!in_array($data['status'], $allowed_status, true)) {
                 sendJsonResponse('error', null, 'Invalid status value');
                 exit;
             }
 
-            $stmt = $conn->prepare(" UPDATE notifications_user SET notification_status = ? WHERE notification_id = ? ");
+            $stmt = $conn->prepare("
+                UPDATE notifications_user 
+                SET notification_status = ? 
+                WHERE notification_id = ? AND employee_id = ?
+            ");
 
             if (!$stmt) {
                 sendJsonResponse('error', null, 'Prepare failed: ' . $conn->error);
                 exit;
             }
 
-            $stmt->bind_param('si', $status, $notification_id);
+            $stmt->bind_param('sii', $data['status'], $data['id'], $data['user']['id']);
 
             if ($stmt->execute()) {
+                $pusher->trigger($config['pusher']['channel'], 'update_status'.$data['sender']['id'], [
+                'id' => $data['id'],
+                'title' => 'Status Updated',
+                'message' => "Status changed to \"{$formattedStatus}\", by {$data['user']['name']}",
+            ]);
                 sendJsonResponse('success', null, 'Notification status updated successfully');
             } else {
                 sendJsonResponse('error', null, 'Failed to update notification status');
