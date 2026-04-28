@@ -146,7 +146,10 @@ if (isset($action)) {
                         pn.priority,
                         pn.status,
                         pn.created_at,
-                        CONCAT(e.first_name,' ',e.last_name) AS sender_name,
+                        JSON_OBJECT(
+                            'id', e.id,
+                            'name', CONCAT(e.first_name, ' ', e.last_name)
+                        ) AS sender,
                         COALESCE(
                             JSON_ARRAYAGG(
                                 JSON_OBJECT(
