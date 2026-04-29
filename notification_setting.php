@@ -34,7 +34,7 @@ if(isset($action)){
     switch ($action) {
         case 'view':
             try{
-                $sql = "SELECT `key`, `value` FROM notification_setting WHERE created_by = ?";
+                $sql = "SELECT `key`, `value` FROM connects_settings WHERE created_by = ?";
                 $stmt = $conn->prepare($sql);
                 $stmt->bind_param("i", $userId);
                 $stmt->execute();
@@ -61,7 +61,7 @@ if(isset($action)){
 
             try{
                 $conn->begin_transaction();
-                $sql = "SELECT id FROM notification_setting WHERE created_by = ?";
+                $sql = "SELECT id FROM connects_settings WHERE created_by = ?";
                 $stmt = $conn->prepare($sql);
                 $stmt->bind_param("i", $created_by);
                 $stmt->execute();
@@ -71,11 +71,11 @@ if(isset($action)){
                 $created_at = $updated_at = date('Y-m-d H:i:s');
 
                 if ($result->num_rows > 0) {
-                    $stmt = $conn->prepare("UPDATE notification_setting SET `key` = ?, `value` = ?, updated_at = ? WHERE id = ?");
+                    $stmt = $conn->prepare("UPDATE connects_settings SET `key` = ?, `value` = ?, updated_at = ? WHERE id = ?");
                     $stmt->bind_param("sssi", $key, $value, $updated_at, $id);
                     $stmt->execute();
                 } else {
-                    $stmt = $conn->prepare("INSERT INTO notification_setting (`key`, `value`, created_by) VALUES (?, ?, ?) ");
+                    $stmt = $conn->prepare("INSERT INTO connects_settings (`key`, `value`, created_by) VALUES (?, ?, ?) ");
                     $stmt->bind_param("ssi", $key, $value, $created_by);
                     $stmt->execute();
                 }

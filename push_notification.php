@@ -34,7 +34,7 @@ function saveNotification($conn, $data, $id = null) {
 
     if ($id) {
         $stmt = $conn->prepare("
-            UPDATE push_notifications 
+            UPDATE connects 
             SET title=?, body=?, type=?, status=?, priority=?, filePath=?, updated_at=? 
             WHERE id=?
         ");
@@ -42,7 +42,7 @@ function saveNotification($conn, $data, $id = null) {
 
     } else {
         $stmt = $conn->prepare("
-            INSERT INTO push_notifications 
+            INSERT INTO connects 
             (title, body, type, status, priority, filePath, created_by, created_at, updated_at) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
@@ -56,7 +56,7 @@ function saveNotification($conn, $data, $id = null) {
 function insertNotificationUsers($conn, $notification_id, $employees, $created_at, $updated_at, $pusher, $title, $message, $config) {
 
     $stmt = $conn->prepare("
-        INSERT INTO notifications_user 
+        INSERT INTO connects_users 
         (notification_id, employee_id, notification_status, created_at, updated_at) 
         VALUES (?, ?, 'Unread', ?, ?)
     ");
@@ -162,9 +162,9 @@ if (isset($action)) {
                             ),
                             JSON_ARRAY()
                         ) AS receiver
-                    FROM push_notifications pn
+                    FROM connects pn
                     LEFT JOIN employees e ON e.id = pn.created_by
-                    LEFT JOIN notifications_user ne ON ne.notification_id = pn.id
+                    LEFT JOIN connects_users ne ON ne.notification_id = pn.id
                     LEFT JOIN employees re ON re.id = ne.employee_id
                     WHERE pn.created_by = $user_id
                     $where
@@ -188,8 +188,8 @@ if (isset($action)) {
                         ) AS sender,
                         re.profile, 
                         re.id As employee_id
-                    FROM notifications_user nu
-                    LEFT JOIN push_notifications pn ON pn.id = nu.notification_id 
+                    FROM connects_users nu
+                    LEFT JOIN connects pn ON pn.id = nu.notification_id 
                     LEFT JOIN employees e ON e.id = pn.created_by
                     LEFT JOIN employees re ON re.id = nu.employee_id
                     WHERE nu.employee_id = $user_id AND nu.hidden = 0
@@ -244,7 +244,7 @@ if (isset($action)) {
                 $conn->begin_transaction();
                 $notification_id = saveNotification($conn, $data, $data['id']);
                 if ($data['id']) {
-                    $conn->query("DELETE FROM notifications_user WHERE notification_id = {$data['id']}");
+                    $conn->query("DELETE FROM connects_users WHERE notification_id = {$data['id']}");
                 }
                 list($receiver, $errors) = insertNotificationUsers( $conn, $notification_id, $selectedEmployee, $data['created_at'], $data['updated_at'], $pusher, $data['title'], $data['body'], $config);
                 $conn->commit();
@@ -298,7 +298,7 @@ if (isset($action)) {
                     $notification_id = (int)$_GET['notification_id'];
 
                     $stmt = $conn->prepare("
-                        UPDATE notifications_user 
+                        UPDATE connects_users 
                         SET notification_status = 'read' 
                         WHERE employee_id = ? AND notification_id = ?
                     ");
@@ -311,7 +311,7 @@ if (isset($action)) {
                     
                 } else {
                     $stmt = $conn->prepare("
-                        UPDATE notifications_user 
+                        UPDATE connects_users 
                         SET notification_status = 'read' 
                         WHERE employee_id = ?
                     ");
@@ -346,7 +346,7 @@ if (isset($action)) {
                 }
 
                 $stmt = $conn->prepare("
-                    UPDATE notifications_user 
+                    UPDATE connects_users 
                     SET hidden = ?, 
                     hide_date = NOW() 
                     WHERE notification_id = ? 
@@ -399,7 +399,7 @@ if (isset($action)) {
             }
 
             $stmt = $conn->prepare("
-                UPDATE notifications_user 
+                UPDATE connects_users 
                 SET notification_status = ? 
                 WHERE notification_id = ? AND employee_id = ?
             ");
