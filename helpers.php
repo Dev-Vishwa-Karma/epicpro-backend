@@ -58,7 +58,7 @@
         }
     }
 
-    function handleNotificationFileUpload($files) {
+    function handleConnectFileUpload($files) {
         $uploadedFiles = [];
         // $baseUploadDir = __DIR__ . '/../uploads/';
         $baseUploadDir = __DIR__ . '/uploads/';
