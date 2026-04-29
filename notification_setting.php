@@ -27,7 +27,7 @@ if (!isAdminCheck()) {
 }
 
 $action = !empty($_GET['action']) ? $_GET['action'] : 'view';
-$userId = $_GET['user_id'] ?? null;
+$userId = $_GET['user_ids'] ?? null;
 
 if(isset($action)){
 
@@ -72,7 +72,7 @@ if(isset($action)){
 
                 if ($result->num_rows > 0) {
                     $stmt = $conn->prepare("UPDATE notification_setting SET `key` = ?, `value` = ?, updated_at = ? WHERE id = ?");
-                    $stmt->bind_param("ssi", $key, $value, $updated_at, $id);
+                    $stmt->bind_param("sssi", $key, $value, $updated_at, $id);
                     $stmt->execute();
                 } else {
                     $stmt = $conn->prepare("INSERT INTO notification_setting (`key`, `value`, created_by) VALUES (?, ?, ?) ");
