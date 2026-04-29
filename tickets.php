@@ -60,6 +60,8 @@ if (isset($action)) {
     switch ($action) {
         case 'view':
             $searchQuery = isset($_GET['searchQuery']) ? $_GET['searchQuery'] : '';
+            $filterTodoQuery = isset($_GET['filterTodoQuery']) ? $_GET['filterTodoQuery'] : '';
+
             $whereClause = '';
             // Only filter by assigned user when a numeric id is provided
             if ($id !== null && is_numeric($id)) {
@@ -80,6 +82,12 @@ if (isset($action)) {
                     " OR employees.email LIKE '$like'" .
                 ")";
             }
+
+            if(!empty($filterTodoQuery)) {
+                $filterTodoQuery = $conn->real_escape_string($filterTodoQuery);
+                $whereClause .= ($whereClause ? " AND" : " WHERE") . " tickets.status = '$filterTodoQuery'";
+            }
+
             $whereClause .= ($whereClause ? " AND" : " WHERE") . " employees.status = 1";
 
             $query = "SELECT
@@ -93,6 +101,8 @@ if (isset($action)) {
                 tickets.due_date,
                 tickets.completed_at,
                 tickets.status,
+                tickets.created_at,
+                tickets.updated_at,
                 employees.id AS employee_id,
                 employees.first_name AS assigned_first_name,
                 employees.last_name AS assigned_last_name,
@@ -127,7 +137,8 @@ if (isset($action)) {
                             'due_date' => $row['due_date'],
                             'completed_at' => $row['completed_at'],
                             'status' => $row['status'],
-                            'created_at' => $row['created_at']
+                            'created_at' => $row['created_at'],
+                            'updated_at' => $row['updated_at']
                         ];
                         $tickets[] = $ticket;
                     }
