@@ -1,5 +1,7 @@
 <?php
-// Database configuration
+
+// $config = require __DIR__ . '/config.php';
+
 $host = "localhost";
 $username = "root";
 $password = "";
