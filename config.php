@@ -9,7 +9,8 @@ return [
         'password' => 'ryvbrhcpojistdjf',
         'from_email' => 'testing.developer01@gmail.com',
         'from_name' => 'hr-profilics',
-        'subject' => 'notification@profilics',
+        'subject' => 'connect@profilics',
+        'redirect_path' => 'https://hr.profilics.com/connect'
     ],
     'pusher' => [
         'app_id' => '2138923',

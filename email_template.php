@@ -2,7 +2,10 @@
 
 class EmailTemplate {
 
-    public static function emailTemplate($userName, $message, $subject)
+    /**
+     * Email Template for connects.
+     */
+    public static function emailTemplate($userName, $message, $subject, $config)
     {
         $year = date('Y');
 
@@ -83,7 +86,7 @@ class EmailTemplate {
           <div class='container'>
 
             <div class='header'>
-              Notification
+              Connects
             </div>
 
             <div class='content'>
@@ -94,7 +97,7 @@ class EmailTemplate {
 
               <p>Message:{$message}</p>
 
-              <a class='button' href='http://localhost:3000/notify-user'>
+              <a class='button' href='{$config['redirect_path']}'>
                 View Details
               </a>
 

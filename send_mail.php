@@ -5,6 +5,10 @@ use PHPMailer\PHPMailer\Exception;
 require 'vendor/autoload.php';
 require_once __DIR__ . '/email_template.php';
 
+/**
+ * Send Mail for connects.
+ * Static mail configuration.
+ */
 function sendMailToUsers($users, $to, $subject, $message, $config = []) {
     $results = [];
 
@@ -32,7 +36,8 @@ function sendMailToUsers($users, $to, $subject, $message, $config = []) {
             $body = EmailTemplate::emailTemplate(
                 $user['name'],
                 $message,
-                $subject
+                $subject,
+                $config
             );
 
             $mail->isHTML(true);
