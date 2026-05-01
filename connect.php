@@ -54,7 +54,7 @@ function saveConnects($conn, $data, $id = null) {
     return $id ? $id : $stmt->insert_id;
 }
 // Save users who will receive the connects and trigger pusher event
-function insertConnectUsers( $conn, $connect_id, $selectedEmployee, $data, $config) {
+function insertConnectUsers( $conn, $connect_id, $selectedEmployee, $data, $pusher, $config) {
 
     $stmt = $conn->prepare("
         INSERT INTO connects_users 
@@ -264,7 +264,7 @@ if (isset($action)) {
                     $conn->query("DELETE FROM connects_users WHERE connect_id = {$data['id']}");
                 }
 
-                list($receiver, $errors) = insertConnectUsers( $conn, $connect_id, $selectedEmployee, $data, $config);
+                list($receiver, $errors) = insertConnectUsers( $conn, $connect_id, $selectedEmployee, $data, $pusher, $config);
 
                 $conn->commit();
             } catch (\Throwable $th) {
