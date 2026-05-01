@@ -10,7 +10,7 @@ return [
         'from_email' => 'testing.developer01@gmail.com',
         'from_name' => 'hr-profilics',
         'subject' => 'connect@profilics',
-        'redirect_path' => 'https://hr.profilics.com/connect'
+        'redirect_path' => 'https://hr.profilics.com/notifications'
     ],
     'pusher' => [
         'app_id' => '2138923',

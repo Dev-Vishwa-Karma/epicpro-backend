@@ -54,7 +54,7 @@ function saveConnects($conn, $data, $id = null) {
     return $id ? $id : $stmt->insert_id;
 }
 // Save users who will receive the connects and trigger pusher event
-function insertConnectUsers($conn, $connect_id, $employees, $created_at, $updated_at, $pusher, $title, $message, $config, $status) {
+function insertConnectUsers($conn, $connect_id, $employees, $created_at, $updated_at, $pusher, $title, $message, $config, $status, $type) {
 
     $stmt = $conn->prepare("
         INSERT INTO connects_users 
@@ -76,6 +76,12 @@ function insertConnectUsers($conn, $connect_id, $employees, $created_at, $update
             ];
 
             if($status === 'sent'){
+                $sql = "INSERT INTO notifications (employee_id, title, body, type) VALUES (?, ?, ?, ?)";
+                $stmt = $conn->prepare($sql);
+                $titleText = "You received a new connect";
+                $stmt->bind_param("isss", $empId, $titleText, $title, $type);
+                $stmt->execute();
+
                 $pusher->trigger($config['pusher']['channel'], 'new_connect'.$empId, [
                     'id' => $connect_id,
                     'title' => $title,
@@ -249,7 +255,7 @@ if (isset($action)) {
                 if ($data['id']) {
                     $conn->query("DELETE FROM connects_users WHERE connect_id = {$data['id']}");
                 }
-                list($receiver, $errors) = insertConnectUsers( $conn, $connect_id, $selectedEmployee, $data['created_at'], $data['updated_at'], $pusher, $data['title'], $data['body'], $config, $data['status']);
+                list($receiver, $errors) = insertConnectUsers( $conn, $connect_id, $selectedEmployee, $data['created_at'], $data['updated_at'], $pusher, $data['title'], $data['body'], $config, $data['status'], $data['type']);
                 $conn->commit();
             } catch (\Throwable $th) {
                 $conn->rollback();
