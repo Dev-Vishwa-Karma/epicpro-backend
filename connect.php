@@ -97,6 +97,20 @@ function insertConnectUsers( $conn, $connect_id, $selectedEmployee, $data, $push
     return [$receiver, $errors];
 }
 
+// function dispatchJob($conn, $type, $payload, $delaySeconds = 0) {
+
+//     $payloadJson = json_encode($payload);
+//     $runAt = date('Y-m-d H:i:s', time() + $delaySeconds);
+
+//     $stmt = $conn->prepare("
+//         INSERT INTO jobs (type, payload, run_at) 
+//         VALUES (?, ?, ?)
+//     ");
+
+//     $stmt->bind_param("sss", $type, $payloadJson, $runAt);
+//     $stmt->execute();
+// }
+
 $action = !empty($_GET['action']) ? $_GET['action'] : 'view';
 $filter = !empty($_GET['filter']) ? $_GET['filter'] : 'all';
 $search = !empty($_GET['search']) ? json_decode($_GET['search'], true) : [];
@@ -289,9 +303,15 @@ if (isset($action)) {
                 ];
             }, $result->fetch_all(MYSQLI_ASSOC));
             
-            if($data['status'] === 'sent'){
-                $emailResults = sendMailToUsers( $users, $to, $data['title'], $data['body'], $config['email']);
-            }
+            // if($data['status'] === 'sent'){
+            //     dispatchJob($conn, 'send_email', [
+            //         "users"   => $users,
+            //         "to"      => $to,
+            //         "subject" => $data['title'],
+            //         "message" => $data['body'],
+            //         "config"  => $config['email']
+            //     ]);
+            // }
             foreach ($receiver as &$rec) {
                 $empId = $rec['employee_id'];
                 $rec['receiver_name'] = current(array_filter($users, fn($u) => $u['id'] == $empId))['name'] ?? '';
@@ -302,7 +322,6 @@ if (isset($action)) {
             $conn->close();
             echo json_encode([
                 "success" => empty($errors),
-                "email" => $emailResults ?? null,
                 "message" => empty($errors) ? "Connects stored & pushed successfully" : "Some Connects failed",
                 "newConnects" => $data,
                 "errors" => $errors
