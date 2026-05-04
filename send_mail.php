@@ -9,7 +9,7 @@ require_once __DIR__ . '/email_template.php';
  * Send Mail for connects.
  * Static mail configuration.
  */
-function sendMailToUsers($users, $to, $subject, $message, $config = []) {
+function sendMailToUsers($users, $subject, $message, $config = []) {
     $results = [];
 
         $mail = new PHPMailer(true);
