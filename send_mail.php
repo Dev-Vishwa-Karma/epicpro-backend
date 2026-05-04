@@ -12,7 +12,6 @@ require_once __DIR__ . '/email_template.php';
 function sendMailToUsers($users, $to, $subject, $message, $config = []) {
     $results = [];
 
-    foreach ($users as $user) {
         $mail = new PHPMailer(true);
 
         try {
@@ -28,27 +27,40 @@ function sendMailToUsers($users, $to, $subject, $message, $config = []) {
             // $mail->SMTPDebug = 2;
             // $mail->Debugoutput = 'html';
 
-            // Email setup
-            $mail->setFrom($config['from_email'], $config['from_name']);
-            $mail->addAddress($user['email']);
-            $mail->Subject = $config['subject'];
+            foreach ($users as $user) {
 
-            $body = EmailTemplate::emailTemplate(
-                $user['name'],
-                $message,
-                $subject,
-                $config
-            );
+                try {
+                    // Email setup
+                    $mail->clearAddresses();
+                    $mail->clearAttachments();
+                    $mail->setFrom($config['from_email'], $config['from_name']);
+                    $mail->addAddress($user['email']);
+                    $mail->Subject = $config['subject'];
 
-            $mail->isHTML(true);
-            $mail->Body = $body;
-            $mail->AltBody = strip_tags($message);
-            $mail->send();
+                    $body = EmailTemplate::emailTemplate(
+                        $user['name'],
+                        $message,
+                        $subject,
+                        $config
+                    );
 
-            $results[] = [
-                "email" => $user['email'],
-                "status" => true
-            ];
+                    $mail->isHTML(true);
+                    $mail->Body = $body;
+                    $mail->AltBody = strip_tags($message);
+                    $mail->send();
+
+                    $results[] = [
+                        "email" => $user['email'],
+                        "status" => true
+                    ];
+                } catch (\Throwable $th) {
+                    $results[] = [
+                        "email" => $user['email'],
+                        "status" => false,
+                        "error" => $mail->ErrorInfo
+                    ];
+                }
+            }
 
         } catch (Exception $e) {
             $results[] = [
@@ -57,7 +69,5 @@ function sendMailToUsers($users, $to, $subject, $message, $config = []) {
                 "error" => $mail->ErrorInfo
             ];
         }
+        return $results;
     }
-
-    return $results;
-}
