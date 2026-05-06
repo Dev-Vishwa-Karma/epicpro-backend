@@ -210,7 +210,8 @@ if (isset($action)) {
                         nu.connect_status AS `read`,
                         JSON_OBJECT(
                             'id', e.id,
-                            'name', CONCAT(e.first_name, ' ', e.last_name)
+                            'name', CONCAT(e.first_name, ' ', e.last_name),
+                            'profile', e.profile,
                         ) AS sender,
                         re.profile, 
                         re.id As employee_id
