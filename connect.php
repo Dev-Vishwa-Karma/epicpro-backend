@@ -152,13 +152,8 @@ if (isset($action)) {
                 foreach ($search as $key => $value) {
                     if (!empty($value) && isset($columnMap[$key])) {
                         // Handle array value for multi-select filter (IN clause)
-                        if (is_array($value)) {
-                            $value = array_map(fn($v) => "'" . mysqli_real_escape_string($conn, $v) . "'", $value);
-                            $where .= " AND {$columnMap[$key]} IN (" . implode(',', $value) . ")";
-                        } else {
-                            $value = mysqli_real_escape_string($conn, $value);
-                            $where .= " AND {$columnMap[$key]} = '$value'";
-                        }
+                        $value = array_map(fn($v) => "'" . mysqli_real_escape_string($conn, $v) . "'", $value);
+                        $where .= " AND {$columnMap[$key]} IN (" . implode(',', $value) . ")";
                     }
                 }
             }
