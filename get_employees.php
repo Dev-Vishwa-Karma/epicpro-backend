@@ -112,7 +112,6 @@ if (isset($action)) {
                     sendJsonResponse('error', null, 'Employee not found');
                 }
             } else {
-                // Check if the role filter is passed via URL, e.g., role=employee or role=all
                 $roleFilter = isset($_GET['role']) ? $_GET['role'] : 'all';
                 $statusFilter = isset($_GET['status']) ? $_GET['status'] : '1';
 

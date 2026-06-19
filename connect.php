@@ -63,9 +63,9 @@ function insertConnectUsers( $conn, $connect_id, $selectedEmployee, $data, $push
     ");
     $receiver = [];
     $errors = [];
-
+  
     foreach ($selectedEmployee as $empId) {
-
+        
         $stmt->bind_param("iiss", $connect_id, $empId, $data['created_at'], $data['updated_at']);
 
         if ($stmt->execute()) {
