@@ -93,11 +93,8 @@
                     $uploadedFiles[] = 'uploads/' . $folder . $newName;
                 }
             }
-    }
-
-
-
+        }
     return $uploadedFiles;
-}
+    }
 
 ?>
