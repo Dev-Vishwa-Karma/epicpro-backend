@@ -170,7 +170,8 @@ if (isset($action)) {
                         notifications.body,
                         notifications.`type`,
                         notifications.`read`, 
-                        notifications.created_at
+                        notifications.created_at,
+                        notifications.connect_id
                     FROM notifications
                     LEFT JOIN employees ON notifications.employee_id = employees.id
                     WHERE 1=1";
@@ -229,36 +230,87 @@ if (isset($action)) {
 
             break;
             
-       case 'mark_read':
+        case 'mark_read':
             if (isset($_GET['user_id']) && is_numeric($_GET['user_id'])) {
                 $user_id = (int)$_GET['user_id'];
 
                 if (isset($_GET['notification_id']) && is_numeric($_GET['notification_id'])) {
                     $notification_id = (int)$_GET['notification_id'];
 
-                    // Mark a specific notification as read
-                    $stmt = $conn->prepare("UPDATE notifications SET `read` = 1 WHERE employee_id = ? AND id = ?");
-                    if (!$stmt) {
-                        sendJsonResponse('error', null, 'Prepare failed: ' . $conn->error);
-                        exit;
-                    }
+                    // Get connect_id before updating notification
+                    $stmt = $conn->prepare("
+                        SELECT connect_id
+                        FROM notifications
+                        WHERE id = ? AND employee_id = ?
+                    ");
+                    $stmt->bind_param('ii', $notification_id, $user_id);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    $notification = $result->fetch_assoc();
 
+                    // Mark notification as read
+                    $stmt = $conn->prepare("
+                        UPDATE notifications
+                        SET `read` = 1
+                        WHERE employee_id = ? AND id = ?
+                    ");
                     $stmt->bind_param('ii', $user_id, $notification_id);
-                } else {
-                    // Mark all notifications as read for this user
-                    $stmt = $conn->prepare("UPDATE notifications SET `read` = 1 WHERE employee_id = ?");
-                    if (!$stmt) {
-                        sendJsonResponse('error', null, 'Prepare failed: ' . $conn->error);
-                        exit;
+
+                    if ($stmt->execute()) {
+
+                        // Update connects_users if connect_id exists
+                        if (!empty($notification['connect_id'])) {
+
+                            $connectStmt = $conn->prepare("
+                                UPDATE connects_users
+                                SET connect_status = 'read'
+                                WHERE employee_id = ? AND connect_id = ?
+                            ");
+
+                            $connectStmt->bind_param(
+                                'ii',
+                                $user_id,
+                                $notification['connect_id']
+                            );
+
+                            $connectStmt->execute();
+                        }
+
+                        sendJsonResponse('success', null, 'Notification marked as read');
+                    } else {
+                        sendJsonResponse('error', null, 'Failed to mark notification as read');
                     }
 
-                    $stmt->bind_param('i', $user_id);
-                }
-
-                if ($stmt->execute()) {
-                    sendJsonResponse('success', null, 'Notification(s) marked as read');
                 } else {
-                    sendJsonResponse('error', null, 'Failed to mark notification as read');
+
+                    // Mark all notifications as read
+                    $stmt = $conn->prepare("
+                        UPDATE notifications
+                        SET `read` = 1
+                        WHERE employee_id = ?
+                    ");
+                    $stmt->bind_param('i', $user_id);
+
+                    if ($stmt->execute()) {
+
+                        // Update all related connects
+                        $connectStmt = $conn->prepare("
+                            UPDATE connects_users cu
+                            INNER JOIN notifications n
+                                ON cu.connect_id = n.connect_id
+                                AND cu.employee_id = n.employee_id
+                            SET cu.connect_status = 'read'
+                            WHERE n.employee_id = ?
+                            AND n.connect_id IS NOT NULL
+                        ");
+
+                        $connectStmt->bind_param('i', $user_id);
+                        $connectStmt->execute();
+
+                        sendJsonResponse('success', null, 'Notifications marked as read');
+                    } else {
+                        sendJsonResponse('error', null, 'Failed to mark notifications as read');
+                    }
                 }
             } else {
                 sendJsonResponse('error', null, 'Invalid user ID');
