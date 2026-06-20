@@ -114,6 +114,8 @@ if (isset($action)) {
             } else {
                 // Check if the role filter is passed via URL, e.g., role=employee or role=all
                 $roleFilter = isset($_GET['role']) ? $_GET['role'] : 'all';
+                $statusFilter = isset($_GET['status']) ? $_GET['status'] : '1';
+
                 if ($roleFilter == 'employee') {
                     $year = isset($_GET['year']) ? intval($_GET['year']) : null;
                     $month = isset($_GET['month']) ? intval($_GET['month']) : null;
@@ -127,6 +129,10 @@ if (isset($action)) {
                         WHERE e.role = 'employee' 
                         AND e.deleted_at IS NULL
                     ";
+
+                    if ($statusFilter !== 'all') {
+                        $query .= " AND e.status = '" . $conn->real_escape_string($statusFilter) . "'";
+                    }
 
 
                     if ($statistics_visibility_status) {
@@ -156,6 +162,11 @@ if (isset($action)) {
                         LEFT JOIN departments d ON e.department_id = d.id
                         WHERE (e.role = 'admin' OR e.role = 'super_admin') 
                         AND e.deleted_at IS NULL";
+
+                    if ($statusFilter !== 'all') {
+                        $sql .= " AND e.status = '" . $conn->real_escape_string($statusFilter) . "'";
+                    }
+
                     $params = [];
                     $types = '';
 
@@ -174,15 +185,21 @@ if (isset($action)) {
                     }
                 } else {
                     // If no filter or 'all', show all employees
-                    $stmt = $conn->prepare("
+                    $sql = "
                         SELECT e.*, 
                             d.department_name, 
                             d.department_head 
                         FROM employees e
                         LEFT JOIN departments d ON e.department_id = d.id
                         WHERE e.deleted_at IS NULL
-                        ORDER BY e.id DESC
-                    ");
+                    ";
+
+                    if ($statusFilter !== 'all') {
+                        $sql .= " AND e.status = '" . $conn->real_escape_string($statusFilter) . "'";
+                    }
+                    
+                    $sql .= " ORDER BY e.id DESC";
+                    $stmt = $conn->prepare($sql);
                 }
 
                 $stmt->execute();

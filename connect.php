@@ -75,19 +75,31 @@ function insertConnectUsers( $conn, $connect_id, $selectedEmployee, $data, $push
                 'read' => "unread"
             ];
 
-            if($data['status'] === 'sent'){
-                $sql = "INSERT INTO notifications (employee_id, title, body, type) VALUES (?, ?, ?, ?)";
-                $stmt = $conn->prepare($sql);
-                $titleText = "You received a new connect";
-                //Apply title in the column "body" of the notification table.
-                $stmt->bind_param("isss", $empId, $titleText, $data['title'], $data['type']);
-                $stmt->execute();
+            if ($data['status'] === 'sent') {
+                $sql = "INSERT INTO notifications 
+                        (employee_id, connect_id, title, body, type) 
+                        VALUES (?, ?, ?, ?, ?)";
+               
+                $notif_stmt = $conn->prepare($sql);
 
-                $pusher->trigger($config['pusher']['channel'], 'new_connect'.$empId, [
-                    'id' => $connect_id,
-                    'title' => $data['title'],
-                    'message' => $data['body']
-                ]);
+                $titleText = "You received a new connect";
+
+                $notif_stmt->bind_param(
+                    "iisss",
+                    $empId,
+                    $connect_id,
+                    $titleText,
+                    $data['title'],
+                    $data['type']
+                );
+
+                $notif_stmt->execute();
+
+                // $pusher->trigger($config['pusher']['channel'], 'new_connect'.$empId, [
+                //     'id' => $connect_id,
+                //     'title' => $data['title'],
+                //     'message' => $data['body']
+                // ]);
             }
 
         } else {
@@ -211,7 +223,7 @@ if (isset($action)) {
                         JSON_OBJECT(
                             'id', e.id,
                             'name', CONCAT(e.first_name, ' ', e.last_name),
-                            'profile', e.profile,
+                            'profile', e.profile
                         ) AS sender,
                         re.profile, 
                         re.id As employee_id
