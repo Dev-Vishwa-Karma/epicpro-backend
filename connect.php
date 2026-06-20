@@ -63,9 +63,7 @@ function insertConnectUsers( $conn, $connect_id, $selectedEmployee, $data, $push
     ");
     $receiver = [];
     $errors = [];
-
-    foreach ($selectedEmployee as $empId) {
-        
+    foreach ($selectedEmployee as $empId) {  
         $stmt->bind_param("iiss", $connect_id, $empId, $data['created_at'], $data['updated_at']);
 
         if ($stmt->execute()) {
@@ -76,10 +74,7 @@ function insertConnectUsers( $conn, $connect_id, $selectedEmployee, $data, $push
             ];
 
             if ($data['status'] === 'sent') {
-                $sql = "INSERT INTO notifications 
-                        (employee_id, connect_id, title, body, type) 
-                        VALUES (?, ?, ?, ?, ?)";
-               
+                $sql = "INSERT INTO notifications (employee_id, connect_id, title, body, type) VALUES (?, ?, ?, ?, ?)";
                 $notif_stmt = $conn->prepare($sql);
 
                 $titleText = "You received a new connect";
@@ -94,12 +89,6 @@ function insertConnectUsers( $conn, $connect_id, $selectedEmployee, $data, $push
                 );
 
                 $notif_stmt->execute();
-
-                // $pusher->trigger($config['pusher']['channel'], 'new_connect'.$empId, [
-                //     'id' => $connect_id,
-                //     'title' => $data['title'],
-                //     'message' => $data['body']
-                // ]);
             }
 
         } else {
