@@ -35,10 +35,17 @@
                             p.name AS project_name,
                             p.description AS project_description,
                             p.technology AS project_technology,
+                            p.profile_used,
+                            p.face_used,
+                            p.mobile_number_shared,
+                            p.address_shared,
+                            p.projects_shared,
+                            p.family_information_shared,
                             p.start_date AS project_start_date,
                             p.end_date AS project_end_date,
                             p.is_active AS project_is_active,
                             p.created_at,
+                            p.start_date,
                             p.created_by,
                             c.name AS client_name,
                             p.team_member_ids
@@ -69,10 +76,17 @@
                                 'project_name' => $row['project_name'],
                                 'project_description' => $row['project_description'],
                                 'project_technology' => $row['project_technology'],
+                                'profile_used' => $row['profile_used'],
+                                'face_used' => $row['face_used'],
+                                'mobile_number_shared' => $row['mobile_number_shared'],
+                                'address_shared' => $row['address_shared'],
+                                'projects_shared' => $row['projects_shared'],
+                                'family_information_shared' => $row['family_information_shared'],
                                 'project_start_date' => $row['project_start_date'],
                                 'project_end_date' => $row['project_end_date'],
                                 'project_is_active' => $row['project_is_active'],
                                 'created_at' => $row['created_at'],
+                                'start_date' => $row['start_date'],
                                 'created_by' => $row['created_by'],
                                 'client_name' => $row['client_name'],
                                 'team_members' => []
@@ -128,10 +142,17 @@
                             p.name AS project_name,
                             p.description AS project_description,
                             p.technology AS project_technology,
+                            p.profile_used,
+                            p.face_used,
+                            p.mobile_number_shared,
+                            p.address_shared,
+                            p.projects_shared,
+                            p.family_information_shared,
                             p.start_date AS project_start_date,
                             p.end_date AS project_end_date,
                             p.is_active AS project_is_active,
                             p.created_at,
+                            p.start_date,
                             p.created_by,
                             c.name AS client_name,
                             p.team_member_ids
@@ -155,6 +176,13 @@
                         $query .= " AND (p.name LIKE '%$project_name_filter_safe%' OR p.technology LIKE '%$project_name_filter_safe%')";
                     }
 
+                    $status_filter = isset($_GET['status']) ? $_GET['status'] : '';
+                    if ($status_filter === 'active') {
+                        $query .= " AND p.is_active = 1";
+                    } elseif ($status_filter === 'inactive') {
+                        $query .= " AND p.is_active = 0";
+                    }
+
                     $query .= " ORDER BY p.created_at DESC";
 
                     $result = mysqli_query($conn, $query);
@@ -173,10 +201,17 @@
                                     'project_name' => $row['project_name'],
                                     'project_description' => $row['project_description'],
                                     'project_technology' => $row['project_technology'],
+                                    'profile_used' => $row['profile_used'],
+                                    'face_used' => $row['face_used'],
+                                    'mobile_number_shared' => $row['mobile_number_shared'],
+                                    'address_shared' => $row['address_shared'],
+                                    'projects_shared' => $row['projects_shared'],
+                                    'family_information_shared' => $row['family_information_shared'],
                                     'project_start_date' => $row['project_start_date'],
                                     'project_end_date' => $row['project_end_date'],
                                     'project_is_active' => $row['project_is_active'],
                                     'created_at' => $row['created_at'],
+                                    'start_date' => $row['start_date'],
                                     'created_by' => $row['created_by'],
                                     'client_name' => $row['client_name'],
                                     'team_members' => []
@@ -226,6 +261,12 @@
                 $project_name = $_POST['project_name'] ?? '';
                 $project_description = $_POST['project_description'] ?? '';
                 $project_technology = $_POST['project_technology'] ?? '';
+                $profile_used = $_POST['profile_used'] ?? null;
+                $face_used = $_POST['face_used'] ?? null;
+                $mobile_number_shared = !empty($_POST['mobile_number_shared']) ? $_POST['mobile_number_shared'] : null;
+                $address_shared = $_POST['address_shared'] ?? null;
+                $projects_shared = $_POST['projects_shared'] ?? null;
+                $family_information_shared = $_POST['family_information_shared'] ?? null;
                 $client_id = !empty($_POST['client_id']) ? $_POST['client_id'] : NULL;
                 $team_members_id = $_POST['team_members'] ?? '';
                 $project_start_date = !empty($_POST['project_start_date']) ? $_POST['project_start_date'] : NULL;
@@ -245,8 +286,8 @@
 
                     // Prepare the SQL query using placeholders
                     $insert_project_query = "
-                        INSERT INTO projects (client_id, name, description, technology, start_date, end_date, created_at, created_by, team_member_ids)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO projects (client_id, name, description, technology, profile_used, face_used, mobile_number_shared, address_shared, projects_shared, family_information_shared, start_date, end_date, created_at, created_by, team_member_ids)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ";
 
                     // Prepare the statement
@@ -254,8 +295,9 @@
                         // Bind the parameters to the prepared statement
                         mysqli_stmt_bind_param(
                             $stmt, 
-                            "issssssss", 
+                            "issssssssssssss", 
                             $client_id, $project_name, $project_description, $project_technology, 
+                            $profile_used, $face_used, $mobile_number_shared, $address_shared, $projects_shared, $family_information_shared,
                             $project_start_date, $project_end_date, $created_at, $created_by, $team_member_ids_json
                         );
 
@@ -302,6 +344,12 @@
                                 'project_name' => $project_name,
                                 'project_description' => $project_description,
                                 'project_technology' => $project_technology,
+                                'profile_used' => $profile_used,
+                                'face_used' => $face_used,
+                                'mobile_number_shared' => $mobile_number_shared,
+                                'address_shared' => $address_shared,
+                                'projects_shared' => $projects_shared,
+                                'family_information_shared' => $family_information_shared,
                                 'client_name' => $client_name,
                                 'project_is_active' => 1,
                                 'team_members' => $team_members,
@@ -335,6 +383,12 @@
                 $project_name = $_POST['project_name'] ?? '';
                 $project_description = $_POST['project_description'] ?? '';
                 $project_technology = $_POST['project_technology'] ?? '';
+                $profile_used = $_POST['profile_used'] ?? null;
+                $face_used = $_POST['face_used'] ?? null;
+                $mobile_number_shared = !empty($_POST['mobile_number_shared']) ? $_POST['mobile_number_shared'] : null;
+                $address_shared = $_POST['address_shared'] ?? null;
+                $projects_shared = $_POST['projects_shared'] ?? null;
+                $family_information_shared = $_POST['family_information_shared'] ?? null;
                 $client_id = !empty($_POST['client_id']) ? $_POST['client_id'] : NULL;
                 $team_members_id = $_POST['team_members'] ?? '';
                 $project_start_date = !empty($_POST['project_start_date']) ? $_POST['project_start_date'] : NULL;
@@ -358,6 +412,12 @@
                             name = ?, 
                             description = ?, 
                             technology = ?, 
+                            profile_used = ?,
+                            face_used = ?,
+                            mobile_number_shared = ?,
+                            address_shared = ?,
+                            projects_shared = ?,
+                            family_information_shared = ?,
                             start_date = ?, 
                             end_date = ?, 
                             updated_at = ?, 
@@ -371,8 +431,9 @@
                         // Bind parameters to the prepared statement
                         mysqli_stmt_bind_param(
                             $stmt, 
-                            "issssssssi", 
+                            "issssssssssssssi", 
                             $client_id, $project_name, $project_description, $project_technology, 
+                            $profile_used, $face_used, $mobile_number_shared, $address_shared, $projects_shared, $family_information_shared,
                             $project_start_date, $project_end_date, $updated_at, $updated_by, 
                             $team_member_ids_json, $project_id
                         );
@@ -423,6 +484,12 @@
                                     'project_name' => $project_name,
                                     'project_description' => $project_description,
                                     'project_technology' => $project_technology,
+                                    'profile_used' => $profile_used,
+                                    'face_used' => $face_used,
+                                    'mobile_number_shared' => $mobile_number_shared,
+                                    'address_shared' => $address_shared,
+                                    'projects_shared' => $projects_shared,
+                                    'family_information_shared' => $family_information_shared,
                                     'client_name' => $client_name,
                                     'team_members' => $team_members,
                                     'team_member_ids' => $team_member_ids_json,
