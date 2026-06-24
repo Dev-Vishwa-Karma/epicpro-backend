@@ -1,0 +1,3099 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Epic Hr",
+    "version": "1.0.0",
+    "description": "Core PHP API for managing employee with action-based routing."
+  },
+  "servers": [
+    {
+      "url": "http://localhost/epichr/epicpro-backend",
+      "description": "Local development"
+    },
+    {
+      "url": "https://hr.profilics.com/backend",
+      "description": "Production server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Employee Leaves",
+      "description": "API endpoints related to employee leave management"
+    },
+    {
+      "name": "Clients",
+      "description": "API endpoints related to client"
+    },
+    {
+      "name": "Departments",
+      "description": "API endpoints related to department"
+    },
+    {
+      "name": "Salary Details",
+      "description": "API endpoints for managing employee salary details"
+    },
+    {
+      "name": "Users",
+      "description": "API for managing users and employee records"
+    },
+    {
+      "name": "Events",
+      "description": "API for Events management"
+    },
+    {
+      "name": "Reports",
+      "description": "API for report management"
+    },
+    {
+      "name": "Projects",
+      "description": "API for project management"
+    },
+    {
+      "name": "Project Todo",
+      "description": "API for project management"
+    },
+    {
+      "name": "Gallery",
+      "description": "API for Gallery management"
+    },
+    {
+      "name": "Dashboard",
+      "description": "API for Dashboard Summary"
+    },
+    {
+      "name": "Employees",
+      "description": "API for Employees management"
+    }
+  ],
+  "paths": {
+    "/employee_leaves.php": {
+      "get": {
+        "tags": [
+          "Employee Leaves"
+        ],
+        "summary": "View employee leaves",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "view"
+              ]
+            }
+          },
+          {
+            "name": "employee_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of leaves",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "success",
+                  "data": [
+                    {
+                      "id": 1,
+                      "employee_id": 6,
+                      "first_name": "Jane",
+                      "last_name": "Smith",
+                      "from_date": "2025-04-01",
+                      "to_date": "2025-04-03",
+                      "reason": "Medical",
+                      "status": "approved",
+                      "is_half_day": 0,
+                      "approved_by": "HR",
+                      "created_at": "2025-03-28"
+                    }
+                  ],
+                  "message": null
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Employee Leaves"
+        ],
+        "summary": "Add a new employee leave",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "add"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "employee_id",
+                  "from_date",
+                  "to_date",
+                  "reason",
+                  "status"
+                ],
+                "properties": {
+                  "employee_id": {
+                    "type": "integer"
+                  },
+                  "from_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "to_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "is_half_day": {
+                    "type": "integer",
+                    "enum": [
+                      0,
+                      1
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Leave added",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "success",
+                  "message": "Leave added successfully",
+                  "data": {
+                    "id": 10,
+                    "employee_id": 6,
+                    "first_name": "Jane",
+                    "last_name": "Smith",
+                    "from_date": "2025-04-01",
+                    "to_date": "2025-04-03",
+                    "reason": "Medical",
+                    "status": "pending",
+                    "is_half_day": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Employee Leaves"
+        ],
+        "summary": "Edit a leave",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "edit"
+              ]
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "employee_id",
+                  "from_date",
+                  "to_date",
+                  "reason",
+                  "status"
+                ],
+                "properties": {
+                  "employee_id": {
+                    "type": "integer"
+                  },
+                  "from_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "to_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "is_half_day": {
+                    "type": "integer",
+                    "enum": [
+                      0,
+                      1
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Leave updated",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "success",
+                  "message": "Leave updated successfully"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Employee Leaves"
+        ],
+        "summary": "Delete a leave",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "delete"
+              ]
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Leave deleted",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "success",
+                  "message": "Leave deleted successfully"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/clients.php": {
+      "get": {
+        "tags": [
+          "Clients"
+        ],
+        "summary": "View clients",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "view"
+              ]
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Clients data",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "success",
+                  "data": [
+                    {
+                      "id": 123,
+                      "name": "John Doe",
+                      "email": "john@example.com",
+                      "phone": "+1-234-567-890",
+                      "created_at": "2025-05-24T15:30:00Z"
+                    }
+                  ],
+                  "message": null
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid action",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": "Invalid action"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "error",
+                  "data": null,
+                  "message": "Failed to execute query : <error_message>"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/departments.php": {
+      "get": {
+        "tags": [
+          "Departments"
+        ],
+        "summary": "View departments",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "view"
+              ]
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of departments",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "success",
+                  "data": [
+                    {
+                      "id": 1,
+                      "department_name": "HR",
+                      "department_head": "Alice Johnson",
+                      "total_employee": 10,
+                      "created_at": "2025-01-01 10:00:00",
+                      "updated_at": "2025-05-01 11:00:00"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid ID or action",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": "Invalid department ID"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Departments"
+        ],
+        "summary": "Add a new department",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "add"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "department_name",
+                  "department_head"
+                ],
+                "properties": {
+                  "department_name": {
+                    "type": "string"
+                  },
+                  "department_head": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Department added",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": "Department added successfully",
+                  "newDepartment": {
+                    "id": 12,
+                    "department_name": "Finance",
+                    "department_head": "Bob Lee",
+                    "created_at": "2025-05-24 12:00:00",
+                    "updated_at": "2025-05-24 12:00:00"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing required fields",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": "Missing required fields"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to add department",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": "Failed to add department",
+                  "details": "<error_message>"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Departments"
+        ],
+        "summary": "Edit a department",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "edit"
+              ]
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "department_name",
+                  "department_head"
+                ],
+                "properties": {
+                  "department_name": {
+                    "type": "string"
+                  },
+                  "department_head": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Department updated",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": "Department updated successfully",
+                  "updatedDepartmentData": {
+                    "id": 12,
+                    "department_name": "Finance",
+                    "department_head": "Bob Lee",
+                    "updated_at": "2025-05-24 12:30:00"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid ID or missing fields",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": "Invalid department ID"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Departments"
+        ],
+        "summary": "Delete a department",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "delete"
+              ]
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Department deleted",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": "Record deleted successfully"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid department ID",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": "Invalid department ID"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/employee_salary_details.php": {
+      "get": {
+        "tags": [
+          "Salary Details"
+        ],
+        "summary": "View salary details",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "view"
+              ]
+            }
+          },
+          {
+            "name": "employee_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of salary details",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "success",
+                  "data": [
+                    {
+                      "id": 1,
+                      "employee_id": 101,
+                      "source": "Basic",
+                      "amount": 50000,
+                      "from_date": "2025-01-01",
+                      "to_date": "2025-12-31",
+                      "created_at": "2025-01-01 10:00:00",
+                      "updated_at": "2025-01-01 10:00:00"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Salary Details"
+        ],
+        "summary": "Add new salary detail",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "add"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "source",
+                  "amount"
+                ],
+                "properties": {
+                  "employee_id": {
+                    "type": "integer"
+                  },
+                  "source": {
+                    "type": "string"
+                  },
+                  "amount": {
+                    "type": "number"
+                  },
+                  "from_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "to_date": {
+                    "type": "string",
+                    "format": "date"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Salary detail added successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": "Salary details added successfully",
+                  "salaryDetails": {
+                    "id": 1,
+                    "employee_id": 101,
+                    "source": "Bonus",
+                    "amount": 10000,
+                    "from_date": "2025-06-01",
+                    "to_date": "2025-06-30",
+                    "created_at": "2025-05-24 12:00:00",
+                    "updated_at": "2025-05-24 12:00:00"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing required fields"
+          },
+          "500": {
+            "description": "Failed to add salary details"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Salary Details"
+        ],
+        "summary": "Edit salary detail",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "edit"
+              ]
+            }
+          },
+          {
+            "name": "employee_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string"
+                  },
+                  "amount": {
+                    "type": "number"
+                  },
+                  "from_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "to_date": {
+                    "type": "string",
+                    "format": "date"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Salary detail updated successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": "Salary details updated successfully",
+                  "updatedSalaryData": {
+                    "id": 1,
+                    "source": "Bonus",
+                    "amount": 12000,
+                    "from_date": "2025-06-01",
+                    "to_date": "2025-06-30",
+                    "updated_at": "2025-05-24 12:45:00"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid salary ID or missing fields"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Salary Details"
+        ],
+        "summary": "Delete a salary record",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "delete"
+              ]
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Salary detail deleted successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": "Record deleted successfully"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid salary ID"
+          },
+          "500": {
+            "description": "Failed to delete record"
+          }
+        }
+      }
+    },
+    "/users.php": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "View user(s)",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "view"
+              ]
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User or list of users retrieved",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "success",
+                  "data": {
+                    "id": 1,
+                    "role": "admin",
+                    "created_at": "2025-05-01",
+                    "user_id": 1,
+                    "first_name": "John",
+                    "last_name": "Doe",
+                    "email": "john@example.com",
+                    "employee_role": "Manager"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Add new user and employee",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "add"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "employee_id",
+                  "first_name",
+                  "email"
+                ],
+                "properties": {
+                  "employee_id": {
+                    "type": "string"
+                  },
+                  "first_name": {
+                    "type": "string"
+                  },
+                  "last_name": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "mobile_no": {
+                    "type": "string"
+                  },
+                  "selected_role": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User created successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "success",
+                  "message": "User added successfully",
+                  "data": {
+                    "user_id": 1,
+                    "employee_id": "EMP123",
+                    "first_name": "Alice",
+                    "last_name": "Smith",
+                    "email": "alice@example.com",
+                    "role": "employee",
+                    "created_at": "2025-05-24 12:00:00"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing required fields"
+          },
+          "500": {
+            "description": "Failed to add user details"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Update an existing user and employee",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "edit"
+              ]
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "first_name": {
+                    "type": "string"
+                  },
+                  "last_name": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "selected_role": {
+                    "type": "string"
+                  },
+                  "employee_role": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User updated successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "success",
+                  "message": "User updated successfully",
+                  "data": {
+                    "user_id": 1,
+                    "first_name": "Alice",
+                    "last_name": "Brown",
+                    "email": "alice@example.com",
+                    "role": "manager",
+                    "employee_role": "Lead"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid user ID or missing fields"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Delete a user and employee record",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "delete"
+              ]
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User deleted successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "success",
+                  "message": "User deleted successfully"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid user ID"
+          },
+          "500": {
+            "description": "Failed to delete user"
+          }
+        }
+      }
+    },
+    "/events.php": {
+      "get": {
+        "tags": [
+          "Events"
+        ],
+        "summary": "Retrieve event(s)",
+        "description": "Retrieve all events or a single event by ID.",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "view"
+              ]
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Event or list of events retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "oneOf": [
+                        {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Event"
+                          }
+                        },
+                        {
+                          "$ref": "#/components/schemas/Event"
+                        }
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Events"
+        ],
+        "summary": "Add a new event",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "add"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "employee_id",
+                  "event_name",
+                  "event_date",
+                  "event_type"
+                ],
+                "properties": {
+                  "employee_id": {
+                    "type": "string"
+                  },
+                  "event_name": {
+                    "type": "string"
+                  },
+                  "event_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "event_type": {
+                    "type": "string"
+                  },
+                  "created_by": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Event added successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Event"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or invalid fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to add event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Events"
+        ],
+        "summary": "Update an existing event",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "edit"
+              ]
+            }
+          },
+          {
+            "name": "event_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "employee_id": {
+                    "type": "string"
+                  },
+                  "event_name": {
+                    "type": "string"
+                  },
+                  "event_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "event_type": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Event updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/EventUpdateResponse"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid event ID or missing data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Events"
+        ],
+        "summary": "Delete an event",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "delete"
+              ]
+            }
+          },
+          {
+            "name": "event_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Event deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid event ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to delete event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reports.php": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "Retrieve reports",
+        "description": "Fetch reports for a specific employee (by user_id) or all reports.",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "view",
+                "get_punch_status"
+              ]
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reports retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "Add punch-in/out or submit report",
+        "description": "Used to punch in/out or to submit a work report.",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "add",
+                "add-report-by-user"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "employee_id",
+                      "punch_status"
+                    ],
+                    "properties": {
+                      "employee_id": {
+                        "type": "integer"
+                      },
+                      "punch_status": {
+                        "type": "string",
+                        "enum": [
+                          "active",
+                          "completed"
+                        ]
+                      },
+                      "punch_out_report": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "employee_id",
+                      "report",
+                      "start_time",
+                      "end_time"
+                    ],
+                    "properties": {
+                      "employee_id": {
+                        "type": "integer"
+                      },
+                      "report": {
+                        "type": "string"
+                      },
+                      "start_time": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "end_time": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "break_duration_in_minutes": {
+                        "type": "string"
+                      },
+                      "todays_working_hours": {
+                        "type": "string"
+                      },
+                      "todays_total_hours": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or invalid fields"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "Update a report",
+        "description": "Update a previously submitted report by a user.",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "update-report-by-user"
+              ]
+            }
+          },
+          {
+            "name": "report_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "report",
+                  "start_time",
+                  "end_time"
+                ],
+                "properties": {
+                  "report": {
+                    "type": "string"
+                  },
+                  "start_time": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "end_time": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "break_duration_in_minutes": {
+                    "type": "string"
+                  },
+                  "todays_working_hours": {
+                    "type": "string"
+                  },
+                  "todays_total_hours": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Report updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid Report ID"
+          }
+        }
+      }
+    },
+    "/projects.php": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Retrieve projects",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "view"
+              ]
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "logged_in_employee_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Projects retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Project"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Add a new project",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "add"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "project_name",
+                  "project_technology",
+                  "team_members",
+                  "logged_in_employee_id"
+                ],
+                "properties": {
+                  "project_name": {
+                    "type": "string"
+                  },
+                  "project_description": {
+                    "type": "string"
+                  },
+                  "project_technology": {
+                    "type": "string"
+                  },
+                  "client_id": {
+                    "type": "integer"
+                  },
+                  "team_members": {
+                    "type": "string"
+                  },
+                  "project_start_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "project_end_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "logged_in_employee_id": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Project added successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "string"
+                    },
+                    "newProject": {
+                      "$ref": "#/components/schemas/Project"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Edit a department",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "edit"
+              ]
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "department_name": {
+                    "type": "string"
+                  },
+                  "department_head": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Department updated successfully"
+          },
+          "400": {
+            "description": "Invalid data"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Delete a department",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "delete"
+              ]
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Department deleted successfully"
+          },
+          "400": {
+            "description": "Invalid department ID"
+          }
+        }
+      }
+    },
+    "/project_todo.php": {
+      "get": {
+        "tags": [
+          "Project Todo"
+        ],
+        "summary": "Retrieve project todo(s)",
+        "description": "Retrieve all todos or todos for a specific employee based on role and ID.",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "view"
+              ]
+            }
+          },
+          {
+            "name": "employee_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "logged_in_employee_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Todo list retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Todo"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Project Todo"
+        ],
+        "summary": "Add a new todo item",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "add"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "employee_id",
+                  "title",
+                  "due_date"
+                ],
+                "properties": {
+                  "employee_id": {
+                    "type": "integer"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "due_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "priority": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "logged_in_employee_id": {
+                    "type": "integer"
+                  },
+                  "logged_in_employee_role": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Todo item added successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Todo"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or invalid fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to add todo item",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/gallery.php": {
+      "get": {
+        "tags": [
+          "Gallery"
+        ],
+        "summary": "Retrieve gallery image(s)",
+        "description": "Retrieve all gallery records or a specific employee's gallery by ID.",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "view"
+              ]
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Gallery retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Gallery"
+                      }
+                    },
+                    "message": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Gallery"
+        ],
+        "summary": "Upload image(s) to gallery",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "add"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "employee_id",
+                  "images"
+                ],
+                "properties": {
+                  "employee_id": {
+                    "type": "integer"
+                  },
+                  "created_by": {
+                    "type": "integer"
+                  },
+                  "images": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Images added successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Gallery"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing required fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to upload image(s)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dashboard.php": {
+      "get": {
+        "tags": [
+          "Dashboard"
+        ],
+        "summary": "Retrieve summary statistics",
+        "description": "Get total counts of admin users, employees, holidays, and events.",
+        "responses": {
+          "200": {
+            "description": "Summary retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "total_users": {
+                            "type": "integer",
+                            "nullable": true
+                          },
+                          "total_employees": {
+                            "type": "integer",
+                            "nullable": true
+                          },
+                          "total_holidays": {
+                            "type": "integer",
+                            "nullable": true
+                          },
+                          "total_events": {
+                            "type": "integer",
+                            "nullable": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/get_employees.php": {
+      "get": {
+        "tags": [
+          "Employees"
+        ],
+        "summary": "View employee(s)",
+        "description": "View single employee by ID or filter by role or get all employees",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "description": "Action to perform",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "view"
+              ]
+            },
+            "example": "view"
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "description": "Employee ID to get specific employee details",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "description": "Filter employees by role",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "employee",
+                "admin",
+                "all"
+              ],
+              "default": "all"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success response with employee data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or employee not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Employees"
+        ],
+        "summary": "Add new employee",
+        "description": "Add a new employee with profile picture, documents, and salary details",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "add"
+              ]
+            },
+            "example": "add"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "logged_in_employee_id": {
+                    "type": "string",
+                    "description": "ID of logged in user creating employee"
+                  },
+                  "logged_in_employee_role": {
+                    "type": "string",
+                    "description": "Role of logged in user (admin, super_admin)"
+                  },
+                  "code": {
+                    "type": "string",
+                    "description": "Employee code (optional, autogenerated if empty)"
+                  },
+                  "department_id": {
+                    "type": "integer",
+                    "description": "Department ID"
+                  },
+                  "first_name": {
+                    "type": "string"
+                  },
+                  "last_name": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "selected_role": {
+                    "type": "string"
+                  },
+                  "dob": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "gender": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string"
+                  },
+                  "joining_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "mobile_no1": {
+                    "type": "string"
+                  },
+                  "mobile_no2": {
+                    "type": "string"
+                  },
+                  "address_line1": {
+                    "type": "string"
+                  },
+                  "address_line2": {
+                    "type": "string"
+                  },
+                  "emergency_contact1": {
+                    "type": "string"
+                  },
+                  "emergency_contact2": {
+                    "type": "string"
+                  },
+                  "emergency_contact3": {
+                    "type": "string"
+                  },
+                  "frontend_skills": {
+                    "type": "string"
+                  },
+                  "backend_skills": {
+                    "type": "string"
+                  },
+                  "account_holder_name": {
+                    "type": "string"
+                  },
+                  "account_number": {
+                    "type": "string"
+                  },
+                  "ifsc_code": {
+                    "type": "string"
+                  },
+                  "bank_name": {
+                    "type": "string"
+                  },
+                  "bank_address": {
+                    "type": "string"
+                  },
+                  "aadhar_card_number": {
+                    "type": "string"
+                  },
+                  "pan_card_number": {
+                    "type": "string"
+                  },
+                  "driving_license_number": {
+                    "type": "string"
+                  },
+                  "facebook_url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "twitter_url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "linkedin_url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "instagram_url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "upwork_profile_url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "salaryDetails": {
+                    "type": "array",
+                    "description": "Array of salary details",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "type": "string"
+                        },
+                        "amount": {
+                          "type": "number"
+                        },
+                        "from_date": {
+                          "type": "string",
+                          "format": "date"
+                        },
+                        "to_date": {
+                          "type": "string",
+                          "format": "date"
+                        }
+                      },
+                      "required": [
+                        "source",
+                        "amount",
+                        "from_date",
+                        "to_date"
+                      ]
+                    }
+                  },
+                  "photo": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Profile image file"
+                  },
+                  "aadhar_card_file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Aadhaar card document file"
+                  },
+                  "pan_card_file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "PAN card document file"
+                  },
+                  "driving_license_file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Driving license document file"
+                  },
+                  "resume": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Resume file"
+                  }
+                },
+                "required": [
+                  "department_id",
+                  "first_name",
+                  "last_name",
+                  "email",
+                  "password"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Employee added successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeAddResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or failed upload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Employees"
+        ],
+        "summary": "Edit an employee's details",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "ID of the user to edit"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "logged_in_employee_id": {
+                    "type": "integer"
+                  },
+                  "logged_in_employee_role": {
+                    "type": "string",
+                    "example": "admin"
+                  },
+                  "department_id": {
+                    "type": "integer"
+                  },
+                  "first_name": {
+                    "type": "string"
+                  },
+                  "last_name": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "selected_role": {
+                    "type": "string"
+                  },
+                  "about_me": {
+                    "type": "string"
+                  },
+                  "gender": {
+                    "type": "string"
+                  },
+                  "dob": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "joining_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "job_role": {
+                    "type": "string"
+                  },
+                  "mobile_no1": {
+                    "type": "string"
+                  },
+                  "mobile_no2": {
+                    "type": "string"
+                  },
+                  "address_line1": {
+                    "type": "string"
+                  },
+                  "address_line2": {
+                    "type": "string"
+                  },
+                  "emergency_contact1": {
+                    "type": "string"
+                  },
+                  "emergency_contact2": {
+                    "type": "string"
+                  },
+                  "emergency_contact3": {
+                    "type": "string"
+                  },
+                  "frontend_skills": {
+                    "type": "string"
+                  },
+                  "backend_skills": {
+                    "type": "string"
+                  },
+                  "account_holder_name": {
+                    "type": "string"
+                  },
+                  "account_number": {
+                    "type": "string"
+                  },
+                  "ifsc_code": {
+                    "type": "string"
+                  },
+                  "bank_name": {
+                    "type": "string"
+                  },
+                  "bank_address": {
+                    "type": "string"
+                  },
+                  "aadhar_card_number": {
+                    "type": "string"
+                  },
+                  "driving_license_number": {
+                    "type": "string"
+                  },
+                  "pan_card_number": {
+                    "type": "string"
+                  },
+                  "facebook_url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "twitter_url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "linkedin_url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "instagram_url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "upwork_profile_url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "photo": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Profile image file"
+                  },
+                  "aadhar_card_file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Aadhar card document"
+                  },
+                  "pan_card_file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "PAN card document"
+                  },
+                  "driving_license_file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Driving license document"
+                  },
+                  "resume": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Resume file"
+                  },
+                  "salaryDetails": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "source": {
+                          "type": "string"
+                        },
+                        "amount": {
+                          "type": "number"
+                        },
+                        "from_date": {
+                          "type": "string",
+                          "format": "date"
+                        },
+                        "to_date": {
+                          "type": "string",
+                          "format": "date"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "source",
+                        "amount",
+                        "from_date",
+                        "to_date"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "logged_in_employee_id",
+                  "logged_in_employee_role"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Employee and salary details updated successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "success",
+                  "data": {
+                    "id": 1,
+                    "first_name": "John",
+                    "last_name": "Doe",
+                    "profile": "/uploads/profiles/john_doe.png",
+                    "email": "john@example.com",
+                    "dob": "1990-01-01",
+                    "address_line1": "123 Street",
+                    "role": "admin",
+                    "mobile_no1": "1234567890",
+                    "about_me": "Some text",
+                    "joining_date": "2020-01-01",
+                    "job_role": "Developer",
+                    "facebook_url": "https://facebook.com/johndoe",
+                    "twitter_url": "https://twitter.com/johndoe",
+                    "department_name": "Engineering",
+                    "department_head": "Jane Smith"
+                  },
+                  "message": "Employee and salary details updated successfully"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or processing error",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "error",
+                  "data": null,
+                  "message": "Missing logged-in user details"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Employees"
+        ],
+        "summary": "Soft delete an employee",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_id": {
+                    "type": "integer"
+                  },
+                  "logged_in_employee_id": {
+                    "type": "integer"
+                  },
+                  "logged_in_employee_role": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "user_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Employee deleted successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "success",
+                  "data": null,
+                  "message": "Employee and salary details deleted successfully"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid user ID or error",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "invalidId": {
+                    "value": {
+                      "status": "error",
+                      "data": null,
+                      "message": "Invalid user ID"
+                    }
+                  },
+                  "deleteError": {
+                    "value": {
+                      "status": "error",
+                      "data": null,
+                      "message": "Failed to delete employee details"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/get_employees.php?action=check-login": {
+      "post": {
+        "tags": [
+          "Employees"
+        ],
+        "summary": "Login with email and password",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "email",
+                  "password"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful or error message",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
