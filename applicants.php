@@ -280,6 +280,9 @@ switch ($action) {
                         $value = '[]';
                     }
                 }
+                if ($value == 'null' or $value == '') {
+                    $value = null;
+                }
                 $params[] = $value;
                 $types .= 's';
             }
