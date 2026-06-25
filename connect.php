@@ -63,8 +63,18 @@ function insertConnectUsers( $conn, $connect_id, $selectedEmployee, $data, $push
     ");
     $receiver = [];
     $errors = [];
-    foreach ($selectedEmployee as $empId) {  
-        $stmt->bind_param("iiss", $connect_id, $empId, $data['created_at'], $data['updated_at']);
+    $empId = 0; 
+    $stmt->bind_param("iiss", $connect_id, $empId, $data['created_at'], $data['updated_at']);
+
+    $notif_stmt = null;
+    if ($data['status'] === 'sent') {
+        $notif_stmt = $conn->prepare("INSERT INTO notifications (employee_id, connect_id, title, body, type) VALUES (?, ?, ?, ?, ?)");
+        $titleText = "You received a new connect";
+        $notif_stmt->bind_param("iisss", $empId, $connect_id, $titleText, $data['title'], $data['type']);
+    }
+
+    foreach ($selectedEmployee as $currentEmpId) {
+        $empId = $currentEmpId;
 
         if ($stmt->execute()) {
 
@@ -73,21 +83,7 @@ function insertConnectUsers( $conn, $connect_id, $selectedEmployee, $data, $push
                 'read' => "unread"
             ];
 
-            if ($data['status'] === 'sent') {
-                $sql = "INSERT INTO notifications (employee_id, connect_id, title, body, type) VALUES (?, ?, ?, ?, ?)";
-                $notif_stmt = $conn->prepare($sql);
-
-                $titleText = "You received a new connect";
-
-                $notif_stmt->bind_param(
-                    "iisss",
-                    $empId,
-                    $connect_id,
-                    $titleText,
-                    $data['title'],
-                    $data['type']
-                );
-
+            if ($notif_stmt) {
                 $notif_stmt->execute();
             }
 
@@ -95,6 +91,14 @@ function insertConnectUsers( $conn, $connect_id, $selectedEmployee, $data, $push
             $errors[] = $stmt->error;
         }
     }
+
+    if ($stmt) {
+        $stmt->close();
+    }
+    if ($notif_stmt) {
+        $notif_stmt->close();
+    }
+
     return [$receiver, $errors];
 }
 
@@ -178,16 +182,16 @@ if (isset($action)) {
                             'name', CONCAT(e.first_name, ' ', e.last_name)
                         ) AS sender,
                         COALESCE(
-                            JSON_ARRAYAGG(
-                                JSON_OBJECT(
-                                    'id', ne.id,
-                                    'read', ne.connect_status,
-                                    'employee_id', ne.employee_id,
-                                    'receiver_name', CONCAT(re.first_name,' ',re.last_name),
-                                    'profile', re.profile
-                                )
-                            ),
-                            JSON_ARRAY()
+                                JSON_ARRAYAGG(
+                                    JSON_OBJECT(
+                                        'id', ne.id,
+                                        'read', ne.connect_status,
+                                        'employee_id', ne.employee_id,
+                                        'receiver_name', CONCAT(re.first_name,' ',re.last_name),
+                                        'profile', re.profile
+                                    )
+                                ),
+                                JSON_ARRAY()
                         ) AS receiver
                     FROM connects pn
                     LEFT JOIN employees e ON e.id = pn.created_by
