@@ -182,16 +182,16 @@ if (isset($action)) {
                             'name', CONCAT(e.first_name, ' ', e.last_name)
                         ) AS sender,
                         COALESCE(
-                                JSON_ARRAYAGG(
-                                    JSON_OBJECT(
-                                        'id', ne.id,
-                                        'read', ne.connect_status,
-                                        'employee_id', ne.employee_id,
-                                        'receiver_name', CONCAT(re.first_name,' ',re.last_name),
-                                        'profile', re.profile
-                                    )
-                                ),
-                                JSON_ARRAY()
+                            JSON_ARRAYAGG(
+                                JSON_OBJECT(
+                                    'id', ne.id,
+                                    'read', ne.connect_status,
+                                    'employee_id', ne.employee_id,
+                                    'receiver_name', CONCAT(re.first_name,' ',re.last_name),
+                                    'profile', re.profile
+                                )
+                            ),
+                            JSON_ARRAY()
                         ) AS receiver
                     FROM connects pn
                     LEFT JOIN employees e ON e.id = pn.created_by
