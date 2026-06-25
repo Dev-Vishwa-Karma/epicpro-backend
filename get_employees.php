@@ -92,16 +92,17 @@ function uploadFile($file, $targetDir, $allowedTypes = [], $maxSize = 2 * 1024 *
 if (isset($action)) {
     switch ($action) {
         case 'view':
-            if (isset($_GET['user_id']) && validateId($_GET['user_id'])) {
-                // Prepare SELECT statement with WHERE clause using a placeholder to prevent SQL injection
-                $stmt = $conn->prepare("
+            $query = "
                     SELECT e.*, 
                         d.department_name, 
                         d.department_head 
-                    FROM employees e
-                    LEFT JOIN departments d ON e.department_id = d.id
-                    WHERE e.id = ? AND e.deleted_at IS NULL
-                ");
+                FROM employees e
+                LEFT JOIN departments d ON e.department_id = d.id
+                WHERE e.deleted_at IS NULL
+            ";
+            if (isset($_GET['user_id']) && validateId($_GET['user_id'])) {
+                $query .= " AND e.id = ?";
+                $stmt = $conn->prepare($query);
                 $stmt->bind_param('i', $_GET['user_id']);
                 $stmt->execute();
                 $result = $stmt->get_result();
@@ -116,23 +117,27 @@ if (isset($action)) {
                 $roleFilter = isset($_GET['role']) ? $_GET['role'] : 'all';
                 $statusFilter = isset($_GET['status']) ? $_GET['status'] : '1';
 
+                $params = [];
+                $types = '';
+
+                if ($search && $search != "") {
+                    $query .= " AND (e.first_name LIKE ? OR e.last_name LIKE ? OR e.email LIKE ?)";
+                    $like = "%$search%";
+                    $params[] = $like;
+                    $params[] = $like;
+                    $params[] = $like;
+                    $types = 'sss';
+                }
+
+                if ($statusFilter !== 'all') {
+                    $query .= " AND e.status = '" . $conn->real_escape_string($statusFilter) . "'";
+                }
+
                 if ($roleFilter == 'employee') {
                     $year = isset($_GET['year']) ? intval($_GET['year']) : null;
                     $month = isset($_GET['month']) ? intval($_GET['month']) : null;
 
-                    $query = "
-                        SELECT e.*, 
-                            d.department_name, 
-                            d.department_head 
-                        FROM employees e
-                        LEFT JOIN departments d ON e.department_id = d.id
-                        WHERE e.role = 'employee' 
-                        AND e.deleted_at IS NULL
-                    ";
-
-                    if ($statusFilter !== 'all') {
-                        $query .= " AND e.status = '" . $conn->real_escape_string($statusFilter) . "'";
-                    }
+                    $query .= " AND e.role = 'employee'";
 
 
                     if ($statistics_visibility_status) {
@@ -151,55 +156,18 @@ if (isset($action)) {
                             visibility_priority ASC,
                             first_name ASC
                     ";
-
-                    $stmt = $conn->prepare($query);
                 }
                 else if ($roleFilter == 'admin') {
-                    $sql = "SELECT e.*, 
-                            d.department_name, 
-                            d.department_head 
-                        FROM employees e
-                        LEFT JOIN departments d ON e.department_id = d.id
-                        WHERE (e.role = 'admin' OR e.role = 'super_admin') 
-                        AND e.deleted_at IS NULL";
+                    $query .= " AND (e.role = 'admin' OR e.role = 'super_admin')";
 
-                    if ($statusFilter !== 'all') {
-                        $sql .= " AND e.status = '" . $conn->real_escape_string($statusFilter) . "'";
-                    }
-
-                    $params = [];
-                    $types = '';
-
-                    // Add search filter if provided
-                    if ($search) {
-                        $sql .= " AND (e.first_name LIKE ? OR e.email LIKE ?)";
-                        $like = "%$search%";
-                        $params[] = $like;
-                        $params[] = $like;
-                        $types = 'ss';
-                    }
-                    
-                    $stmt = $conn->prepare($sql);
-                    if ($params) {
-                        $stmt->bind_param($types, ...$params);
-                    }
                 } else {
-                    // If no filter or 'all', show all employees
-                    $sql = "
-                        SELECT e.*, 
-                            d.department_name, 
-                            d.department_head 
-                        FROM employees e
-                        LEFT JOIN departments d ON e.department_id = d.id
-                        WHERE e.deleted_at IS NULL
-                    ";
 
-                    if ($statusFilter !== 'all') {
-                        $sql .= " AND e.status = '" . $conn->real_escape_string($statusFilter) . "'";
-                    }
-                    
-                    $sql .= " ORDER BY e.id DESC";
-                    $stmt = $conn->prepare($sql);
+                    $query .= " ORDER BY e.id DESC";
+                }
+
+                $stmt = $conn->prepare($query);
+                if (!empty($params)) {
+                    $stmt->bind_param($types, ...$params);
                 }
 
                 $stmt->execute();
