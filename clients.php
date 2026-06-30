@@ -95,7 +95,7 @@ ini_set('display_errors', '1');
                         $client_id = $row['client_id'];
 
                         // Fetch all projects for this client to get team_member_ids
-                        $project_query = "SELECT name, start_date, technology, team_member_ids FROM projects WHERE client_id = $client_id";
+                        $project_query = "SELECT name, start_date, technology, is_active, team_member_ids FROM projects WHERE client_id = $client_id";
                         $project_result = $conn->query($project_query);
 
                         $all_team_ids = [];
@@ -129,7 +129,8 @@ ini_set('display_errors', '1');
                                 'team_member_details' => $team_member_details,
                                 'project_name' => $project['name'],
                                 'start_date' => $project['start_date'],
-                                'technology' => $project['technology']
+                                'technology' => $project['technology'],
+                                'is_active' => $project['is_active']
                             ];
 
                             // Collect all team member IDs for counting unique members
