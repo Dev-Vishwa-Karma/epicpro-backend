@@ -875,9 +875,9 @@ if (isset($action)) {
         case 'profile-update':
             $employee_id = isset($_POST['employee_id']) ? $_POST['employee_id'] : null;
             $created_by = isset($_POST['created_by']) ? $_POST['created_by'] : null;
-            $profile_image = isset($_POST['image']) ? $_POST['image'] : null;
+            
             // Check if files are upload
-            if (empty($employee_id) || !isset($profile_image)) {
+            if (empty($employee_id) || !isset($_FILES['image'])) {
                 sendJsonResponse('error', null, "All fields are required");
                 exit;
             }
@@ -889,45 +889,30 @@ if (isset($action)) {
                 mkdir($galleryDir, 0777, true);
             }
 
-            if ($profile_image) {
-                $image_array_1 = explode(";", $profile_image);
-
-                $image_array_2 = explode(",", $image_array_1[1]);
-
-                $data = base64_decode($image_array_2[1]);
-
-                $image_name = 'uploads/gallery/' . time() . '.png';
-
+            if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+                try {
+                    $image_name = uploadFile($_FILES['image'], $galleryDir, ['image/jpeg', 'image/png', 'image/webp'], 1 * 1024 * 1024);
                     $created_at = date('Y-m-d H:i:s');
                
-                if (file_put_contents($image_name, $data)) {
-                        // $stmt = $conn->prepare("INSERT INTO gallery (employee_id, url, created_by) VALUES (?, ?, ?)");
-                        // $stmt->bind_param("isi", $employee_id, $image_name, $created_by);
-                        
-                        // if ($stmt->execute()) {
-                        //     $uploadedImageId = $conn->insert_id;
+                    // Update the employee's profile field with the latest uploaded image
+                    $updateStmt = $conn->prepare("UPDATE employees SET profile = ? WHERE id = ?");
+                    $updateStmt->bind_param("si", $image_name, $employee_id);
+                    $updateStmt->execute();
+                    $updateStmt->close();
 
-                            // Update the employee's profile field with the latest uploaded image
-                            $updateStmt = $conn->prepare("UPDATE employees SET profile = ? WHERE id = ?");
-                            $updateStmt->bind_param("si", $image_name, $employee_id);
-                            $updateStmt->execute();
-                            $updateStmt->close();
-
-                            $uploadedImages = [
-                               // 'id' => $uploadedImageId,
-                                'employee_id' => $employee_id,
-                                'url' => $image_name,
-                                'created_at' => $created_at,
-                                'created_by' => $created_by
-                            ];
-                        // } else {
-                        //     sendJsonResponse('error', null, "Failed to add image: " . $stmt->error);
-                        //     exit;
-                        // }
-                } else {
-                    sendJsonResponse('error', null, "Failed to upload image");
+                    $uploadedImages = [
+                        'employee_id' => $employee_id,
+                        'url' => $image_name,
+                        'created_at' => $created_at,
+                        'created_by' => $created_by
+                    ];
+                } catch (Exception $e) {
+                    sendJsonResponse('error', null, "Failed to upload image: " . $e->getMessage());
                     exit;
                 }
+            } else {
+                sendJsonResponse('error', null, "Failed to upload image");
+                exit;
             }
 
             sendJsonResponse('success', $uploadedImages, "Images added successfully");
