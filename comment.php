@@ -149,6 +149,8 @@ if (isset($action)) {
 
         case 'delete':
             $comment_id = $_POST['comment_id'] ?? NULL;
+            $module_type = $_POST['module_type'] ?? NULL;
+            $module_id = $_POST['module_id'] ?? NULL;
             if ($comment_id) {
                 $stmt = $conn->prepare("UPDATE comments SET deleted_at = NOW() WHERE id = ?");
                 $stmt->bind_param("i", $comment_id);
@@ -166,6 +168,8 @@ if (isset($action)) {
         case 'edit':
             $comment_id = $_POST['comment_id'] ?? NULL;
             $message = $_POST['message'] ?? NULL;
+            $module_type = $_POST['module_type'] ?? NULL;
+            $module_id = $_POST['module_id'] ?? NULL;
             if ($comment_id && $message) {
                 $stmt = $conn->prepare("UPDATE comments SET message = ?, modified_at = NOW() WHERE id = ? AND deleted_at IS NULL");
                 $stmt->bind_param("si", $message, $comment_id);
