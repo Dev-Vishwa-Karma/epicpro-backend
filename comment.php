@@ -11,6 +11,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
 
 include 'db_connection.php';
 include 'auth_validate.php';
+require_once __DIR__ . '/pusher.php';
+$config = require __DIR__ . '/config.php';
 
 // Set the header for JSON response
 header('Content-Type: application/json');
@@ -27,6 +29,7 @@ function sendJsonResponse($status, $data = null, $message = null)
 }
 
 $action = !empty($_GET['action']) ? $_GET['action'] : 'view';
+$pusher = getPusher($config);
 if (isset($action)) {
     switch ($action) {
         case 'add':
@@ -47,6 +50,7 @@ if (isset($action)) {
                 $stmt->bind_param("sisii", $module_type, $module_id, $message, $user_id, $parent_comment_id);
 
                 if ($stmt->execute()) {
+                    $pusher->trigger($config['pusher']['channel'], 'comment_updated_' . $module_type . '_' . $module_id, ['status' => 'success']);
                     $inserted_id = $stmt->insert_id;
 
                     $getUser = $conn->query("SELECT id, profile, first_name, last_name, email FROM employees WHERE id = " . intval($user_id));
@@ -155,6 +159,7 @@ if (isset($action)) {
                 $stmt = $conn->prepare("UPDATE comments SET deleted_at = NOW() WHERE id = ?");
                 $stmt->bind_param("i", $comment_id);
                 if ($stmt->execute()) {
+                    $pusher->trigger($config['pusher']['channel'], 'comment_updated_' . $module_type . '_' . $module_id, ['status' => 'success']);
                     sendJsonResponse('success', null, 'Comment deleted successfully');
                 } else {
                     sendJsonResponse('error', null, 'Failed to delete comment');
@@ -174,6 +179,7 @@ if (isset($action)) {
                 $stmt = $conn->prepare("UPDATE comments SET message = ?, modified_at = NOW() WHERE id = ? AND deleted_at IS NULL");
                 $stmt->bind_param("si", $message, $comment_id);
                 if ($stmt->execute()) {
+                    $pusher->trigger($config['pusher']['channel'], 'comment_updated_' . $module_type . '_' . $module_id, ['status' => 'success']);
                     sendJsonResponse('success', null, 'Comment updated successfully');
                 } else {
                     sendJsonResponse('error', null, 'Failed to update comment');
