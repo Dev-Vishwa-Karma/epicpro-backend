@@ -105,11 +105,11 @@ if (isset($action)) {
             if ($module_type && $module_id) {
                 $query = "
                     SELECT 
-                        c.id, c.message, c.parent_comment_id, c.created_at, c.modified_at,
+                        c.id, c.message, c.parent_comment_id, c.created_at, c.modified_at, c.deleted_at,
                         e.id AS emp_id, e.first_name, e.last_name, e.email, e.profile
                     FROM comments c
                     LEFT JOIN employees e ON c.user_id = e.id
-                    WHERE c.module_type = ? AND c.module_id = ? AND c.deleted_at IS NULL
+                    WHERE c.module_type = ? AND c.module_id = ? 
                     ORDER BY c.created_at ASC
                 ";
                 
@@ -123,10 +123,11 @@ if (isset($action)) {
                 while ($row = $result->fetch_assoc()) {
                     $comment = [
                         'id' => $row['id'],
-                        'message' => $row['message'],
+                        'message' => $row['deleted_at'] ? '<p><i>Message deleted</i></p>' : $row['message'] ,
                         'parent_comment_id' => $row['parent_comment_id'],
                         'created_at' => $row['created_at'],
                         'modified_at' => $row['modified_at'],
+                        'deleted_at' => $row['deleted_at'],
                         'commented_by' => $row['emp_id'] ? [
                             'employee_id' => $row['emp_id'],
                             'first_name' => $row['first_name'],
@@ -164,10 +165,16 @@ if (isset($action)) {
                 $stmt = $conn->prepare("UPDATE comments SET deleted_at = NOW() WHERE id = ?");
                 $stmt->bind_param("i", $comment_id);
                 if ($stmt->execute()) {
+                    $getComment = $conn->query("SELECT deleted_at FROM comments WHERE id = " . intval($comment_id));
+                    $commentData = $getComment->fetch_assoc();
                     $pusher->trigger($config['pusher']['channel'], 'comment_updated_' . $module_type . '_' . $module_id, [
                         'status' => 'success',
                         'action' => 'delete',
-                        'comment_id' => $comment_id
+                        'comment' => [
+                            'id' => $comment_id,
+                            'message' => "<p><i>Message deleted</i></p>",
+                            'deleted_at' => $commentData['deleted_at']
+                        ]
                     ]);
                     sendJsonResponse('success', null, 'Comment deleted successfully');
                 } else {
