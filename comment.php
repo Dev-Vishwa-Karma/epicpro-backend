@@ -50,7 +50,6 @@ if (isset($action)) {
                 $stmt->bind_param("sisii", $module_type, $module_id, $message, $user_id, $parent_comment_id);
 
                 if ($stmt->execute()) {
-                    $pusher->trigger($config['pusher']['channel'], 'comment_updated_' . $module_type . '_' . $module_id, ['status' => 'success']);
                     $inserted_id = $stmt->insert_id;
 
                     $getUser = $conn->query("SELECT id, profile, first_name, last_name, email FROM employees WHERE id = " . intval($user_id));
@@ -82,6 +81,12 @@ if (isset($action)) {
                     if ($module_type === 'ticket') {
                         $newComment['ticket_id'] = $module_id;
                     }
+
+                    $pusher->trigger($config['pusher']['channel'], 'comment_updated_' . $module_type . '_' . $module_id, [
+                        'status' => 'success',
+                        'action' => 'add',
+                        'comment' => $newComment
+                    ]);
 
                     sendJsonResponse('success', $newComment, 'Comment added successfully');
                 } else {
@@ -159,7 +164,11 @@ if (isset($action)) {
                 $stmt = $conn->prepare("UPDATE comments SET deleted_at = NOW() WHERE id = ?");
                 $stmt->bind_param("i", $comment_id);
                 if ($stmt->execute()) {
-                    $pusher->trigger($config['pusher']['channel'], 'comment_updated_' . $module_type . '_' . $module_id, ['status' => 'success']);
+                    $pusher->trigger($config['pusher']['channel'], 'comment_updated_' . $module_type . '_' . $module_id, [
+                        'status' => 'success',
+                        'action' => 'delete',
+                        'comment_id' => $comment_id
+                    ]);
                     sendJsonResponse('success', null, 'Comment deleted successfully');
                 } else {
                     sendJsonResponse('error', null, 'Failed to delete comment');
@@ -179,7 +188,14 @@ if (isset($action)) {
                 $stmt = $conn->prepare("UPDATE comments SET message = ?, modified_at = NOW() WHERE id = ? AND deleted_at IS NULL");
                 $stmt->bind_param("si", $message, $comment_id);
                 if ($stmt->execute()) {
-                    $pusher->trigger($config['pusher']['channel'], 'comment_updated_' . $module_type . '_' . $module_id, ['status' => 'success']);
+                    $pusher->trigger($config['pusher']['channel'], 'comment_updated_' . $module_type . '_' . $module_id, [
+                        'status' => 'success',
+                        'action' => 'edit',
+                        'comment' => [
+                            'id' => $comment_id,
+                            'message' => $message
+                        ]
+                    ]);
                     sendJsonResponse('success', null, 'Comment updated successfully');
                 } else {
                     sendJsonResponse('error', null, 'Failed to update comment');
