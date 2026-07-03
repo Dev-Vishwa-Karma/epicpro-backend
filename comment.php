@@ -188,12 +188,15 @@ if (isset($action)) {
                 $stmt = $conn->prepare("UPDATE comments SET message = ?, modified_at = NOW() WHERE id = ? AND deleted_at IS NULL");
                 $stmt->bind_param("si", $message, $comment_id);
                 if ($stmt->execute()) {
+                    $getComment = $conn->query("SELECT modified_at FROM comments WHERE id = " . intval($comment_id));
+                    $commentData = $getComment->fetch_assoc();
                     $pusher->trigger($config['pusher']['channel'], 'comment_updated_' . $module_type . '_' . $module_id, [
                         'status' => 'success',
                         'action' => 'edit',
                         'comment' => [
                             'id' => $comment_id,
-                            'message' => $message
+                            'message' => $message,
+                            'modified_at' => $commentData['modified_at']
                         ]
                     ]);
                     sendJsonResponse('success', null, 'Comment updated successfully');
