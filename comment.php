@@ -37,6 +37,7 @@ if (isset($action)) {
             $module_id = $_POST['module_id'] ?? NULL;
             $message = $_POST['message'] ?? NULL;
             $user_id = $_POST['user_id'] ?? NULL;
+            $attachments = $_FILES['attachments'] ?? NULL;
             $parent_comment_id = !empty($_POST['parent_comment_id']) ? $_POST['parent_comment_id'] : NULL;
 
             // Fallback for old API calls (e.g. from tickets.php if frontend wasn't updated)
@@ -45,7 +46,7 @@ if (isset($action)) {
             if (!$message && isset($_POST['comment'])) $message = $_POST['comment'];
             if (!$user_id && isset($_POST['comment_by'])) $user_id = $_POST['comment_by'];
 
-            if ($module_type && $module_id && $message && $user_id) {
+            if ($module_type && $module_id && $user_id) {
                 $stmt = $conn->prepare("INSERT INTO comments (module_type, module_id, message, user_id, parent_comment_id, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
                 $stmt->bind_param("sisii", $module_type, $module_id, $message, $user_id, $parent_comment_id);
 
@@ -57,6 +58,44 @@ if (isset($action)) {
 
                     $getComment = $conn->query("SELECT created_at FROM comments WHERE id = " . $inserted_id);
                     $commentData = $getComment->fetch_assoc();
+
+                    $galleryDir = "uploads/comments/" . $module_type;
+                    if (!is_dir($galleryDir)) {
+                        mkdir($galleryDir, 0777, true);
+                    }
+
+                    $attachmentsData = [];
+                    if (isset($_FILES['attachments'])) {
+                        $files = $_FILES['attachments'];
+                        $isMulti = is_array($files['name']);
+                        $fileCount = $isMulti ? count($files['name']) : 1;
+                        
+                        $stmtAttach = $conn->prepare("INSERT INTO comment_attachments (comment_id, source, source_type) VALUES (?, ?, ?)");
+                        
+                        for ($i = 0; $i < $fileCount; $i++) {
+                            $error = $isMulti ? $files['error'][$i] : $files['error'];
+                            $name = $isMulti ? $files['name'][$i] : $files['name'];
+                            $tmpName = $isMulti ? $files['tmp_name'][$i] : $files['tmp_name'];
+                            $fileType = $isMulti ? $files['type'][$i] : $files['type'];
+                            
+                            if ($error === UPLOAD_ERR_OK && !empty($name)) {
+                                $actualFileName = str_replace(' ', '_', basename($name));
+                                $destPath = $galleryDir . '/' . $actualFileName;
+                                
+                                if (move_uploaded_file($tmpName, $destPath)) {
+                                    $stmtAttach->bind_param("iss", $inserted_id, $destPath, $fileType);
+                                    $stmtAttach->execute();
+                                    
+                                    $attachmentsData[] = [
+                                        'id' => $stmtAttach->insert_id,
+                                        'source' => $destPath,
+                                        'source_type' => $fileType
+                                    ];
+                                }
+                            }
+                        }
+                        if ($stmtAttach) $stmtAttach->close();
+                    }
 
                     $newComment = [
                         'id' => $inserted_id,
@@ -72,7 +111,8 @@ if (isset($action)) {
                             'profile' => $user['profile']
                         ] : NULL,
                         'created_at' => $commentData['created_at'] ?? null,
-                        'replies' => []
+                        'replies' => [],
+                        'attachments' => $attachmentsData
                     ];
 
                     // To maintain backward compatibility with any frontend code relying on these fields
@@ -135,9 +175,34 @@ if (isset($action)) {
                             'email' => $row['email'],
                             'profile' => $row['profile']
                         ] : NULL,
-                        'replies' => []
+                        'replies' => [],
+                        'attachments' => []
                     ];
                     $commentMap[$row['id']] = $comment;
+                }
+                
+                $commentIds = array_keys($commentMap);
+                if (!empty($commentIds)) {
+                    $inClause = implode(',', array_fill(0, count($commentIds), '?'));
+                    $attachQuery = "SELECT id, comment_id, source, source_type FROM comment_attachments WHERE comment_id IN ($inClause)";
+                    $stmtAttach = $conn->prepare($attachQuery);
+                    
+                    $types = str_repeat('i', count($commentIds));
+                    $stmtAttach->bind_param($types, ...$commentIds);
+                    $stmtAttach->execute();
+                    $attachResult = $stmtAttach->get_result();
+                    
+                    while ($attachRow = $attachResult->fetch_assoc()) {
+                        $cid = $attachRow['comment_id'];
+                        if (isset($commentMap[$cid])) {
+                            $commentMap[$cid]['attachments'][] = [
+                                'id' => $attachRow['id'],
+                                'source' => $attachRow['source'],
+                                'source_type' => $attachRow['source_type']
+                            ];
+                        }
+                    }
+                    $stmtAttach->close();
                 }
                 
                 $tree = [];
@@ -161,21 +226,74 @@ if (isset($action)) {
             $comment_id = $_POST['comment_id'] ?? NULL;
             $module_type = $_POST['module_type'] ?? NULL;
             $module_id = $_POST['module_id'] ?? NULL;
+
             if ($comment_id) {
-                $stmt = $conn->prepare("UPDATE comments SET deleted_at = NOW() WHERE id = ?");
-                $stmt->bind_param("i", $comment_id);
+                $selStmt = $conn->prepare("
+                    WITH RECURSIVE comment_tree AS (
+                        SELECT id
+                        FROM comments
+                        WHERE id = ?
+                        UNION ALL
+                        SELECT c.id
+                        FROM comments c
+                        INNER JOIN comment_tree ct
+                            ON c.parent_comment_id = ct.id
+                    )
+                    SELECT source
+                    FROM comment_attachments
+                    WHERE comment_id IN (SELECT id FROM comment_tree)
+                ");
+
+                $selStmt->bind_param("i", $comment_id);
+                $selStmt->execute();
+                $res = $selStmt->get_result();
+
+                while ($row = $res->fetch_assoc()) {
+                    if (!empty($row['source']) && file_exists($row['source'])) {
+                        unlink($row['source']);
+                    }
+                }
+
+                $selStmt->close();
+                $deleted_msg = '<p><i>Message deleted</i></p>';
+                $stmt = $conn->prepare("
+                    UPDATE comments
+                    SET message = ?, deleted_at = NOW()
+                    WHERE id = ?
+                ");
+                $stmt->bind_param("si", $deleted_msg, $comment_id);
                 if ($stmt->execute()) {
-                    $getComment = $conn->query("SELECT deleted_at FROM comments WHERE id = " . intval($comment_id));
+                    $delStmt = $conn->prepare("
+                        DELETE FROM comments
+                        WHERE parent_comment_id = ?
+                    ");
+                    $delStmt->bind_param("i", $comment_id);
+                    $delStmt->execute();
+                    $delStmt->close();
+
+                    $getComment = $conn->query("
+                        SELECT deleted_at
+                        FROM comments
+                        WHERE id = " . intval($comment_id)
+                    );
+
                     $commentData = $getComment->fetch_assoc();
-                    $pusher->trigger($config['pusher']['channel'], 'comment_updated_' . $module_type . '_' . $module_id, [
-                        'status' => 'success',
-                        'action' => 'delete',
-                        'comment' => [
-                            'id' => $comment_id,
-                            'message' => "<p><i>Message deleted</i></p>",
-                            'deleted_at' => $commentData['deleted_at']
+                    $pusher->trigger(
+                        $config['pusher']['channel'],
+                        'comment_updated_' . $module_type . '_' . $module_id,
+                        [
+                            'status' => 'success',
+                            'action' => 'delete',
+                            'comment' => [
+                                'id' => $comment_id,
+                                'message' => $deleted_msg,
+                                'deleted_at' => $commentData['deleted_at'],
+                                'replies' => [],
+                                'attachments' => []
+                            ]
                         ]
-                    ]);
+                    );
+
                     sendJsonResponse('success', null, 'Comment deleted successfully');
                 } else {
                     sendJsonResponse('error', null, 'Failed to delete comment');
@@ -191,19 +309,106 @@ if (isset($action)) {
             $message = $_POST['message'] ?? NULL;
             $module_type = $_POST['module_type'] ?? NULL;
             $module_id = $_POST['module_id'] ?? NULL;
-            if ($comment_id && $message) {
+
+            if ($comment_id) {
                 $stmt = $conn->prepare("UPDATE comments SET message = ?, modified_at = NOW() WHERE id = ? AND deleted_at IS NULL");
                 $stmt->bind_param("si", $message, $comment_id);
                 if ($stmt->execute()) {
                     $getComment = $conn->query("SELECT modified_at FROM comments WHERE id = " . intval($comment_id));
                     $commentData = $getComment->fetch_assoc();
+                    
+                    // Handle attachments replacement
+                    if (isset($_POST['edit_attachments']) || isset($_FILES['attachments'])) {
+                        $existing_attachments = $_POST['existing_attachments'] ?? [];
+                        if (!is_array($existing_attachments)) {
+                            $existing_attachments = [];
+                        }
+
+                        // First find which ones to delete (those not in existing_attachments)
+                        if (empty($existing_attachments)) {
+                            $selStmt = $conn->prepare("SELECT id, source FROM comment_attachments WHERE comment_id = ?");
+                            $selStmt->bind_param("i", $comment_id);
+                        } else {
+                            $clean_ids = array_map('intval', $existing_attachments);
+                            $in_clause = implode(',', $clean_ids);
+                            $sql = "SELECT id, source FROM comment_attachments WHERE comment_id = ? AND id NOT IN ($in_clause)";
+                            $selStmt = $conn->prepare($sql);
+                            $selStmt->bind_param("i", $comment_id);
+                        }
+                        
+                        $selStmt->execute();
+                        $res = $selStmt->get_result();
+                        $idsToDelete = [];
+                        while ($row = $res->fetch_assoc()) {
+                            if (file_exists($row['source'])) {
+                                unlink($row['source']); // Delete file from server
+                            }
+                            $idsToDelete[] = $row['id'];
+                        }
+                        $selStmt->close();
+                        
+                        if (!empty($idsToDelete)) {
+                            $clean_del_ids = array_map('intval', $idsToDelete);
+                            $in_del = implode(',', $clean_del_ids);
+                            $conn->query("DELETE FROM comment_attachments WHERE id IN ($in_del)");
+                        }
+
+                        // Now recreate attachments (add new ones)
+                        if (isset($_FILES['attachments'])) {
+                            $galleryDir = "uploads/comments/" . $module_type;
+                            if (!is_dir($galleryDir)) {
+                                mkdir($galleryDir, 0777, true);
+                            }
+                            
+                            $files = $_FILES['attachments'];
+                            $isMulti = is_array($files['name']);
+                            $fileCount = $isMulti ? count($files['name']) : 1;
+                            
+                            $stmtAttach = $conn->prepare("INSERT INTO comment_attachments (comment_id, source, source_type) VALUES (?, ?, ?)");
+                            
+                            for ($i = 0; $i < $fileCount; $i++) {
+                                $error = $isMulti ? $files['error'][$i] : $files['error'];
+                                $name = $isMulti ? $files['name'][$i] : $files['name'];
+                                $tmpName = $isMulti ? $files['tmp_name'][$i] : $files['tmp_name'];
+                                $fileType = $isMulti ? $files['type'][$i] : $files['type'];
+                                
+                                if ($error === UPLOAD_ERR_OK && !empty($name)) {
+                                    $actualFileName = str_replace(' ', '_', basename($name));
+                                    $destPath = $galleryDir . '/' . $actualFileName;
+                                    
+                                    if (move_uploaded_file($tmpName, $destPath)) {
+                                        $stmtAttach->bind_param("iss", $comment_id, $destPath, $fileType);
+                                        $stmtAttach->execute();
+                                    }
+                                }
+                            }
+                            if ($stmtAttach) $stmtAttach->close();
+                        }
+                    }
+                    
+                    // Fetch all current attachments for this comment
+                    $attachmentsData = [];
+                    $getAttachments = $conn->prepare("SELECT id, source, source_type FROM comment_attachments WHERE comment_id = ?");
+                    $getAttachments->bind_param("i", $comment_id);
+                    $getAttachments->execute();
+                    $attachRes = $getAttachments->get_result();
+                    while ($attachRow = $attachRes->fetch_assoc()) {
+                        $attachmentsData[] = [
+                            'id' => $attachRow['id'],
+                            'source' => $attachRow['source'],
+                            'source_type' => $attachRow['source_type']
+                        ];
+                    }
+                    $getAttachments->close();
+
                     $pusher->trigger($config['pusher']['channel'], 'comment_updated_' . $module_type . '_' . $module_id, [
                         'status' => 'success',
                         'action' => 'edit',
                         'comment' => [
                             'id' => $comment_id,
                             'message' => $message,
-                            'modified_at' => $commentData['modified_at']
+                            'modified_at' => $commentData['modified_at'],
+                            'attachments' => $attachmentsData
                         ]
                     ]);
                     sendJsonResponse('success', null, 'Comment updated successfully');
@@ -212,7 +417,7 @@ if (isset($action)) {
                 }
                 $stmt->close();
             } else {
-                sendJsonResponse('error', null, 'Missing comment_id or message');
+                sendJsonResponse('error', null, 'Missing comment_id');
             }
             break;
     }
