@@ -40,13 +40,7 @@ if (isset($action)) {
             $attachments = $_FILES['attachments'] ?? NULL;
             $parent_comment_id = !empty($_POST['parent_comment_id']) ? $_POST['parent_comment_id'] : NULL;
 
-            // Fallback for old API calls (e.g. from tickets.php if frontend wasn't updated)
-            if (!$module_type && isset($_POST['ticket_id'])) $module_type = 'ticket';
-            if (!$module_id && isset($_POST['ticket_id'])) $module_id = $_POST['ticket_id'];
-            if (!$message && isset($_POST['comment'])) $message = $_POST['comment'];
-            if (!$user_id && isset($_POST['comment_by'])) $user_id = $_POST['comment_by'];
-
-            if ($module_type && $module_id && $user_id) {
+            if ($module_type && $module_id && $user_id && ($message || $attachments)) {
                 $stmt = $conn->prepare("INSERT INTO comments (module_type, module_id, message, user_id, parent_comment_id, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
                 $stmt->bind_param("sisii", $module_type, $module_id, $message, $user_id, $parent_comment_id);
 
@@ -194,7 +188,7 @@ if (isset($action)) {
                     
                     while ($attachRow = $attachResult->fetch_assoc()) {
                         $cid = $attachRow['comment_id'];
-                        if (isset($commentMap[$cid])) {
+                        if (isset($commentMap[$cid]) && empty($commentMap[$cid]['deleted_at'])) {
                             $commentMap[$cid]['attachments'][] = [
                                 'id' => $attachRow['id'],
                                 'source' => $attachRow['source'],
@@ -210,7 +204,7 @@ if (isset($action)) {
                     if ($c['parent_comment_id'] == null) {
                         $tree[] = &$c;
                     } else {
-                        if (isset($commentMap[$c['parent_comment_id']])) {
+                        if (isset($commentMap[$c['parent_comment_id']]) && empty($commentMap[$c['parent_comment_id']]['deleted_at'])) {
                             $commentMap[$c['parent_comment_id']]['replies'][] = &$c;
                         }
                     }
@@ -227,49 +221,51 @@ if (isset($action)) {
             $module_type = $_POST['module_type'] ?? NULL;
             $module_id = $_POST['module_id'] ?? NULL;
 
-            if ($comment_id) {
-                $selStmt = $conn->prepare("
-                    WITH RECURSIVE comment_tree AS (
-                        SELECT id
-                        FROM comments
-                        WHERE id = ?
-                        UNION ALL
-                        SELECT c.id
-                        FROM comments c
-                        INNER JOIN comment_tree ct
-                            ON c.parent_comment_id = ct.id
-                    )
-                    SELECT source
-                    FROM comment_attachments
-                    WHERE comment_id IN (SELECT id FROM comment_tree)
-                ");
+            if ($comment_id && $module_type && $module_id) {
+                # TODO : DELETE ATTACHMENTS FROM STORAGE
+                // $selStmt = $conn->prepare("
+                //     WITH RECURSIVE comment_tree AS (
+                //         SELECT id
+                //         FROM comments
+                //         WHERE id = ?
+                //         UNION ALL
+                //         SELECT c.id
+                //         FROM comments c
+                //         INNER JOIN comment_tree ct
+                //             ON c.parent_comment_id = ct.id
+                //     )
+                //     SELECT source
+                //     FROM comment_attachments
+                //     WHERE comment_id IN (SELECT id FROM comment_tree)
+                // ");
 
-                $selStmt->bind_param("i", $comment_id);
-                $selStmt->execute();
-                $res = $selStmt->get_result();
+                // $selStmt->bind_param("i", $comment_id);
+                // $selStmt->execute();
+                // $res = $selStmt->get_result();
 
-                while ($row = $res->fetch_assoc()) {
-                    if (!empty($row['source']) && file_exists($row['source'])) {
-                        unlink($row['source']);
-                    }
-                }
+                // while ($row = $res->fetch_assoc()) {
+                //     if (!empty($row['source']) && file_exists($row['source'])) {
+                //         unlink($row['source']);
+                //     }
+                // }
 
-                $selStmt->close();
+                // $selStmt->close();
                 $deleted_msg = '<p><i>Message deleted</i></p>';
                 $stmt = $conn->prepare("
                     UPDATE comments
-                    SET message = ?, deleted_at = NOW()
+                    SET deleted_at = NOW()
                     WHERE id = ?
                 ");
-                $stmt->bind_param("si", $deleted_msg, $comment_id);
+                $stmt->bind_param("i",$comment_id);
                 if ($stmt->execute()) {
-                    $delStmt = $conn->prepare("
-                        DELETE FROM comments
-                        WHERE parent_comment_id = ?
-                    ");
-                    $delStmt->bind_param("i", $comment_id);
-                    $delStmt->execute();
-                    $delStmt->close();
+                    # TODO : HARD DELETE FROM REPLIES
+                    // $delStmt = $conn->prepare("
+                    //     DELETE FROM comments
+                    //     WHERE parent_comment_id = ?
+                    // ");
+                    // $delStmt->bind_param("i", $comment_id);
+                    // $delStmt->execute();
+                    // $delStmt->close();
 
                     $getComment = $conn->query("
                         SELECT deleted_at
@@ -300,7 +296,7 @@ if (isset($action)) {
                 }
                 $stmt->close();
             } else {
-                sendJsonResponse('error', null, 'Missing comment_id');
+                sendJsonResponse('error', null, 'Missing comment_id or module_type or module_id');
             }
             break;
 
@@ -310,7 +306,7 @@ if (isset($action)) {
             $module_type = $_POST['module_type'] ?? NULL;
             $module_id = $_POST['module_id'] ?? NULL;
 
-            if ($comment_id) {
+            if ($comment_id && $module_type && $module_id && ($message || $_FILES['attachments'])) {
                 $stmt = $conn->prepare("UPDATE comments SET message = ?, modified_at = NOW() WHERE id = ? AND deleted_at IS NULL");
                 $stmt->bind_param("si", $message, $comment_id);
                 if ($stmt->execute()) {
@@ -417,7 +413,7 @@ if (isset($action)) {
                 }
                 $stmt->close();
             } else {
-                sendJsonResponse('error', null, 'Missing comment_id');
+                sendJsonResponse('error', null, 'Missing comment_id or module_type or module_id or message or attachments');
             }
             break;
     }
