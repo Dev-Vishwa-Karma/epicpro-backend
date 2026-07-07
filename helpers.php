@@ -43,8 +43,8 @@
 
             // Ensure the target directory exists and set permissions
             if (!is_dir($targetDir)) {
-                @mkdir($targetDir, 0777, true);
-                @chmod($targetDir, 0777);
+                mkdir($targetDir, 0777, true);
+                chmod($targetDir, 0777);
             }
 
             // Move the file to the target directory
