@@ -41,6 +41,12 @@ if (isset($action)) {
             $parent_comment_id = !empty($_POST['parent_comment_id']) ? $_POST['parent_comment_id'] : NULL;
 
             if ($module_type && $module_id && $user_id && ($message || $attachments)) {
+                if ($message && strlen($message) > 4096) {
+                    sendJsonResponse('error', null, 'Comment message should not exceed 4,096 characters');
+                }
+                if (isset($attachments) && count($attachments['name']) > 5) {
+                    sendJsonResponse('error', null, 'Attachments should not exceed 5');
+                }
                 $stmt = $conn->prepare("INSERT INTO comments (module_type, module_id, message, user_id, parent_comment_id, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
                 $stmt->bind_param("sisii", $module_type, $module_id, $message, $user_id, $parent_comment_id);
 
@@ -73,7 +79,7 @@ if (isset($action)) {
                             $fileType = $isMulti ? $files['type'][$i] : $files['type'];
                             
                             if ($error === UPLOAD_ERR_OK && !empty($name)) {
-                                $actualFileName = str_replace(' ', '_', basename($name));
+                                $actualFileName = str_replace(' ', '_', basename($inserted_id.'_'.$name));
                                 $destPath = $galleryDir . '/' . $actualFileName;
                                 
                                 if (move_uploaded_file($tmpName, $destPath)) {
