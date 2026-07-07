@@ -44,7 +44,7 @@ if (isset($action)) {
                 if ($message && strlen($message) > 4096) {
                     sendJsonResponse('error', null, 'Comment message should not exceed 4,096 characters');
                 }
-                if (isset($attachments) && count($attachments['name']) > 5) {
+                if (isset($attachments['name']) && is_array($attachments['name']) && count($attachments['name']) > 5) {
                     sendJsonResponse('error', null, 'Attachments should not exceed 5');
                 }
                 $stmt = $conn->prepare("INSERT INTO comments (module_type, module_id, message, user_id, parent_comment_id, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
@@ -312,13 +312,26 @@ if (isset($action)) {
             $module_type = $_POST['module_type'] ?? NULL;
             $module_id = $_POST['module_id'] ?? NULL;
 
-            if ($comment_id && $module_type && $module_id && ($message || $_FILES['attachments'])) {
+            $has_files = isset($_FILES['attachments']);
+            $has_edit = isset($_POST['edit_attachments']);
+
+            if ($comment_id && $module_type && $module_id && ($message || $has_files || $has_edit)) {
+                if ($message && strlen($message) > 4096) {
+                    sendJsonResponse('error', null, 'Comment message should not exceed 4,096 characters');
+                }
+                
+                $newFilesCount = ($has_files && isset($_FILES['attachments']['name'])) ? (is_array($_FILES['attachments']['name']) ? count($_FILES['attachments']['name']) : 1) : 0;
+                $existingFilesCount = isset($_POST['existing_attachments']) ? (is_array($_POST['existing_attachments']) ? count($_POST['existing_attachments']) : 1) : 0;
+                
+                if (($newFilesCount + $existingFilesCount) > 5) {
+                    sendJsonResponse('error', null, 'Attachments should not exceed 5');
+                }
                 $stmt = $conn->prepare("UPDATE comments SET message = ?, modified_at = NOW() WHERE id = ? AND deleted_at IS NULL");
                 $stmt->bind_param("si", $message, $comment_id);
                 if ($stmt->execute()) {
                     $getComment = $conn->query("SELECT modified_at FROM comments WHERE id = " . intval($comment_id));
                     $commentData = $getComment->fetch_assoc();
-                    
+
                     // Handle attachments replacement
                     if (isset($_POST['edit_attachments']) || isset($_FILES['attachments'])) {
                         $existing_attachments = $_POST['existing_attachments'] ?? [];
