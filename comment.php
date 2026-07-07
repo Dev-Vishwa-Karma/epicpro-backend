@@ -17,16 +17,7 @@ $config = require __DIR__ . '/config.php';
 // Set the header for JSON response
 header('Content-Type: application/json');
 
-function sendJsonResponse($status, $data = null, $message = null)
-{
-    header('Content-Type: application/json');
-    if ($status === 'success') {
-        echo json_encode(['status' => 'success', 'data' => $data, 'message' => $message]);
-    } else {
-        echo json_encode(['status' => 'error', 'message' => $message]);
-    }
-    exit;
-}
+require_once 'helpers.php';
 
 $action = !empty($_GET['action']) ? $_GET['action'] : 'view';
 $pusher = getPusher($config);
@@ -60,9 +51,6 @@ if (isset($action)) {
                     $commentData = $getComment->fetch_assoc();
 
                     $galleryDir = "uploads/comments/" . $module_type;
-                    if (!is_dir($galleryDir)) {
-                        mkdir($galleryDir, 0777, true);
-                    }
 
                     $attachmentsData = [];
                     if (isset($_FILES['attachments'])) {
@@ -77,12 +65,20 @@ if (isset($action)) {
                             $name = $isMulti ? $files['name'][$i] : $files['name'];
                             $tmpName = $isMulti ? $files['tmp_name'][$i] : $files['tmp_name'];
                             $fileType = $isMulti ? $files['type'][$i] : $files['type'];
+                            $size = $isMulti ? $files['size'][$i] : $files['size'];
                             
                             if ($error === UPLOAD_ERR_OK && !empty($name)) {
-                                $actualFileName = str_replace(' ', '_', basename($inserted_id.'_'.$name));
-                                $destPath = $galleryDir . '/' . $actualFileName;
+                                $singleFile = [
+                                    'name' => $name,
+                                    'type' => $fileType,
+                                    'tmp_name' => $tmpName,
+                                    'error' => $error,
+                                    'size' => $size
+                                ];
                                 
-                                if (move_uploaded_file($tmpName, $destPath)) {
+                                try {
+                                    $destPath = uploadFile($singleFile, $galleryDir, [], 50 * 1024 * 1024);
+                                    
                                     $stmtAttach->bind_param("iss", $inserted_id, $destPath, $fileType);
                                     $stmtAttach->execute();
                                     
@@ -91,6 +87,8 @@ if (isset($action)) {
                                         'source' => $destPath,
                                         'source_type' => $fileType
                                     ];
+                                } catch (Exception $e) {
+                                    error_log("Comment file upload error: " . $e->getMessage());
                                 }
                             }
                         }
@@ -371,9 +369,7 @@ if (isset($action)) {
                         // Now recreate attachments (add new ones)
                         if (isset($_FILES['attachments'])) {
                             $galleryDir = "uploads/comments/" . $module_type;
-                            if (!is_dir($galleryDir)) {
-                                mkdir($galleryDir, 0777, true);
-                            }
+
                             
                             $files = $_FILES['attachments'];
                             $isMulti = is_array($files['name']);
@@ -386,14 +382,24 @@ if (isset($action)) {
                                 $name = $isMulti ? $files['name'][$i] : $files['name'];
                                 $tmpName = $isMulti ? $files['tmp_name'][$i] : $files['tmp_name'];
                                 $fileType = $isMulti ? $files['type'][$i] : $files['type'];
+                                $size = $isMulti ? $files['size'][$i] : $files['size'];
                                 
                                 if ($error === UPLOAD_ERR_OK && !empty($name)) {
-                                    $actualFileName = str_replace(' ', '_', basename($name));
-                                    $destPath = $galleryDir . '/' . $actualFileName;
+                                    $singleFile = [
+                                        'name' => $name,
+                                        'type' => $fileType,
+                                        'tmp_name' => $tmpName,
+                                        'error' => $error,
+                                        'size' => $size
+                                    ];
                                     
-                                    if (move_uploaded_file($tmpName, $destPath)) {
+                                    try {
+                                        $destPath = uploadFile($singleFile, $galleryDir, [], 50 * 1024 * 1024);
+                                        
                                         $stmtAttach->bind_param("iss", $comment_id, $destPath, $fileType);
                                         $stmtAttach->execute();
+                                    } catch (Exception $e) {
+                                        error_log("Comment file upload error: " . $e->getMessage());
                                     }
                                 }
                             }
