@@ -253,41 +253,6 @@ if (isset($action)) {
                         'status' => $ticket['status']
                     ];
 
-                    // Fetch comments for this ticket
-                    $commentQuery = "SELECT
-                        comments.id AS comment_id,
-                        comments.comment AS comment_comment,
-                        comments.created_at AS comment_created_at,
-                        comments.comment_by AS comment_author_id,
-                        employees2.id AS commenter_id,
-                        employees2.first_name AS commenter_first_name,
-                        employees2.last_name AS commenter_last_name,
-                        employees2.email AS commenter_email,
-                        employees2.profile AS commenter_profile
-                    FROM comments
-                    LEFT JOIN employees AS employees2 ON comments.comment_by = employees2.id
-                    WHERE comments.ticket_id = ?";
-                    $stmt = $conn->prepare($commentQuery);
-                    $stmt->bind_param("i", $ticket_id);
-                    $stmt->execute();
-                    $commentResult = $stmt->get_result();
-
-                    $comments = [];
-                    while ($commentRow = $commentResult->fetch_assoc()) {
-                        $comments[] = [
-                            'comment_id' => $commentRow['comment_id'],
-                            'comment_comment' => $commentRow['comment_comment'],
-                            'comment_created_at' => $commentRow['comment_created_at'],
-                            'commented_by' => $commentRow['commenter_id'] ? [
-                                'employee_id' => $commentRow['commenter_id'],
-                                'first_name' => $commentRow['commenter_first_name'],
-                                'last_name' => $commentRow['commenter_last_name'],
-                                'email' => $commentRow['commenter_email'],
-                                'profile' => $commentRow['commenter_profile']
-                            ] : null
-                        ];
-                    }
-
                     // Fetch logs for this ticket
                     $logQuery = "SELECT
                         ticket_logs.id AS log_id,
@@ -312,7 +277,6 @@ if (isset($action)) {
                     // Combine ticket data, comments, and logs into the response
                     $response = [
                         'ticket' => $ticketData,
-                        'comments' => $comments,
                         'logs' => $logs
                     ];
 

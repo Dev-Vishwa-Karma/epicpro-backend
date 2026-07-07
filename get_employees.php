@@ -884,15 +884,23 @@ if (isset($action)) {
 
             $galleryDir = 'uploads/gallery/';
             $uploadedImages = [];
-            // Check if the directory exists, if not, create it with proper permissions
-            if (!is_dir($galleryDir)) {
-                mkdir($galleryDir, 0777, true);
-            }
-
             if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
                 try {
                     $image_name = uploadFile($_FILES['image'], $galleryDir, ['image/jpeg', 'image/png', 'image/webp'], 1 * 1024 * 1024);
                     $created_at = date('Y-m-d H:i:s');
+
+                    // Fetch existing profile to remove it from the directory
+                    $selectStmt = $conn->prepare("SELECT profile FROM employees WHERE id = ?");
+                    $selectStmt->bind_param("i", $employee_id);
+                    $selectStmt->execute();
+                    $result = $selectStmt->get_result();
+                    if ($row = $result->fetch_assoc()) {
+                        $existing_profile = $row['profile'];
+                        if (!empty($existing_profile) && file_exists($existing_profile)) {
+                            unlink($existing_profile);
+                        }
+                    }
+                    $selectStmt->close();
                
                     // Update the employee's profile field with the latest uploaded image
                     $updateStmt = $conn->prepare("UPDATE employees SET profile = ? WHERE id = ?");
