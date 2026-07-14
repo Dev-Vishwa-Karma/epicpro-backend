@@ -19,7 +19,7 @@ header('Content-Type: application/json');
 
 require_once 'helpers.php';
 
-$action = !empty($_GET['action']) ? $_GET['action'] : 'view';
+$action = !empty($_GET['action']) ? $_GET['action'] : (!empty($_POST['action']) ? $_POST['action'] : 'view');
 $pusher = getPusher($config);
 if (isset($action)) {
     switch ($action) {
@@ -38,8 +38,65 @@ if (isset($action)) {
                 if (isset($attachments['name']) && is_array($attachments['name']) && count($attachments['name']) > 5) {
                     sendJsonResponse('error', null, 'Attachments should not exceed 5');
                 }
-                $stmt = $conn->prepare("INSERT INTO comments (module_type, module_id, message, user_id, parent_comment_id, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
-                $stmt->bind_param("sisii", $module_type, $module_id, $message, $user_id, $parent_comment_id);
+                
+                // Ensure recipients column exists (auto-migrate)
+                $checkColumn = $conn->query("SHOW COLUMNS FROM comments LIKE 'recipients'");
+                if ($checkColumn->num_rows == 0) {
+                    $conn->query("ALTER TABLE comments ADD COLUMN recipients JSON DEFAULT NULL");
+                }
+
+                // --- Calculate Recipients ---
+                $recipients = [];
+                // 1. Reply: notify parent comment owner
+                if ($parent_comment_id) {
+                    $getParent = $conn->query("SELECT user_id FROM comments WHERE id = " . intval($parent_comment_id));
+                    if ($getParent && $getParent->num_rows > 0) {
+                        $parentData = $getParent->fetch_assoc();
+                        if ($parentData['user_id'] != $user_id) {
+                            $recipients[$parentData['user_id']] = 'sent';
+                        }
+                    }
+                }
+
+                // 2. Add participants
+                $getParticipants = $conn->prepare("SELECT DISTINCT user_id FROM comments WHERE module_type = ? AND module_id = ? AND user_id != ?");
+                $getParticipants->bind_param("sii", $module_type, $module_id, $user_id);
+                $getParticipants->execute();
+                $partRes = $getParticipants->get_result();
+                while ($partRow = $partRes->fetch_assoc()) {
+                    $recipients[$partRow['user_id']] = 'sent';
+                }
+                $getParticipants->close();
+
+                // 3. Add module specific owners
+                if ($module_type === 'ticket') {
+                    $getTicket = $conn->query("SELECT assigned_to, assigned_by FROM tickets WHERE id = " . intval($module_id));
+                    if ($getTicket && $getTicket->num_rows > 0) {
+                        $ticketData = $getTicket->fetch_assoc();
+                        if ($ticketData['assigned_to'] && $ticketData['assigned_to'] != $user_id) $recipients[$ticketData['assigned_to']] = 'sent';
+                        if ($ticketData['assigned_by'] && $ticketData['assigned_by'] != $user_id) $recipients[$ticketData['assigned_by']] = 'sent';
+                    }
+                } elseif ($module_type === 'connect') {
+                    $getConnectUsers = $conn->prepare("
+                        SELECT created_by AS user_id FROM connects WHERE id = ?
+                        UNION
+                        SELECT employee_id AS user_id FROM connects_users WHERE connect_id = ?
+                    ");
+                    $getConnectUsers->bind_param("ii", $module_id, $module_id);
+                    $getConnectUsers->execute();
+                    $connUsersRes = $getConnectUsers->get_result();
+                    while ($cuRow = $connUsersRes->fetch_assoc()) {
+                        if ($cuRow['user_id'] != $user_id) {
+                            $recipients[$cuRow['user_id']] = 'sent';
+                        }
+                    }
+                    $getConnectUsers->close();
+                }
+
+                $recipients_json = count($recipients) > 0 ? json_encode((object)$recipients) : NULL;
+
+                $stmt = $conn->prepare("INSERT INTO comments (module_type, module_id, message, user_id, parent_comment_id, recipients, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())");
+                $stmt->bind_param("sisiis", $module_type, $module_id, $message, $user_id, $parent_comment_id, $recipients_json);
 
                 if ($stmt->execute()) {
                     $inserted_id = $stmt->insert_id;
@@ -110,7 +167,8 @@ if (isset($action)) {
                         ] : NULL,
                         'created_at' => $commentData['created_at'] ?? null,
                         'replies' => [],
-                        'attachments' => $attachmentsData
+                        'attachments' => $attachmentsData,
+                        'recipients' => $recipients_json ? json_decode($recipients_json, true) : null
                     ];
 
                     // To maintain backward compatibility with any frontend code relying on these fields
@@ -125,6 +183,35 @@ if (isset($action)) {
                         'action' => 'add',
                         'comment' => $newComment
                     ]);
+
+                    // Trigger global notification event for each recipient so they can mark as delivered
+                    $senderName = $user ? ($user['first_name'] . ' ' . $user['last_name']) : 'Someone';
+                    $notifTitle = 'New Comment';
+                    $preview = !empty($message) ? substr(strip_tags($message), 0, 50) . (strlen(strip_tags($message)) > 50 ? '...' : '') : 'sent an attachment.';
+                    $notifMessage = $senderName . ' ' . (!empty($message) ? 'commented: ' . $preview : $preview);
+
+                    foreach ($recipients as $target_id => $val) {
+                        if ($target_id) {
+                            $pusher->trigger($config['pusher']['channel'], 'new_comment_notification_' . $target_id, [
+                                'title' => $notifTitle,
+                                'message' => $notifMessage,
+                                'module_type' => $module_type,
+                                'module_id' => $module_id,
+                                'comment_id' => $inserted_id
+                            ]);
+
+                            // Save to notifications table for offline persistence on the notification site
+                            $escaped_title = $conn->real_escape_string($notifTitle);
+                            $escaped_body = $conn->real_escape_string($notifMessage);
+                            $notifType = 'comment_' . $module_type;
+                            $escaped_type = $conn->real_escape_string($notifType);
+                            $createdBy = intval($user_id);
+                            
+                            $insert_sql = "INSERT INTO notifications (employee_id, body, title, type, created_by) 
+                                           VALUES ($target_id, '$escaped_body', '$escaped_title', '$escaped_type', $createdBy)";
+                            $conn->query($insert_sql);
+                        }
+                    }
 
                     sendJsonResponse('success', $newComment, 'Comment added successfully');
                 } else {
@@ -143,7 +230,7 @@ if (isset($action)) {
             if ($module_type && $module_id) {
                 $query = "
                     SELECT 
-                        c.id, c.message, c.parent_comment_id, c.created_at, c.modified_at, c.deleted_at,
+                        c.id, c.message, c.parent_comment_id, c.created_at, c.modified_at, c.deleted_at, c.recipients,
                         e.id AS emp_id, e.first_name, e.last_name, e.email, e.profile
                     FROM comments c
                     LEFT JOIN employees e ON c.user_id = e.id
@@ -174,7 +261,8 @@ if (isset($action)) {
                             'profile' => $row['profile']
                         ] : NULL,
                         'replies' => [],
-                        'attachments' => []
+                        'attachments' => [],
+                        'recipients' => $row['recipients'] ? json_decode($row['recipients'], true) : null
                     ];
                     $commentMap[$row['id']] = $comment;
                 }
@@ -439,6 +527,65 @@ if (isset($action)) {
                 $stmt->close();
             } else {
                 sendJsonResponse('error', null, 'Missing comment_id or module_type or module_id or message or attachments');
+            }
+            break;
+
+        case 'mark_delivered':
+            $comment_id = $_POST['comment_id'] ?? NULL;
+            $user_id = $_POST['user_id'] ?? NULL;
+
+            if ($comment_id && $user_id) {
+                // Update specific recipient to delivered if it is currently 'sent'
+                $query = "UPDATE comments SET recipients = JSON_SET(recipients, CONCAT('$.\"', ?, '\"'), 'delivered') WHERE id = ? AND JSON_UNQUOTE(JSON_EXTRACT(recipients, CONCAT('$.\"', ?, '\"'))) = 'sent'";
+                $stmt = $conn->prepare($query);
+                $stmt->bind_param("sis", $user_id, $comment_id, $user_id);
+                $stmt->execute();
+
+                // Get comment to trigger pusher update for sender
+                $getComment = $conn->query("SELECT module_type, module_id FROM comments WHERE id = " . intval($comment_id));
+                if ($getComment && $getComment->num_rows > 0) {
+                    $c = $getComment->fetch_assoc();
+                    $pusher->trigger($config['pusher']['channel'], 'comment_updated_' . $c['module_type'] . '_' . $c['module_id'], [
+                        'status' => 'success',
+                        'action' => 'status_update',
+                        'comment_id' => $comment_id
+                    ]);
+                }
+                
+                sendJsonResponse('success', null, 'Marked as delivered');
+            } else {
+                echo json_encode(['status' => 'error', 'message' => 'Missing fields']);
+            }
+            break;
+
+        case 'mark_read':
+            $module_type = $_POST['module_type'] ?? NULL;
+            $module_id = $_POST['module_id'] ?? NULL;
+            $user_id = $_POST['user_id'] ?? NULL;
+
+            if ($module_type && $module_id && $user_id) {
+                // Update all comments in module where this user is a recipient and not 'read'
+                $query = "UPDATE comments SET recipients = JSON_SET(recipients, CONCAT('$.\"', ?, '\"'), 'read') WHERE module_type = ? AND module_id = ? AND JSON_UNQUOTE(JSON_EXTRACT(recipients, CONCAT('$.\"', ?, '\"'))) IN ('sent', 'delivered')";
+                $stmt = $conn->prepare($query);
+                if (!$stmt) {
+                    echo json_encode(['status' => 'error', 'message' => 'Prepare failed: ' . $conn->error]);
+                    break;
+                }
+                $stmt->bind_param("ssis", $user_id, $module_type, $module_id, $user_id);
+                $stmt->execute();
+                
+                $affected = $stmt->affected_rows;
+                
+                if ($affected > 0) {
+                    $pusher->trigger($config['pusher']['channel'], 'comment_updated_' . $module_type . '_' . $module_id, [
+                        'status' => 'success',
+                        'action' => 'status_update'
+                    ]);
+                }
+
+                sendJsonResponse('success', ['affected' => $affected, 'user_id' => $user_id], 'Marked as read');
+            } else {
+                echo json_encode(['status' => 'error', 'message' => 'Missing fields']);
             }
             break;
     }
