@@ -139,76 +139,96 @@ if (isset($action)) {
         case 'view':
             $module_type = $_GET['module_type'] ?? NULL;
             $module_id = $_GET['module_id'] ?? NULL;
+            $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 0;
+            $page = isset($_GET['page']) ? intval($_GET['page']) : 1;
 
             if ($module_type && $module_id) {
-                $query = "
-                    SELECT 
-                        c.id, c.message, c.parent_comment_id, c.created_at, c.modified_at, c.deleted_at,
-                        e.id AS emp_id, e.first_name, e.last_name, e.email, e.profile
-                    FROM comments c
-                    LEFT JOIN employees e ON c.user_id = e.id
-                    WHERE c.module_type = ? AND c.module_id = ? 
-                    ORDER BY c.created_at ASC
-                ";
+                if ($limit > 0) {
+                    $offset = ($page - 1) * $limit;
+                    $query = "
+                        SELECT 
+                            c.id, c.message, c.parent_comment_id, c.created_at, c.modified_at, c.deleted_at,
+                            e.id AS emp_id, e.first_name, e.last_name, e.email, e.profile,
+                            ca.id AS attach_id, ca.source, ca.source_type
+                        FROM comments c
+                        LEFT JOIN employees e ON c.user_id = e.id
+                        LEFT JOIN comment_attachments ca ON c.id = ca.comment_id
+                        WHERE c.id IN (
+                            SELECT id FROM (
+                                SELECT id FROM comments 
+                                WHERE module_type = ? AND module_id = ? 
+                                ORDER BY created_at DESC LIMIT ? OFFSET ?
+                            ) AS recent_comments
+                        )
+                        OR c.id IN (
+                            SELECT parent_comment_id FROM (
+                                SELECT parent_comment_id FROM comments 
+                                WHERE module_type = ? AND module_id = ? AND parent_comment_id IS NOT NULL 
+                                ORDER BY created_at DESC LIMIT ? OFFSET ?
+                            ) AS recent_parents
+                        )
+                        ORDER BY c.created_at ASC
+                    ";
+                    $stmt = $conn->prepare($query);
+                    $stmt->bind_param("siiisiii", $module_type, $module_id, $limit, $offset, $module_type, $module_id, $limit, $offset);
+                } else {
+                    $query = "
+                        SELECT 
+                            c.id, c.message, c.parent_comment_id, c.created_at, c.modified_at, c.deleted_at,
+                            e.id AS emp_id, e.first_name, e.last_name, e.email, e.profile,
+                            ca.id AS attach_id, ca.source, ca.source_type
+                        FROM comments c
+                        LEFT JOIN employees e ON c.user_id = e.id
+                        LEFT JOIN comment_attachments ca ON c.id = ca.comment_id
+                        WHERE c.module_type = ? AND c.module_id = ? 
+                        ORDER BY c.created_at ASC
+                    ";
+                    $stmt = $conn->prepare($query);
+                    $stmt->bind_param("si", $module_type, $module_id);
+                }
                 
-                $stmt = $conn->prepare($query);
-                $stmt->bind_param("si", $module_type, $module_id);
                 $stmt->execute();
                 $result = $stmt->get_result();
                 
                 $commentMap = [];
 
                 while ($row = $result->fetch_assoc()) {
-                    $comment = [
-                        'id' => $row['id'],
-                        'message' => $row['deleted_at'] ? '<p><i>Message deleted</i></p>' : $row['message'] ,
-                        'parent_comment_id' => $row['parent_comment_id'],
-                        'created_at' => $row['created_at'],
-                        'modified_at' => $row['modified_at'],
-                        'deleted_at' => $row['deleted_at'],
-                        'commented_by' => $row['emp_id'] ? [
-                            'employee_id' => $row['emp_id'],
-                            'first_name' => $row['first_name'],
-                            'last_name' => $row['last_name'],
-                            'email' => $row['email'],
-                            'profile' => $row['profile']
-                        ] : NULL,
-                        'replies' => [],
-                        'attachments' => []
-                    ];
-                    $commentMap[$row['id']] = $comment;
-                }
-                
-                $commentIds = array_keys($commentMap);
-                if (!empty($commentIds)) {
-                    $inClause = implode(',', array_fill(0, count($commentIds), '?'));
-                    $attachQuery = "SELECT id, comment_id, source, source_type FROM comment_attachments WHERE comment_id IN ($inClause)";
-                    $stmtAttach = $conn->prepare($attachQuery);
-                    
-                    $types = str_repeat('i', count($commentIds));
-                    $stmtAttach->bind_param($types, ...$commentIds);
-                    $stmtAttach->execute();
-                    $attachResult = $stmtAttach->get_result();
-                    
-                    while ($attachRow = $attachResult->fetch_assoc()) {
-                        $cid = $attachRow['comment_id'];
-                        if (isset($commentMap[$cid]) && empty($commentMap[$cid]['deleted_at'])) {
-                            $commentMap[$cid]['attachments'][] = [
-                                'id' => $attachRow['id'],
-                                'source' => $attachRow['source'],
-                                'source_type' => $attachRow['source_type']
-                            ];
-                        }
+                    $cid = $row['id'];
+                    if (!isset($commentMap[$cid])) {
+                        $commentMap[$cid] = [
+                            'id' => $cid,
+                            'message' => $row['deleted_at'] ? '<p><i>Message deleted</i></p>' : $row['message'],
+                            'parent_comment_id' => $row['parent_comment_id'],
+                            'created_at' => $row['created_at'],
+                            'modified_at' => $row['modified_at'],
+                            'deleted_at' => $row['deleted_at'],
+                            'commented_by' => $row['emp_id'] ? [
+                                'employee_id' => $row['emp_id'],
+                                'first_name' => $row['first_name'],
+                                'last_name' => $row['last_name'],
+                                'email' => $row['email'],
+                                'profile' => $row['profile']
+                            ] : NULL,
+                            'replies' => [],
+                            'attachments' => []
+                        ];
                     }
-                    $stmtAttach->close();
+                    if (!empty($row['attach_id']) && empty($row['deleted_at'])) {
+                        $commentMap[$cid]['attachments'][] = [
+                            'id' => $row['attach_id'],
+                            'source' => $row['source'],
+                            'source_type' => $row['source_type']
+                        ];
+                    }
                 }
+                $stmt->close();
                 
                 $tree = [];
                 foreach ($commentMap as $id => &$c) {
-                    if ($c['parent_comment_id'] == null) {
+                    if ($c['parent_comment_id'] == null || !isset($commentMap[$c['parent_comment_id']])) {
                         $tree[] = &$c;
                     } else {
-                        if (isset($commentMap[$c['parent_comment_id']]) && empty($commentMap[$c['parent_comment_id']]['deleted_at'])) {
+                        if (empty($commentMap[$c['parent_comment_id']]['deleted_at'])) {
                             $commentMap[$c['parent_comment_id']]['replies'][] = &$c;
                         }
                     }
