@@ -167,7 +167,7 @@
 
                     // Role-based filtering
                     if ($role === 'employee' && !empty($logged_in_employee_id)) {
-                        $query .= " AND p.is_active = 1 AND JSON_CONTAINS(p.team_member_ids, '\"$logged_in_employee_id\"')";
+                        $query .= " AND p.is_active = '1' AND JSON_CONTAINS(p.team_member_ids, '\"$logged_in_employee_id\"')";
                     }
 
                     // Add project search filter if set (name or technology)
@@ -176,11 +176,11 @@
                         $query .= " AND (p.name LIKE '%$project_name_filter_safe%' OR p.technology LIKE '%$project_name_filter_safe%')";
                     }
 
-                    $status_filter = isset($_GET['status']) ? $_GET['status'] : '';
+                    $status_filter = isset($_GET['status']) ? trim(strtolower($_GET['status'])) : '';
                     if ($status_filter === 'active') {
-                        $query .= " AND p.is_active = 1";
+                        $query .= " AND p.is_active = '1'";
                     } elseif ($status_filter === 'inactive') {
-                        $query .= " AND p.is_active = 0";
+                        $query .= " AND p.is_active = '0'";
                     }
 
                     $query .= " ORDER BY p.created_at DESC";
@@ -520,7 +520,7 @@
                 $json = file_get_contents('php://input');
                 $data = json_decode($json, true);
 
-                if (!$data || !isset($data['id']) || !isset($data['is_active'])) {
+                if (!$data || !isset($data['id']) || !array_key_exists('is_active', $data)) {
                     sendJsonResponse('error', null, 'Project id and active status are required');
                     exit;
                 }

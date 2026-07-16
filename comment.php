@@ -246,51 +246,53 @@ if (isset($action)) {
             $module_id = $_POST['module_id'] ?? NULL;
 
             if ($comment_id && $module_type && $module_id) {
-                # TODO : DELETE ATTACHMENTS FROM STORAGE
-                // $selStmt = $conn->prepare("
-                //     WITH RECURSIVE comment_tree AS (
-                //         SELECT id
-                //         FROM comments
-                //         WHERE id = ?
-                //         UNION ALL
-                //         SELECT c.id
-                //         FROM comments c
-                //         INNER JOIN comment_tree ct
-                //             ON c.parent_comment_id = ct.id
-                //     )
-                //     SELECT source
-                //     FROM comment_attachments
-                //     WHERE comment_id IN (SELECT id FROM comment_tree)
-                // ");
+                $getComments = $conn->prepare("
+                    WITH RECURSIVE comment_tree AS (
+                        SELECT id
+                        FROM comments
+                        WHERE id = ?
 
-                // $selStmt->bind_param("i", $comment_id);
-                // $selStmt->execute();
-                // $res = $selStmt->get_result();
+                        UNION ALL
 
-                // while ($row = $res->fetch_assoc()) {
-                //     if (!empty($row['source']) && file_exists($row['source'])) {
-                //         unlink($row['source']);
-                //     }
-                // }
-
-                // $selStmt->close();
-                $deleted_msg = '<p><i>Message deleted</i></p>';
-                $stmt = $conn->prepare("
-                    UPDATE comments
-                    SET deleted_at = NOW()
-                    WHERE id = ?
+                        SELECT c.id
+                        FROM comments c
+                        INNER JOIN comment_tree ct
+                            ON c.parent_comment_id = ct.id
+                    )
+                    SELECT id
+                    FROM comment_tree
                 ");
-                $stmt->bind_param("i",$comment_id);
-                if ($stmt->execute()) {
-                    # TODO : HARD DELETE FROM REPLIES
-                    // $delStmt = $conn->prepare("
-                    //     DELETE FROM comments
-                    //     WHERE parent_comment_id = ?
-                    // ");
-                    // $delStmt->bind_param("i", $comment_id);
-                    // $delStmt->execute();
-                    // $delStmt->close();
+                $getComments->bind_param("i", $comment_id);
+                $getComments->execute();
+                $getCommentsResult = $getComments->get_result();
+                $comments = $getCommentsResult->fetch_all(MYSQLI_ASSOC);
 
+                $commentIds = array_column($comments, 'id');
+                $commentIds = array_map('intval', $commentIds);
+
+                if (!empty($commentIds)) {
+                    $deleted_msg = '<p><i>Message deleted</i></p>';
+                    $placeholders = implode(',', array_fill(0, count($commentIds), '?'));
+                    $types = str_repeat('i', count($commentIds));
+                    $stmt = $conn->prepare("
+                        UPDATE comments
+                        SET deleted_at = NOW()
+                        WHERE id IN ($placeholders)
+                    ");
+
+                    $stmt->bind_param($types, ...$commentIds);
+                    $stmt->execute();
+
+
+                    $stmt = $conn->prepare("
+                        UPDATE comment_attachments
+                        SET deleted_at = NOW()
+                        WHERE comment_id IN ($placeholders)
+                    ");
+
+                    $stmt->bind_param($types, ...$commentIds);
+                    $stmt->execute();
+                    
                     $getComment = $conn->query("
                         SELECT deleted_at
                         FROM comments
@@ -314,10 +316,10 @@ if (isset($action)) {
                         ]
                     );
 
-                    sendJsonResponse('success', null, 'Comment deleted successfully');
-                } else {
-                    sendJsonResponse('error', null, 'Failed to delete comment');
-                }
+                        sendJsonResponse('success', null, 'Comment deleted successfully');
+                    } else {
+                        sendJsonResponse('error', null, 'Failed to delete comment');
+                    }
                 $stmt->close();
             } else {
                 sendJsonResponse('error', null, 'Missing comment_id or module_type or module_id');
