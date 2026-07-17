@@ -38,6 +38,24 @@ if (isset($action)) {
                 if (isset($attachments['name']) && is_array($attachments['name']) && count($attachments['name']) > 5) {
                     sendJsonResponse('error', null, 'Attachments should not exceed 5');
                 }
+                
+                if (isset($_FILES['attachments'])) {
+                    $files = $_FILES['attachments'];
+                    $isMulti = is_array($files['name']);
+                    $fileCount = $isMulti ? count($files['name']) : 1;
+                    
+                    for ($i = 0; $i < $fileCount; $i++) {
+                        $error = $isMulti ? $files['error'][$i] : $files['error'];
+                        $name = $isMulti ? $files['name'][$i] : $files['name'];
+                        if ($error !== UPLOAD_ERR_OK && $error !== UPLOAD_ERR_NO_FILE) {
+                            $errorMsg = "File '$name' failed to upload.";
+                            if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
+                                $errorMsg = "File '$name' exceeds the server size limit.";
+                            }
+                            sendJsonResponse('error', null, $errorMsg);
+                        }
+                    }
+                }
                 $stmt = $conn->prepare("INSERT INTO comments (module_type, module_id, message, user_id, parent_comment_id, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
                 $stmt->bind_param("sisii", $module_type, $module_id, $message, $user_id, $parent_comment_id);
 
@@ -88,7 +106,8 @@ if (isset($action)) {
                                         'source_type' => $fileType
                                     ];
                                 } catch (Exception $e) {
-                                    error_log("Comment file upload error: " . $e->getMessage());
+                                    $conn->query("DELETE FROM comments WHERE id = " . intval($inserted_id));
+                                    sendJsonResponse('error', null, "Failed to upload file {$name}: " . $e->getMessage());
                                 }
                             }
                         }
@@ -346,6 +365,24 @@ if (isset($action)) {
                 if (($newFilesCount + $existingFilesCount) > 5) {
                     sendJsonResponse('error', null, 'Attachments should not exceed 5');
                 }
+
+                if (isset($_FILES['attachments'])) {
+                    $files = $_FILES['attachments'];
+                    $isMulti = is_array($files['name']);
+                    $fileCount = $isMulti ? count($files['name']) : 1;
+                    
+                    for ($i = 0; $i < $fileCount; $i++) {
+                        $error = $isMulti ? $files['error'][$i] : $files['error'];
+                        $name = $isMulti ? $files['name'][$i] : $files['name'];
+                        if ($error !== UPLOAD_ERR_OK && $error !== UPLOAD_ERR_NO_FILE) {
+                            $errorMsg = "File '$name' failed to upload.";
+                            if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
+                                $errorMsg = "File '$name' exceeds the server size limit.";
+                            }
+                            sendJsonResponse('error', null, $errorMsg);
+                        }
+                    }
+                }
                 $stmt = $conn->prepare("UPDATE comments SET message = ?, modified_at = NOW() WHERE id = ? AND deleted_at IS NULL");
                 $stmt->bind_param("si", $message, $comment_id);
                 if ($stmt->execute()) {
@@ -375,9 +412,8 @@ if (isset($action)) {
                         $res = $selStmt->get_result();
                         $idsToDelete = [];
                         while ($row = $res->fetch_assoc()) {
-                            if (file_exists($row['source'])) {
-                                unlink($row['source']); // Delete file from server
-                            }
+                            deleteFile($row['source']); // Delete file from server or cloudinary
+
                             $idsToDelete[] = $row['id'];
                         }
                         $selStmt->close();
@@ -421,7 +457,7 @@ if (isset($action)) {
                                         $stmtAttach->bind_param("iss", $comment_id, $destPath, $fileType);
                                         $stmtAttach->execute();
                                     } catch (Exception $e) {
-                                        error_log("Comment file upload error: " . $e->getMessage());
+                                        sendJsonResponse('error', null, "Failed to upload file {$name}: " . $e->getMessage());
                                     }
                                 }
                             }

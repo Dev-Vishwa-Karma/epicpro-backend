@@ -17,16 +17,9 @@ include 'db_connection.php';
 // Set the header for JSON response
 header('Content-Type: application/json');
 
-// Helper function to send JSON response
-function sendJsonResponse($status, $data = null, $message = null) {
-    header('Content-Type: application/json');
-    if ($status === 'success') {
-        echo json_encode(['status' => 'success', 'data' => $data, 'message' => $message]);
-    } else {
-        echo json_encode(['status' => 'error', 'message' => $message]);
-    }
-    exit;
-}
+require_once 'helpers.php';
+
+
 
 $action = !empty($_GET['action']) ? $_GET['action'] : 'view';
 
@@ -111,12 +104,17 @@ if (isset($action)) {
             }
 
             foreach ($_FILES['images']['name'] as $key => $imageName) {
-                $tmpName = $_FILES['images']['tmp_name'][$key];
-                $imagePath = $galleryDir . time() . "_" . basename($imageName);
+                $singleFile = [
+                    'name' => $_FILES['images']['name'][$key],
+                    'type' => $_FILES['images']['type'][$key],
+                    'tmp_name' => $_FILES['images']['tmp_name'][$key],
+                    'error' => $_FILES['images']['error'][$key],
+                    'size' => $_FILES['images']['size'][$key]
+                ];
                 $created_at = date('Y-m-d H:i:s');
 
-                // Move file to uploads directory
-                if (move_uploaded_file($tmpName, $imagePath)) {
+                try {
+                    $imagePath = uploadFile($singleFile, 'uploads/gallery');
                     $stmt = $conn->prepare("INSERT INTO gallery (employee_id, url, created_by) VALUES (?, ?, ?)");
                     $stmt->bind_param("isi", $employee_id, $imagePath, $created_by);
                     
@@ -140,8 +138,8 @@ if (isset($action)) {
                         sendJsonResponse('error', null, "Failed to add image: " . $stmt->error);
                         exit;
                     }
-                } else {
-                    sendJsonResponse('error', null, "Failed to upload image");
+                } catch (Exception $e) {
+                    sendJsonResponse('error', null, "Failed to upload image: " . $e->getMessage());
                     exit;
                 }
             }
@@ -150,11 +148,20 @@ if (isset($action)) {
             break;
         case 'view_image':
                 if (isset($_GET['img'])) {
-                    $imagePath = 'uploads/gallery/' . basename($_GET['img']); // Sanitize filename
+                    $imgParam = $_GET['img'];
+                    $parsedUrl = parse_url($imgParam);
+                    $path = isset($parsedUrl['path']) ? $parsedUrl['path'] : $imgParam;
+                    $filename = basename($path);
+                    $imagePath = 'uploads/gallery/' . $filename;
+                    
                     if (file_exists($imagePath)) {
                         $mimeType = mime_content_type($imagePath);
                         header('Content-Type: ' . $mimeType);
                         readfile($imagePath);
+                        exit;
+                    } else if (preg_match('/^https?:\/\//', $imgParam)) {
+                        header('Location: ' . $imgParam);
+                        exit;
                     } else {
                         http_response_code(404);
                         echo "Image not found.";
@@ -180,9 +187,8 @@ if (isset($action)) {
 
                     $absolutePath = __DIR__ . '/' . $imagePath;
                      
-                    if (file_exists($absolutePath)) {
-                        unlink($absolutePath);
-                    }
+                    // Use helper to delete (handles Cloudinary and local)
+                    deleteFile($imagePath);
 
                     // Delete the DB record
                     if ($conn->query("DELETE FROM gallery WHERE id = $imageIdEscaped")) {

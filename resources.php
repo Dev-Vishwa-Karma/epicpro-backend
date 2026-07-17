@@ -149,6 +149,11 @@ if (isset($action)) {
             if (!$id) {
                 sendJsonResponse('error', null, 'ID is required');
             }
+            $row = $conn->query("SELECT file_path FROM $table WHERE id=$id")->fetch_assoc();
+            $filePath = $row['file_path'] ?? '';
+            if (!empty($filePath)) {
+                deleteFile($filePath);
+            }
             $stmt = $conn->prepare("DELETE FROM $table WHERE id=?");
             if (!$stmt) {
                 sendJsonResponse('error', null, 'Prepare failed: ' . $conn->error);

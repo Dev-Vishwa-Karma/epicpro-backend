@@ -19,17 +19,7 @@ include 'auth_validate.php';
 // Set the header for JSON response
 header('Content-Type: application/json');
 
-// Helper function to send JSON response
-function sendJsonResponse($status, $data = null, $message = null)
-{
-    header('Content-Type: application/json');
-    if ($status === 'success') {
-        echo json_encode(['status' => 'success', 'data' => $data, 'message' => $message]);
-    } else {
-        echo json_encode(['status' => 'error', 'message' => $message]);
-    }
-    exit;
-}
+require_once 'helpers.php';
 
 // Helper function to validate user ID
 function validateId($id)
@@ -41,52 +31,6 @@ $action = !empty($_GET['action']) ? $_GET['action'] : 'view';
 $statistics_visibility_status = !empty($_GET['statistics_visibility_status']) ? $_GET['statistics_visibility_status'] : null;
 $search = !empty($_GET['search']) ? $_GET['search'] : null;
 
-// File upload helper function
-function uploadFile($file, $targetDir, $allowedTypes = [], $maxSize = 2 * 1024 * 1024)
-{
-    if ($file['error'] === UPLOAD_ERR_OK) {
-        $fileType = mime_content_type($file['tmp_name']);
-        error_log("Detected MIME Type: " . $fileType);
-        $fileSize = $file['size'];
-
-        // Validate file type
-        if (!empty($allowedTypes) && !in_array($fileType, $allowedTypes)) {
-            sendJsonResponse('error', null, "Invalid file type: $fileType");
-        }
-
-        // Validate file size
-        if ($fileSize > $maxSize) {
-            throw new Exception("File size exceeds the maximum allowed size of $maxSize bytes");
-        }
-
-        $originalFileName = $file['name'];
-        $extension = pathinfo($originalFileName, PATHINFO_EXTENSION);
-        
-        if (!$extension) {
-            $extension = 'pdf'; // Set default extension if missing
-        }
-
-        // Generate a unique file name
-        $uniqueFileName = uniqid() . '-' . basename($file['name']);
-
-        $targetPath = $targetDir . DIRECTORY_SEPARATOR . $uniqueFileName;
-
-        // Ensure the target directory exists and set permissions
-        if (!is_dir($targetDir)) {
-            mkdir($targetDir, 0777, true);
-            chmod($targetDir, 0777);
-        }
-
-        // Move the file to the target directory
-        if (move_uploaded_file($file['tmp_name'], $targetPath)) {
-            return $targetPath;
-        } else {
-            throw new Exception("Failed to move uploaded file.");
-        }
-    } else {
-        throw new Exception("File upload error: " . $file['error']);
-    }
-}
 
 // Main action handler
 if (isset($action)) {
@@ -253,12 +197,17 @@ if (isset($action)) {
                     if ($profilePath) {
                         $data['profile'] = $profilePath;
             
-                        // Generate the same file name for the gallery
-                        $galleryPath = str_replace('profiles', 'gallery', $profilePath);
-            
-                        // Copy the file to the gallery folder
-                        if (!copy($profilePath, $galleryPath)) {
-                            throw new Exception("Failed to copy image to gallery folder.");
+                        if (strpos($profilePath, 'res.cloudinary.com') !== false) {
+                            $galleryPath = $profilePath;
+                        } else {
+                            $galleryPath = str_replace('profiles', 'gallery', $profilePath);
+                            $galleryDir = dirname($galleryPath);
+                            if (!is_dir($galleryDir)) {
+                                mkdir($galleryDir, 0777, true);
+                            }
+                            if (!copy($profilePath, $galleryPath)) {
+                                throw new Exception("Failed to copy image to gallery folder.");
+                            }
                         }
                     }
                 } catch (Exception $e) {
@@ -641,12 +590,17 @@ if (isset($action)) {
                             if ($profilePath) {
                                 $data['profile'] = $profilePath;
                     
-                                // Generate the same file name for the gallery
-                                $galleryPath = str_replace('profiles', 'gallery', $profilePath);
-                    
-                                // Copy the file to the gallery folder
-                                if (!copy($profilePath, $galleryPath)) {
-                                    throw new Exception("Failed to copy image to gallery folder.");
+                                if (strpos($profilePath, 'res.cloudinary.com') !== false) {
+                                    $galleryPath = $profilePath;
+                                } else {
+                                    $galleryPath = str_replace('profiles', 'gallery', $profilePath);
+                                    $galleryDir = dirname($galleryPath);
+                                    if (!is_dir($galleryDir)) {
+                                        mkdir($galleryDir, 0777, true);
+                                    }
+                                    if (!copy($profilePath, $galleryPath)) {
+                                        throw new Exception("Failed to copy image to gallery folder.");
+                                    }
                                 }
                             }
                         } catch (Exception $e) {
@@ -896,8 +850,8 @@ if (isset($action)) {
                     $result = $selectStmt->get_result();
                     if ($row = $result->fetch_assoc()) {
                         $existing_profile = $row['profile'];
-                        if (!empty($existing_profile) && file_exists($existing_profile)) {
-                            unlink($existing_profile);
+                        if (!empty($existing_profile)) {
+                            deleteFile($existing_profile);
                         }
                     }
                     $selectStmt->close();
