@@ -34,6 +34,64 @@
         return $default;
     }
 
+    function convertToWebP($source, $destination, $quality = 80)
+    {
+        if (!function_exists('imagecreatefromjpeg')) {
+            return false; // GD extension is not installed
+        }
+
+        if (!file_exists($source)) {
+            return false;
+        }
+
+        $info = getimagesize($source);
+
+        if (!$info) {
+            return false;
+        }
+
+        switch ($info['mime']) {
+            case 'image/jpeg':
+                $image = @imagecreatefromjpeg($source);
+                break;
+
+            case 'image/png':
+                $image = @imagecreatefrompng($source);
+                if ($image) {
+                    // Preserve transparency
+                    imagepalettetotruecolor($image);
+                    imagealphablending($image, true);
+                    imagesavealpha($image, true);
+                }
+                break;
+
+            case 'image/gif':
+                $image = @imagecreatefromgif($source);
+                break;
+
+            case 'image/webp':
+                // No need to convert if it's already webp, but let's handle it
+                $image = @imagecreatefromwebp($source);
+                break;
+
+            case 'image/bmp':
+                $image = @imagecreatefrombmp($source);
+                break;
+
+            default:
+                return false; // Unsupported format
+        }
+        
+        if (!$image) {
+            return false;
+        }
+
+        $result = imagewebp($image, $destination, $quality);
+        imagedestroy($image);
+
+        return $result;
+    }
+
     // File upload helper function
     function uploadFile($file, $targetDir, $allowedTypes = [], $maxSize = 2 * 1024 * 1024)
     {
@@ -52,41 +110,23 @@
                 throw new Exception("File size exceeds the maximum allowed size of $maxSize bytes");
             }
 
+            // Convert supported images to WebP
+            if (strpos($fileType, 'image/') === 0 && !in_array($fileType, ['image/svg+xml', 'image/webp'])) {
+                $tempWebpPath = sys_get_temp_dir() . '/' . uniqid('webp_') . '.webp';
+                if (convertToWebP($file['tmp_name'], $tempWebpPath)) {
+                    $file['tmp_name'] = $tempWebpPath;
+                    $file['name'] = pathinfo($file['name'], PATHINFO_FILENAME) . '.webp';
+                    $fileType = 'image/webp';
+                    $file['size'] = filesize($tempWebpPath);
+                    $file['is_converted'] = true;
+                }
+            }
+
             $storageDriver = getGlobalStorage() == 1 ? 'cloudinary' : 'local';
             if ($storageDriver === 'cloudinary') {
                 try {
-                    $originalFileName = $file['name'];
-                    $extension = strtolower(pathinfo($originalFileName, PATHINFO_EXTENSION));
-                    if (!$extension) {
-                        $extension = 'pdf';
-                    }
-
-                    $resourceType = 'auto';
-                    if (strpos($fileType, 'video/') === 0 || strpos($fileType, 'audio/') === 0 || in_array($extension, ['mp4','avi','mov','webm','mp3','wav'])) {
-                        $resourceType = 'video';
-                    } elseif (strpos($fileType, 'image/') === 0 || in_array($extension, ['jpg','jpeg','png','gif','webp'])) {
-                        $resourceType = 'image';
-                    } else {
-                        $resourceType = 'raw';
-                    }
-                    
-
-                    // Add extension to public_id for raw files so they retain their extension on download
-                    $cleanFileName = preg_replace('/[^a-zA-Z0-9_\-]/', '_', pathinfo($originalFileName, PATHINFO_FILENAME));
-                    $publicId = uniqid() . '-' . $cleanFileName;
-                    if ($resourceType === 'raw') {
-                        $publicId .= '.' . $extension;
-                    }
-
-                    $folder = trim(str_replace('\\', '/', $targetDir), '/');
-                    $uploadOptions = [
-                        'folder' => $folder,
-                        'resource_type' => $resourceType,
-                        'public_id' => $publicId
-                    ];
-
                     $cloudinary = new CloudinaryService();
-                    $result = $cloudinary->upload($file['tmp_name'], $uploadOptions);
+                    $result = $cloudinary->uploadSmart($file['tmp_name'], $file['name'], $targetDir);
                     if ($result['success']) {
                         return $result['data']['secure_url'];
                     } else {
@@ -116,7 +156,14 @@
             }
 
             // Move the file to the target directory
-            if (move_uploaded_file($file['tmp_name'], $targetPath)) {
+            $moved = false;
+            if (isset($file['is_converted']) && $file['is_converted']) {
+                $moved = rename($file['tmp_name'], $targetPath);
+            } else {
+                $moved = move_uploaded_file($file['tmp_name'], $targetPath);
+            }
+            
+            if ($moved) {
                 return $targetPath;
             } else {
                 throw new Exception("Failed to move uploaded file.");
@@ -132,8 +179,11 @@
         if ($storageDriver === 'cloudinary') {
             try {
                 $cloudinary = new CloudinaryService();
-                $folder = trim(str_replace('\\', '/', $targetDir), '/');
-                $result = $cloudinary->upload($url, ['folder' => $folder]);
+                $filename = basename(parse_url($url, PHP_URL_PATH));
+                if (empty($filename)) {
+                    $filename = 'external_file';
+                }
+                $result = $cloudinary->uploadSmart($url, $filename, $targetDir);
                 if ($result['success']) {
                     return $result['data']['secure_url'];
                 } else {
@@ -192,18 +242,26 @@
                 $tmpName = $files['tmp_name'][$key];
                 $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
 
+                $isConverted = false;
+                $fileType = mime_content_type($tmpName);
+                if (strpos($fileType, 'image/') === 0 && !in_array($fileType, ['image/svg+xml', 'image/webp'])) {
+                    $tempWebpPath = sys_get_temp_dir() . '/' . uniqid('webp_') . '.webp';
+                    if (convertToWebP($tmpName, $tempWebpPath)) {
+                        $tmpName = $tempWebpPath;
+                        $ext = 'webp';
+                        $filename = pathinfo($filename, PATHINFO_FILENAME) . '.webp';
+                        $isConverted = true;
+                    }
+                }
+
                 if (in_array($ext, ['jpg','jpeg','png','gif','webp'])) {
                     $folder = 'images/';
-                    $resourceType = 'image';
                 } elseif (in_array($ext, ['mp4','avi','mov','webm','mp3','wav'])) {
                     $folder = 'media/';
-                    $resourceType = 'video';
                 } elseif (in_array($ext, ['zip','rar','7z'])) {
                     $folder = 'zip/';
-                    $resourceType = 'raw';
                 } else {
                     $folder = 'files/';
-                    $resourceType = 'raw';
                 }
 
                 $uploadDir = $baseUploadDir . $folder;
@@ -216,19 +274,8 @@
                 $storageDriver = getGlobalStorage() == 1 ? 'cloudinary' : 'local';
                 if ($storageDriver === 'cloudinary') {
                     try {
-                        $publicId = uniqid('file_', true);
-                        if ($resourceType === 'raw') {
-                            $publicId .= '.' . $ext;
-                        }
-
-                        $uploadOptions = [
-                            'folder' => 'uploads/' . trim($folder, '/'),
-                            'resource_type' => $resourceType,
-                            'public_id' => $publicId
-                        ];
-
                         $cloudinary = new CloudinaryService();
-                        $result = $cloudinary->upload($tmpName, $uploadOptions);
+                        $result = $cloudinary->uploadSmart($tmpName, $filename, 'uploads/' . trim($folder, '/'));
                         if ($result['success']) {
                             $uploadedFiles[] = $result['data']['secure_url'];
                         } else {
@@ -238,7 +285,13 @@
                         sendJsonResponse('error', null, "Failed to upload file {$filename}: " . $e->getMessage());
                     }
                 } else {
-                    if (move_uploaded_file($tmpName, $destination)) {
+                    $moved = false;
+                    if (isset($isConverted) && $isConverted) {
+                        $moved = rename($tmpName, $destination);
+                    } else {
+                        $moved = move_uploaded_file($tmpName, $destination);
+                    }
+                    if ($moved) {
                         $uploadedFiles[] = 'uploads/' . $folder . $newName;
                     }
                 }
