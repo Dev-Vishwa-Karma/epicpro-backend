@@ -3,6 +3,8 @@
 include 'db_connection.php';
 require_once __DIR__ . '/vendor/autoload.php';
 
+$config = require __DIR__ . '/config.php';
+
 use Cloudinary\Cloudinary;
 
 class CloudinaryService
@@ -10,25 +12,26 @@ class CloudinaryService
     private $cloudinary;
 
     private function getConfig(){
-        global $conn;
-        $config = [];
+        global $conn, $config;
         $result = $conn->query("SELECT * FROM service_configuration WHERE provider= 'cloudinary'");
-        $row = $result->fetch_assoc();
-        return json_decode($row['provider_details'], true);
+        if ($result && $row = $result->fetch_assoc()) {
+            return json_decode($row['provider_details'] ?? '', true) ?: [];
+        }
+        return $config['cloudinary'] ?? [];
     }
 
     public function __construct()
     {
-        $config = $this->getConfig();
+        $cloudinary_config = $this->getConfig();
         try {
-            if (empty($config) || !isset($config['cloud_name']) || !isset($config['api_key']) || !isset($config['api_secret'])) {
+            if (empty($cloudinary_config) || !isset($cloudinary_config['cloud_name']) || !isset($cloudinary_config['api_key']) || !isset($cloudinary_config['api_secret'])) {
                 throw new Exception("Cloudinary configuration is missing or incomplete.");
             }
             $this->cloudinary = new Cloudinary([
                 'cloud' => [
-                    'cloud_name' => $config['cloud_name'],
-                    'api_key'    => $config['api_key'],
-                    'api_secret' => $config['api_secret'],
+                    'cloud_name' => $cloudinary_config['cloud_name'],
+                    'api_key'    => $cloudinary_config['api_key'],
+                    'api_secret' => $cloudinary_config['api_secret'],
                 ],
                 'url' => [
                     'secure' => true
