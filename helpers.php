@@ -36,60 +36,53 @@
 
     function convertToWebP($source, $destination, $quality = 80)
     {
-        if (!function_exists('imagecreatefromjpeg')) {
-            return false; // GD extension is not installed
-        }
+        try {
 
-        if (!file_exists($source)) {
+            $info = getimagesize($source);
+            
+            switch ($info['mime']) {
+                case 'image/jpeg':
+                    $image = @imagecreatefromjpeg($source);
+                    break;
+
+                case 'image/png':
+                    $image = @imagecreatefrompng($source);
+                    if ($image) {
+                        imagepalettetotruecolor($image);
+                        imagealphablending($image, true);
+                        imagesavealpha($image, true);
+                    }
+                    break;
+
+                case 'image/gif':
+                    $image = @imagecreatefromgif($source);
+                    break;
+
+                case 'image/webp':
+                    // No need to convert if it's already webp, but let's handle it
+                    $image = @imagecreatefromwebp($source);
+                    break;
+
+                case 'image/bmp':
+                    $image = @imagecreatefrombmp($source);
+                    break;
+
+                default:
+                    return false; // Unsupported format
+            }
+            
+            if (!$image) {
+                return false;
+            }
+
+            $result = imagewebp($image, $destination, $quality);
+            imagedestroy($image);
+            
+            return $result;
+        } catch (Throwable $e) {
+            error_log("Error converting to WebP: " . $e->getMessage());
             return false;
         }
-
-        $info = getimagesize($source);
-
-        if (!$info) {
-            return false;
-        }
-
-        switch ($info['mime']) {
-            case 'image/jpeg':
-                $image = @imagecreatefromjpeg($source);
-                break;
-
-            case 'image/png':
-                $image = @imagecreatefrompng($source);
-                if ($image) {
-                    // Preserve transparency
-                    imagepalettetotruecolor($image);
-                    imagealphablending($image, true);
-                    imagesavealpha($image, true);
-                }
-                break;
-
-            case 'image/gif':
-                $image = @imagecreatefromgif($source);
-                break;
-
-            case 'image/webp':
-                // No need to convert if it's already webp, but let's handle it
-                $image = @imagecreatefromwebp($source);
-                break;
-
-            case 'image/bmp':
-                $image = @imagecreatefrombmp($source);
-                break;
-
-            default:
-                return false; // Unsupported format
-        }
-        
-        if (!$image) {
-            return false;
-        }
-
-        $result = imagewebp($image, $destination, $quality);
-        imagedestroy($image);
-
-        return $result;
     }
 
     // File upload helper function
