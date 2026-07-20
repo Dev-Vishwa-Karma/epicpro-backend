@@ -13,9 +13,9 @@ class CloudinaryService
 
     private function getConfig(){
         global $conn, $config;
-        $result = $conn->query("SELECT * FROM service_configuration WHERE provider= 'cloudinary'");
+        $result = $conn->query("SELECT * FROM config_settings WHERE service= 'cloudinary'");
         if ($result && $row = $result->fetch_assoc()) {
-            return json_decode($row['provider_details'] ?? '', true) ?: [];
+            return json_decode($row['service_details'] ?? '', true) ?: [];
         }
         return $config['cloudinary'] ?? [];
     }

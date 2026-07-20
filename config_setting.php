@@ -33,25 +33,25 @@ $input = json_decode(file_get_contents('php://input'), true);
 switch ($action) {
     case 'get':
 
-        $provider = $_GET['provider'] ?? '';
-        if ($provider) {
-            $stmt = $conn->prepare("SELECT * FROM service_configuration WHERE provider=?");
-            $stmt->bind_param("s", $provider);
+        $service = $_GET['service'] ?? '';
+        if ($service) {
+            $stmt = $conn->prepare("SELECT * FROM config_settings WHERE service=?");
+            $stmt->bind_param("s", $service);
             $stmt->execute();
 
             $result = $stmt->get_result();
 
             if ($row = $result->fetch_assoc()) {
-                $row['provider_details'] = json_decode($row['provider_details'], true);
+                $row['service_details'] = json_decode($row['service_details'], true);
                 sendJsonResponse('success', $row);
             }
 
-            sendJsonResponse('error', null, 'Provider not found');
+            sendJsonResponse('error', null, 'service not found');
         } else {
-            $result = $conn->query("SELECT * FROM service_configuration");
+            $result = $conn->query("SELECT * FROM config_settings");
             $data = [];
             while ($row = $result->fetch_assoc()) {
-                $row['provider_details'] = json_decode($row['provider_details'], true);
+                $row['service_details'] = json_decode($row['service_details'], true);
                 $data[] = $row;
             }
 
@@ -60,22 +60,22 @@ switch ($action) {
         break;
 
     case 'create':
-        $provider = $input['provider'] ?? '';
-        $provider_details = $input['provider_details'] ?? [];
+        $service = $input['service'] ?? '';
+        $service_details = $input['service_details'] ?? [];
 
-        if (!$provider) {
-            sendJsonResponse('error', null, 'Provider is required');
+        if (!$service) {
+            sendJsonResponse('error', null, 'service is required');
         }
 
-        $json = json_encode($provider_details);
+        $json = json_encode($service_details);
 
         $stmt = $conn->prepare("
-            INSERT INTO service_configuration
-            (provider, provider_details)
+            INSERT INTO config_settings
+            (service, service_details)
             VALUES (?, ?)
         ");
 
-        $stmt->bind_param("ss", $provider, $json);
+        $stmt->bind_param("ss", $service, $json);
 
         if ($stmt->execute()) {
             sendJsonResponse('success', ['id' => $stmt->insert_id]);
@@ -87,23 +87,23 @@ switch ($action) {
 
     case 'update':
 
-        $provider = $input['provider'] ?? '';
-        $provider_details = $input['provider_details'] ?? [];
+        $service = $input['service'] ?? '';
+        $service_details = $input['service_details'] ?? [];
 
-        if (!$provider) {
-            sendJsonResponse('error', null, 'Provider is required');
+        if (!$service) {
+            sendJsonResponse('error', null, 'service is required');
         }
 
-        $json = json_encode($provider_details);
+        $json = json_encode($service_details);
 
         $stmt = $conn->prepare("
-            UPDATE service_configuration
-            SET provider_details=?,
+            UPDATE config_settings
+            SET service_details=?,
                 updated_at=CURRENT_TIMESTAMP
-            WHERE provider=?
+            WHERE service=?
         ");
 
-        $stmt->bind_param("ss", $json, $provider);
+        $stmt->bind_param("ss", $json, $service);
 
         if ($stmt->execute()) {
             sendJsonResponse('success', null, 'Updated successfully');
@@ -115,18 +115,18 @@ switch ($action) {
 
     case 'delete':
 
-        $provider = $input['provider'] ?? ($_GET['provider'] ?? '');
+        $service = $input['service'] ?? ($_GET['service'] ?? '');
 
-        if (!$provider) {
-            sendJsonResponse('error', null, 'Provider is required');
+        if (!$service) {
+            sendJsonResponse('error', null, 'service is required');
         }
 
         $stmt = $conn->prepare("
-            DELETE FROM service_configuration
-            WHERE provider=?
+            DELETE FROM config_settings
+            WHERE service=?
         ");
 
-        $stmt->bind_param("s", $provider);
+        $stmt->bind_param("s", $service);
 
         if ($stmt->execute()) {
             sendJsonResponse('success', null, 'Deleted successfully');
