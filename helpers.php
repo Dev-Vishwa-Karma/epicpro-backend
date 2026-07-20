@@ -1,6 +1,6 @@
 <?php 
     include 'db_connection.php';
-    require_once __DIR__ . '/CloudinaryService.php';
+    require_once __DIR__ . '/cloudinary_service.php';
     $config = require __DIR__ . '/config.php';
 
     // Helper function to send JSON response

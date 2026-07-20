@@ -3,6 +3,8 @@
 include 'db_connection.php';
 require_once __DIR__ . '/vendor/autoload.php';
 
+use Cloudinary\Cloudinary;
+
 $config = require __DIR__ . '/config.php';
 
 class CloudinaryService
