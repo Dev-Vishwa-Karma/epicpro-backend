@@ -3,8 +3,6 @@
 include 'db_connection.php';
 require_once __DIR__ . '/vendor/autoload.php';
 
-use Cloudinary\Cloudinary;
-
 $config = require __DIR__ . '/config.php';
 
 class CloudinaryService
@@ -27,7 +25,7 @@ class CloudinaryService
             if (empty($cloudinary_config) || !isset($cloudinary_config['cloud_name']) || !isset($cloudinary_config['api_key']) || !isset($cloudinary_config['api_secret'])) {
                 throw new Exception("Cloudinary configuration is missing or incomplete.");
             }
-            $this->cloudinary = new Cloudinary([
+            $this->cloudinary = new \Cloudinary\Cloudinary([
                 'cloud' => [
                     'cloud_name' => $cloudinary_config['cloud_name'],
                     'api_key'    => $cloudinary_config['api_key'],
