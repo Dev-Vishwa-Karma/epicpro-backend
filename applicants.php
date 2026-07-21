@@ -11,6 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_once 'mailer.php';
 require_once 'db_connection.php';
 require_once 'email_templates.php';
+require_once 'helpers.php';
 header('Content-Type: application/json');
 
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
@@ -192,14 +193,11 @@ switch ($action) {
         }
 
         if (isset($_FILES['resume']) && $_FILES['resume']['error'] === UPLOAD_ERR_OK) {
-            $uploadDir = __DIR__ . '/uploads/resumes/';
-            if (!is_dir($uploadDir)) {
-                mkdir($uploadDir, 0777, true);
-            }
-            $filename = uniqid() . '-' . preg_replace('/[^a-zA-Z0-9._-]/', '', $_FILES['resume']['name']);
-            $targetFile = $uploadDir . $filename;
-            if (move_uploaded_file($_FILES['resume']['tmp_name'], $targetFile)) {
-                $resume_path = 'uploads/resumes/' . $filename;
+            try {
+                $uploadedFilePath = uploadFile($_FILES['resume'], 'uploads/resumes');
+                $resume_path = $uploadedFilePath;
+            } catch (Exception $e) {
+                error_log("Resume upload failed: " . $e->getMessage());
             }
         }
 
@@ -290,16 +288,13 @@ switch ($action) {
 
         
         if (isset($_FILES['resume']) && $_FILES['resume']['error'] === UPLOAD_ERR_OK) {
-            $uploadDir = __DIR__ . '/uploads/resumes/';
-            if (!is_dir($uploadDir)) {
-                mkdir($uploadDir, 0777, true);
-            }
-            $filename = uniqid() . '-' . preg_replace('/[^a-zA-Z0-9._-]/', '', $_FILES['resume']['name']);
-            $targetFile = $uploadDir . $filename;
-            if (move_uploaded_file($_FILES['resume']['tmp_name'], $targetFile)) {
+            try {
+                $uploadedFilePath = uploadFile($_FILES['resume'], 'uploads/resumes');
                 $updates[] = 'resume_path = ?';
-                $params[] = 'uploads/resumes/' . $filename;
+                $params[] = $uploadedFilePath;
                 $types .= 's';
+            } catch (Exception $e) {
+                error_log("Resume update upload failed: " . $e->getMessage());
             }
         }
 
@@ -469,34 +464,11 @@ switch ($action) {
 
                         // 3. Download the resume if it exists
                         if ($resume_path) {
-                            $fileContent = file_get_contents($resume_path);
-                            if ($fileContent !== false) {
-                                $resumeDir = 'uploads/resumes/';
-                                if (!file_exists($resumeDir)) {
-                                    mkdir($resumeDir, 0777, true); // Make sure directory exists
-                                }
-
-                                // Extract the file extension from the URL or path
-                                $fileInfo = pathinfo($resume_path);
-                                $fileExtension = strtolower($fileInfo['extension']);
-                                
-                                // Ensure it's a valid file extension (pdf, docx, txt, etc.)
-                                // $validExtensions = ['pdf','doc','docx', 'txt', 'rtf', 'odt'];
-                                // if (!in_array($fileExtension, $validExtensions)) {
-                                //     $fileExtension = 'pdf'; // Default to PDF if the extension is invalid
-                                // }
-
-                                // Generate a unique file name and save the file with the correct extension
-                                $fileName = uniqid('resume_', true) . '.' . $fileExtension;
-                                $filePath = $resumeDir . $fileName;
-
-                                // Save the resume file
-                                file_put_contents($filePath, $fileContent);
-
-                                // Update resume path to the new location
-                                $resume_path = $filePath;
-                            } else {
-                                error_log("Failed to download resume: " . $resume_path);
+                            try {
+                                $resume_path = uploadExternalFile($resume_path, 'uploads/resumes');
+                            } catch (Exception $e) {
+                                error_log("Failed to download or upload resume: " . $e->getMessage());
+                                $resume_path = null;
                             }
                         }
 

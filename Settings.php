@@ -141,7 +141,8 @@ if (isset($action)) {
             
             $preferences = [
                 'show_todo' => true, // Default value 1
-                'show_project' => true // Default value 1
+                'show_project' => true, // Default value 1
+                'enable_cloud_storage' => false, // Default value 0
             ];
             
             while ($row = $result->fetch_assoc()) {
@@ -149,6 +150,8 @@ if (isset($action)) {
                     $preferences['show_todo'] = (bool)$row['preference_value'];
                 } elseif ($row['preference_key'] === 'project') {
                     $preferences['show_project'] = (bool)$row['preference_value'];
+                } elseif ($row['preference_key'] === 'enable_cloud_storage') {
+                    $preferences['enable_cloud_storage'] = (bool)$row['preference_value'];
                 }
             }
 
@@ -163,6 +166,7 @@ if (isset($action)) {
             $input = json_decode(file_get_contents('php://input'), true);
             $show_todo = $input['show_todo'] ?? null;
             $show_project = $input['show_project'] ?? null;
+            $enable_cloud_storage = $input['enable_cloud_storage'] ?? null;
 
             if ($show_todo !== null) {
                 $todoValue = $show_todo ? 1 : 0;
@@ -182,6 +186,16 @@ if (isset($action)) {
                 $projectStmt->bind_param("ii", $projectValue, $projectValue);
                 $projectStmt->execute();
                 $projectStmt->close();
+            }
+
+            if ($enable_cloud_storage !== null) {
+                $cloudValue = $enable_cloud_storage ? 1 : 0;
+                $cloudStmt = $conn->prepare("INSERT INTO global_preferences (module, preference_key, preference_value)
+                                            VALUES ('dashboard', 'enable_cloud_storage', ?)
+                                            ON DUPLICATE KEY UPDATE preference_value = ?, updated_at = CURRENT_TIMESTAMP");
+                $cloudStmt->bind_param("ii", $cloudValue, $cloudValue);
+                $cloudStmt->execute();
+                $cloudStmt->close();
             }
 
             sendJsonResponse('success', null, 'Global preferences updated successfully');

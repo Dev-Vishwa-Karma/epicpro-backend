@@ -15,6 +15,18 @@ if (empty($file) || strpos($file, '..') !== false) {
     die("Invalid file parameter.");
 }
 
+// If it's a remote URL, redirect to it directly
+if (preg_match('/^https?:\/\//', $file)) {
+    // Add Cloudinary attachment flag to force download
+    if (strpos($file, 'res.cloudinary.com') !== false && strpos($file, '/upload/') !== false) {
+        if (strpos($file, '/upload/fl_attachment/') === false) {
+            $file = str_replace('/upload/', '/upload/fl_attachment/', $file);
+        }
+    }
+    header('Location: ' . $file);
+    exit;
+}
+
 // Restrict downloads strictly to the "uploads" directory to prevent downloading source code (e.g., config files)
 if (strpos($file, 'uploads/') !== 0) {
     http_response_code(403);
