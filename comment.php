@@ -68,7 +68,7 @@ if (isset($action)) {
                     $getComment = $conn->query("SELECT created_at FROM comments WHERE id = " . $inserted_id);
                     $commentData = $getComment->fetch_assoc();
 
-                    $galleryDir = "uploads/comments/" . $module_type;
+                    $galleryDir = "uploads/comments/". $module_type."/".$module_id;
 
                     $attachmentsData = [];
                     if (isset($_FILES['attachments'])) {
@@ -426,7 +426,7 @@ if (isset($action)) {
 
                         // Now recreate attachments (add new ones)
                         if (isset($_FILES['attachments'])) {
-                            $galleryDir = "uploads/comments/" . $module_type;
+                            $galleryDir = "uploads/comments/" . $module_type."/".$module_id;
 
                             
                             $files = $_FILES['attachments'];
