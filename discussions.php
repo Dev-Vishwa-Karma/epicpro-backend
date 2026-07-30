@@ -61,7 +61,7 @@ function fetchEmployeeMap($conn, $employeeIds)
     return $map;
 }
 
-$currentUserId = isset($token_info[0]) ? (int)$token_info[0] : (isset($_REQUEST['user_id']) ? (int)$_REQUEST['user_id'] : 0);
+$currentUserId = (int)$token_info[0];
 $isUserAdmin = isAdminCheck();
 
 switch ($action) {
@@ -83,6 +83,17 @@ switch ($action) {
         $conditions = [];
         $params = [];
         $types = "";
+
+        // Non-admin user can only view discussions they created or are a participant in
+        // if (!$isUserAdmin && $currentUserId > 0) {
+        //     $uIdStr = (string)$currentUserId;
+        //     $conditions[] = "(d.created_by = ? OR JSON_CONTAINS(d.participants, CAST(? AS JSON)) OR JSON_SEARCH(d.participants, 'one', ?) IS NOT NULL OR d.participants LIKE ?)";
+        //     $params[] = $currentUserId;
+        //     $params[] = $uIdStr;
+        //     $params[] = $uIdStr;
+        //     $params[] = '%"' . $currentUserId . '"%';
+        //     $types .= "isss";
+        // }
 
         if ($id !== null) {
             $conditions[] = "d.id = ?";
@@ -230,10 +241,10 @@ switch ($action) {
         $title = trim($_POST['title'] ?? $requestData['title'] ?? '');
         $description = trim($_POST['description'] ?? $requestData['description'] ?? '');
         $conclusion = trim($_POST['conclusion'] ?? $requestData['conclusion'] ?? '');
-        $created_by = (int)($_POST['created_by'] ?? $requestData['created_by'] ?? 0);
+        $created_by = $currentUserId;
         $participantsInput = $_POST['participants'] ?? $requestData['participants'] ?? [];
 
-        if (empty($title) || empty($description)) {
+        if (empty($title)) {
             sendJsonResponse('error', null, "Title is required.");
         }
 
@@ -287,7 +298,7 @@ switch ($action) {
             sendJsonResponse('error', null, "Discussion not found.");
         }
 
-        if (!$isUserAdmin && $currentUserId > 0 && (int)$existingDisc['created_by'] !== $currentUserId) {
+        if ($currentUserId > 0 && (int)$existingDisc['created_by'] !== $currentUserId) {
             sendJsonResponse('error', null, "Unauthorized: Only the discussion creator or admin can update this discussion.");
         }
 
@@ -336,7 +347,7 @@ switch ($action) {
             sendJsonResponse('error', null, "Discussion not found.");
         }
 
-        if (!$isUserAdmin && $currentUserId > 0 && (int)$existingDisc['created_by'] !== $currentUserId) {
+        if ($currentUserId > 0 && (int)$existingDisc['created_by'] !== $currentUserId) {
             sendJsonResponse('error', null, "Unauthorized: Only the discussion creator or admin can delete this discussion.");
         }
 
