@@ -74,11 +74,11 @@ switch ($action) {
         $participants_filter = $_GET['participants'] ?? null; // Can be single ID or comma-separated IDs or array string
 
         $limit = isset($_GET['limit']) && is_numeric($_GET['limit']) ? (int)$_GET['limit'] : 5;
-        $offset = isset($_GET['offset']) && is_numeric($_GET['offset']) ? (int)$_GET['offset'] : 0;
-        $page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int)$_GET['page'] : null;
-        if ($page !== null && $page > 0) {
-            $offset = ($page - 1) * $limit;
+        $page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int)$_GET['page'] : (isset($_GET['offset']) && is_numeric($_GET['offset']) ? (int)floor((int)$_GET['offset'] / $limit) + 1 : 1);
+        if ($page < 1) {
+            $page = 1;
         }
+        $offset = ($page - 1) * $limit;
 
         $conditions = [];
         $params = [];
@@ -228,7 +228,7 @@ switch ($action) {
                     'discussions' => $discussions,
                     'total' => $totalCount,
                     'limit' => $limit,
-                    'offset' => $offset,
+                    'page' => $page,
                     'has_more' => ($offset + count($discussions)) < $totalCount
                 ]);
             }
