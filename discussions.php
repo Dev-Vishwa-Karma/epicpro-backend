@@ -84,17 +84,6 @@ switch ($action) {
         $params = [];
         $types = "";
 
-        // Non-admin user can only view discussions they created or are a participant in
-        if (!$isUserAdmin && $currentUserId > 0) {
-            $uIdStr = (string)$currentUserId;
-            $conditions[] = "(d.created_by = ? OR JSON_CONTAINS(d.participants, CAST(? AS JSON)) OR JSON_SEARCH(d.participants, 'one', ?) IS NOT NULL OR d.participants LIKE ?)";
-            $params[] = $currentUserId;
-            $params[] = $uIdStr;
-            $params[] = $uIdStr;
-            $params[] = '%"' . $currentUserId . '"%';
-            $types .= "isss";
-        }
-
         if ($id !== null) {
             $conditions[] = "d.id = ?";
             $params[] = $id;
