@@ -121,19 +121,6 @@ switch ($action) {
             $conditions[] = "DATE(d.created_at) = ?";
             $params[] = $exact_date;
             $types .= "s";
-        } elseif (!empty($from_date) && !empty($to_date)) {
-            $conditions[] = "DATE(d.created_at) BETWEEN ? AND ?";
-            $params[] = $from_date;
-            $params[] = $to_date;
-            $types .= "ss";
-        } elseif (!empty($from_date)) {
-            $conditions[] = "DATE(d.created_at) = ?";
-            $params[] = $from_date;
-            $types .= "s";
-        } elseif (!empty($to_date)) {
-            $conditions[] = "DATE(d.created_at) <= ?";
-            $params[] = $to_date;
-            $types .= "s";
         }
 
         // Participants filter handling
@@ -258,7 +245,7 @@ switch ($action) {
         $participantsInput = $_POST['participants'] ?? $requestData['participants'] ?? [];
 
         if (empty($title) || empty($description)) {
-            sendJsonResponse('error', null, "Title and Description are required fields.");
+            sendJsonResponse('error', null, "Title is required.");
         }
 
         if ($created_by <= 0) {
@@ -315,8 +302,8 @@ switch ($action) {
             sendJsonResponse('error', null, "Unauthorized: Only the discussion creator or admin can update this discussion.");
         }
 
-        if (empty($title) || empty($description)) {
-            sendJsonResponse('error', null, "Title and Description are required fields.");
+        if (empty($title)) {
+            sendJsonResponse('error', null, "Title is required.");
         }
 
         if (is_string($participantsInput)) {
