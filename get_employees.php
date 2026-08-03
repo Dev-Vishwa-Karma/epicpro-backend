@@ -884,6 +884,95 @@ if (isset($action)) {
             sendJsonResponse('success', null, 'User is active');
             break;
 
+        case 'check-public-key':
+        case 'get-public-key':
+            $headers = getallheaders();
+            $auth = $headers['Authorization'] ?? null;
+            $token_info = decode_token($auth);
+            $userId = $token_info[0] ?? null;
+
+            if (!$userId) {
+                http_response_code(401);
+                sendJsonResponse('error', null, 'Unauthorized');
+            }
+
+            $stmt = $conn->prepare("SELECT id, CONCAT(first_name, ' ', last_name) AS name, public_key, encrypted_blob FROM employees WHERE id = ? LIMIT 1");
+            $stmt->bind_param("i", $userId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            if ($result && $result->num_rows > 0) {
+                $user = $result->fetch_assoc();
+                sendJsonResponse('success', $user);
+            } else {
+                http_response_code(404);
+                sendJsonResponse('error', null, 'User not found');
+            }
+            break;
+
+        case 'verify-password':
+            $headers = getallheaders();
+            $auth = $headers['Authorization'] ?? null;
+            $token_info = decode_token($auth);
+            $userId = $token_info[0] ?? null;
+
+            if (!$userId) {
+                http_response_code(401);
+                sendJsonResponse('error', null, 'Unauthorized');
+            }
+
+            $password = $_POST['password'] ?? null;
+            if (!$password) {
+                sendJsonResponse('error', null, 'Password is required');
+            }
+
+            $hashedPassword = md5($password);
+            $stmt = $conn->prepare("SELECT id FROM employees WHERE id = ? AND password = ? LIMIT 1");
+            $stmt->bind_param("is", $userId, $hashedPassword);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            if ($result && $result->num_rows > 0) {
+                sendJsonResponse('success', null, 'Password verified successfully');
+            } else {
+                http_response_code(401);
+                sendJsonResponse('error', null, 'Invalid password');
+            }
+            break;
+
+        case 'update-public-key':
+            $headers = getallheaders();
+            $auth = $headers['Authorization'] ?? null;
+            $token_info = decode_token($auth);
+            $userId = $token_info[0] ?? null;
+
+            if (!$userId) {
+                http_response_code(401);
+                sendJsonResponse('error', null, 'Unauthorized');
+            }
+
+            $publicKey = $_POST['public_key'] ?? null;
+            $rawBlob = $_POST['encrypted_blob'] ?? null;
+
+            if (!$publicKey) {
+                sendJsonResponse('error', null, 'Public key is required');
+            }
+
+            if ($rawBlob) {
+                $stmt = $conn->prepare("UPDATE employees SET public_key = ?, encrypted_blob = ? WHERE id = ?");
+                $stmt->bind_param("ssi", $publicKey, $rawBlob, $userId);
+            } else {
+                $stmt = $conn->prepare("UPDATE employees SET public_key = ? WHERE id = ?");
+                $stmt->bind_param("si", $publicKey, $userId);
+            }
+
+            if ($stmt->execute()) {
+                sendJsonResponse('success', ['id' => (int)$userId, 'public_key' => $publicKey], 'Public key and backup saved successfully');
+            } else {
+                sendJsonResponse('error', null, 'Failed to save public key');
+            }
+            break;
+
         default:
             sendJsonResponse('error', null, 'Invalid action');
             break;
