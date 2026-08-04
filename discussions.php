@@ -61,8 +61,86 @@ function fetchEmployeeMap($conn, $employeeIds)
     return $map;
 }
 
+// Helper to parse and verify participants against employees table during add/edit
+function verifyAndGetParticipants($conn, $input)
+{
+    if (empty($input)) {
+        return [];
+    }
+
+    if (is_string($input)) {
+        $jsonParsed = json_decode($input, true);
+        if (is_array($jsonParsed)) {
+            $input = $jsonParsed;
+        } else {
+            $input = explode(',', $input);
+        }
+    }
+
+    $rawParticipants = [];
+    $userIds = [];
+    if (is_array($input)) {
+        foreach ($input as $item) {
+            if (is_array($item)) {
+                $uId = (int)($item['user_id'] ?? $item['id'] ?? 0);
+                $role = !empty($item['role']) ? trim($item['role']) : 'participant';
+                $encKey = $item['encrypted_key'] ?? null;
+                if ($uId > 0) {
+                    $rawParticipants[$uId] = ['role' => $role, 'encrypted_key' => $encKey];
+                    $userIds[] = $uId;
+                }
+            } else {
+                $uId = (int)$item;
+                if ($uId > 0) {
+                    $rawParticipants[$uId] = ['role' => 'participant', 'encrypted_key' => null];
+                    $userIds[] = $uId;
+                }
+            }
+        }
+    }
+
+    if (empty($userIds)) {
+        return [];
+    }
+
+    $userIds = array_values(array_unique($userIds));
+    $inClause = implode(',', $userIds);
+
+    // Query employees table to verify existence of all participant user IDs
+    $res = $conn->query("SELECT id, role FROM employees WHERE id IN ($inClause)");
+    $validEmployees = [];
+    if ($res) {
+        while ($row = $res->fetch_assoc()) {
+            $validEmployees[(int)$row['id']] = $row['role'];
+        }
+    }
+
+    // Verify if any provided participant user ID is invalid
+    $invalidIds = [];
+    foreach ($userIds as $uId) {
+        if (!isset($validEmployees[$uId])) {
+            $invalidIds[] = $uId;
+        }
+    }
+
+    if (!empty($invalidIds)) {
+        throw new Exception("Invalid participant user ID(s): " . implode(', ', $invalidIds) . ". Participants must be valid employees or admins.");
+    }
+
+    $verifiedParticipants = [];
+    foreach ($userIds as $uId) {
+        $verifiedParticipants[] = [
+            'user_id' => $uId,
+            'role' => is_array($rawParticipants[$uId]) ? $rawParticipants[$uId]['role'] : $rawParticipants[$uId],
+            'encrypted_key' => is_array($rawParticipants[$uId]) ? ($rawParticipants[$uId]['encrypted_key'] ?? null) : null
+        ];
+    }
+
+    return $verifiedParticipants;
+}
+
 $currentUserId = (int)$token_info[0];
-$isUserAdmin = isAdminCheck();
+isAdminCheck();
 
 switch ($action) {
     case 'view':
@@ -71,7 +149,7 @@ switch ($action) {
         $created_by = isset($_GET['created_by']) && is_numeric($_GET['created_by']) ? (int)$_GET['created_by'] : null;
         $from_date = $_GET['from_date'] ?? null;
         $to_date = $_GET['to_date'] ?? null;
-        $participants_filter = $_GET['participants'] ?? null; // Can be single ID or comma-separated IDs or array string
+        $participants_filter = $_GET['participants'] ?? null; // Can be single ID or comma-separated IDs or array
 
         $limit = isset($_GET['limit']) && is_numeric($_GET['limit']) ? (int)$_GET['limit'] : 5;
         $page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int)$_GET['page'] : (isset($_GET['offset']) && is_numeric($_GET['offset']) ? (int)floor((int)$_GET['offset'] / $limit) + 1 : 1);
@@ -84,16 +162,13 @@ switch ($action) {
         $params = [];
         $types = "";
 
-        // Non-admin user can only view discussions they created or are a participant in
-        // if (!$isUserAdmin && $currentUserId > 0) {
-        //     $uIdStr = (string)$currentUserId;
-        //     $conditions[] = "(d.created_by = ? OR JSON_CONTAINS(d.participants, CAST(? AS JSON)) OR JSON_SEARCH(d.participants, 'one', ?) IS NOT NULL OR d.participants LIKE ?)";
-        //     $params[] = $currentUserId;
-        //     $params[] = $uIdStr;
-        //     $params[] = $uIdStr;
-        //     $params[] = '%"' . $currentUserId . '"%';
-        //     $types .= "isss";
-        // }
+        // Non-admin user access: view discussions created by user OR where user is a participant
+        if ($currentUserId > 0) {
+            $conditions[] = "(d.created_by = ? OR d.id IN (SELECT discussion_id FROM discussion_participants WHERE user_id = ?))";
+            $params[] = $currentUserId;
+            $params[] = $currentUserId;
+            $types .= "ii";
+        }
 
         if ($id !== null) {
             $conditions[] = "d.id = ?";
@@ -107,15 +182,6 @@ switch ($action) {
             $types .= "i";
         }
 
-        if (!empty($search)) {
-            $conditions[] = "(d.title LIKE ? OR d.description LIKE ? OR d.conclusion LIKE ?)";
-            $searchParam = "%" . $search . "%";
-            $params[] = $searchParam;
-            $params[] = $searchParam;
-            $params[] = $searchParam;
-            $types .= "sss";
-        }
-
         $exact_date = $_GET['date'] ?? null;
         if (!empty($exact_date)) {
             $conditions[] = "DATE(d.created_at) = ?";
@@ -123,7 +189,7 @@ switch ($action) {
             $types .= "s";
         }
 
-        // Participants filter handling
+        // Participants filter handling via discussion_participants table
         if (!empty($participants_filter)) {
             $partIds = [];
             if (is_array($participants_filter)) {
@@ -131,20 +197,13 @@ switch ($action) {
             } else {
                 $partIds = array_map('intval', explode(',', $participants_filter));
             }
-            $partIds = array_filter($partIds, function ($v) {
+            $partIds = array_values(array_filter($partIds, function ($v) {
                 return $v > 0;
-            });
+            }));
 
             if (!empty($partIds)) {
-                $partConds = [];
-                foreach ($partIds as $pId) {
-                    $partConds[] = "(JSON_CONTAINS(d.participants, CAST(? AS JSON)) OR JSON_SEARCH(d.participants, 'one', ?) IS NOT NULL OR d.participants LIKE ?)";
-                    $params[] = (string)$pId;
-                    $params[] = (string)$pId;
-                    $params[] = '%"' . $pId . '"%';
-                    $types .= "sss";
-                }
-                $conditions[] = "(" . implode(" OR ", $partConds) . ")";
+                $inClause = implode(',', $partIds);
+                $conditions[] = "d.id IN (SELECT discussion_id FROM discussion_participants WHERE user_id IN ($inClause))";
             }
         }
 
@@ -186,35 +245,55 @@ switch ($action) {
             $stmt->execute();
             $result = $stmt->get_result();
             $discussions = [];
-            $allParticipantIds = [];
+            $discussionIds = [];
 
             while ($row = $result->fetch_assoc()) {
-                $rawParticipants = $row['participants'];
-                $decodedParticipants = [];
-                if (!empty($rawParticipants)) {
-                    if (is_string($rawParticipants)) {
-                        $decodedParticipants = json_decode($rawParticipants, true) ?? [];
-                    } elseif (is_array($rawParticipants)) {
-                        $decodedParticipants = $rawParticipants;
-                    }
-                }
-                $row['participants'] = array_values(array_map('intval', (array)$decodedParticipants));
-                foreach ($row['participants'] as $pId) {
-                    if ($pId > 0) $allParticipantIds[] = $pId;
-                }
+                $row['id'] = (int)$row['id'];
+                $row['created_by'] = (int)$row['created_by'];
                 $discussions[] = $row;
+                $discussionIds[] = $row['id'];
             }
 
-            // Fetch details for participants
-            $employeeMap = fetchEmployeeMap($conn, $allParticipantIds);
-            foreach ($discussions as &$disc) {
-                $pDetails = [];
-                foreach ($disc['participants'] as $pId) {
-                    if (isset($employeeMap[$pId])) {
-                        $pDetails[] = $employeeMap[$pId];
+            // Fetch participants for retrieved discussions
+            $discussionParticipantsMap = [];
+            if (!empty($discussionIds)) {
+                $inClause = implode(',', array_map('intval', $discussionIds));
+                $dpQuery = "SELECT dp.discussion_id, dp.user_id, dp.role, dp.encrypted_key, dp.created_at, dp.updated_at,
+                                   e.first_name, e.last_name, e.email, e.role AS employee_role, e.profile
+                            FROM discussion_participants dp
+                            LEFT JOIN employees e ON dp.user_id = e.id
+                            WHERE dp.discussion_id IN ($inClause)";
+                $dpResult = $conn->query($dpQuery);
+                if ($dpResult) {
+                    while ($dpRow = $dpResult->fetch_assoc()) {
+                        $discId = (int)$dpRow['discussion_id'];
+                        $uId = (int)$dpRow['user_id'];
+                        $participantObj = [
+                            'id' => $uId,
+                            'user_id' => $uId,
+                            'role' => $dpRow['role'],
+                            'encrypted_key' => $dpRow['encrypted_key'] ?? null,
+                            'name' => trim(($dpRow['first_name'] ?? '') . ' ' . ($dpRow['last_name'] ?? '')),
+                            'first_name' => $dpRow['first_name'],
+                            'last_name' => $dpRow['last_name'],
+                            'email' => $dpRow['email'],
+                            'employee_role' => $dpRow['employee_role'],
+                            'profile' => $dpRow['profile'] ?? null,
+                            'created_at' => $dpRow['created_at'],
+                            'updated_at' => $dpRow['updated_at']
+                        ];
+                        $discussionParticipantsMap[$discId][] = $participantObj;
                     }
                 }
-                $disc['participant_details'] = $pDetails;
+            }
+
+            // Merge participants data into discussions
+            foreach ($discussions as &$disc) {
+                $pList = $discussionParticipantsMap[(int)$disc['id']] ?? [];
+                $disc['participants'] = array_values(array_map(function ($p) {
+                    return $p['user_id'];
+                }, $pList));
+                $disc['participant_details'] = $pList;
             }
 
             if ($id !== null) {
@@ -238,9 +317,9 @@ switch ($action) {
         break;
 
     case 'add':
-        $title = trim($_POST['title'] ?? $requestData['title'] ?? '');
-        $description = trim($_POST['description'] ?? $requestData['description'] ?? '');
-        $conclusion = trim($_POST['conclusion'] ?? $requestData['conclusion'] ?? '');
+        $title = $_POST['title'] ?? $requestData['title'] ?? [];
+        $description = $_POST['description'] ?? $requestData['description'] ?? null;
+        $conclusion = $_POST['conclusion'] ?? $requestData['conclusion'] ?? null;
         $created_by = $currentUserId;
         $participantsInput = $_POST['participants'] ?? $requestData['participants'] ?? [];
 
@@ -252,42 +331,56 @@ switch ($action) {
             sendJsonResponse('error', null, "Valid creator user ID is required.");
         }
 
-        if (is_string($participantsInput)) {
-            $jsonParsed = json_decode($participantsInput, true);
-            if (is_array($jsonParsed)) {
-                $participantsInput = $jsonParsed;
-            } else {
-                $participantsInput = explode(',', $participantsInput);
+        $conn->begin_transaction();
+        try {
+            // Verify participants exist in employees table
+            $parsedParticipants = verifyAndGetParticipants($conn, $participantsInput);
+
+            $is_encrypted = isset($_POST['is_encrypted']) ? (int)$_POST['is_encrypted'] : (isset($requestData['is_encrypted']) ? (int)$requestData['is_encrypted'] : 1);
+
+            $stmt = $conn->prepare("INSERT INTO discussions (title, description, conclusion, created_by, is_encrypted) VALUES (?, ?, ?, ?, ?)");
+            $stmt->bind_param("sssii", $title, $description, $conclusion, $created_by, $is_encrypted);
+
+            if (!$stmt->execute()) {
+                throw new Exception("Failed to create discussion: " . $stmt->error);
             }
-        }
-        $participantsArr = array_values(array_filter(array_map('intval', (array)$participantsInput), function ($v) {
-            return $v > 0;
-        }));
-        $participantsJSON = json_encode($participantsArr);
 
-        $stmt = $conn->prepare("INSERT INTO discussions (title, description, conclusion, participants, created_by) VALUES (?, ?, ?, ?, ?)");
-        $stmt->bind_param("ssssi", $title, $description, $conclusion, $participantsJSON, $created_by);
-
-        if ($stmt->execute()) {
             $newId = $stmt->insert_id;
+
+            if (!empty($parsedParticipants)) {
+                $pStmt = $conn->prepare("INSERT INTO discussion_participants (discussion_id, user_id, role, encrypted_key) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE role = VALUES(role), encrypted_key = VALUES(encrypted_key)");
+                foreach ($parsedParticipants as $p) {
+                    $pUserId = $p['user_id'];
+                    $pRole = $p['role'];
+                    $pEncKey = $p['encrypted_key'] ?? null;
+                    $pStmt->bind_param("iiss", $newId, $pUserId, $pRole, $pEncKey);
+                    if (!$pStmt->execute()) {
+                        throw new Exception("Failed to insert participant user_id {$pUserId}: " . $pStmt->error);
+                    }
+                }
+            }
+
+            $conn->commit();
             sendJsonResponse('success', ['id' => $newId], "Discussion created successfully.");
-        } else {
-            sendJsonResponse('error', null, "Failed to create discussion: " . $stmt->error);
+        } catch (Exception $e) {
+            $conn->rollback();
+            sendJsonResponse('error', null, $e->getMessage());
         }
         break;
 
     case 'edit':
         $id = (int)($_GET['id'] ?? $_POST['id'] ?? $requestData['id'] ?? 0);
-        $title = trim($_POST['title'] ?? $requestData['title'] ?? '');
-        $description = trim($_POST['description'] ?? $requestData['description'] ?? '');
-        $conclusion = trim($_POST['conclusion'] ?? $requestData['conclusion'] ?? '');
-        $participantsInput = $_POST['participants'] ?? $requestData['participants'] ?? [];
+        $title = $_POST['title'] ?? $requestData['title'] ?? [];
+        $description = $_POST['description'] ?? $requestData['description'] ?? null;
+        $conclusion = $_POST['conclusion'] ?? $requestData['conclusion'] ?? null;
+        $participantsInput = $_POST['participants'] ?? $requestData['participants'] ?? null;
+        $is_encrypted = isset($_POST['is_encrypted']) ? (int)$_POST['is_encrypted'] : (isset($requestData['is_encrypted']) ? (int)$requestData['is_encrypted'] : 1);
 
         if ($id <= 0) {
             sendJsonResponse('error', null, "Valid discussion ID is required.");
         }
 
-        // Authorization Check: Only creator or admin can update
+        // Authorization Check: Creator, Admin, or assigned Discussion Participant can update
         $checkStmt = $conn->prepare("SELECT created_by FROM discussions WHERE id = ?");
         $checkStmt->bind_param("i", $id);
         $checkStmt->execute();
@@ -298,34 +391,60 @@ switch ($action) {
             sendJsonResponse('error', null, "Discussion not found.");
         }
 
-        if ($currentUserId > 0 && (int)$existingDisc['created_by'] !== $currentUserId) {
-            sendJsonResponse('error', null, "Unauthorized: Only the discussion creator or admin can update this discussion.");
+        $isParticipant = false;
+        if ($currentUserId > 0) {
+            $partCheck = $conn->query("SELECT 1 FROM discussion_participants WHERE discussion_id = " . intval($id) . " AND user_id = " . intval($currentUserId) . " LIMIT 1");
+            if ($partCheck && $partCheck->num_rows > 0) {
+                $isParticipant = true;
+            }
+        }
+
+        if ($currentUserId > 0 && (int)$existingDisc['created_by'] !== $currentUserId && !$isUserAdmin && !$isParticipant) {
+            sendJsonResponse('error', null, "Unauthorized: Only the discussion creator, admin, or participants can update this discussion.");
         }
 
         if (empty($title)) {
             sendJsonResponse('error', null, "Title is required.");
         }
 
-        if (is_string($participantsInput)) {
-            $jsonParsed = json_decode($participantsInput, true);
-            if (is_array($jsonParsed)) {
-                $participantsInput = $jsonParsed;
-            } else {
-                $participantsInput = explode(',', $participantsInput);
+        $conn->begin_transaction();
+        try {
+            $stmt = $conn->prepare("UPDATE discussions SET title = ?, description = ?, conclusion = ?, is_encrypted = ? WHERE id = ?");
+            $stmt->bind_param("sssii", $title, $description, $conclusion, $is_encrypted, $id);
+
+            if (!$stmt->execute()) {
+                throw new Exception("Failed to update discussion: " . $stmt->error);
             }
-        }
-        $participantsArr = array_values(array_filter(array_map('intval', (array)$participantsInput), function ($v) {
-            return $v > 0;
-        }));
-        $participantsJSON = json_encode($participantsArr);
 
-        $stmt = $conn->prepare("UPDATE discussions SET title = ?, description = ?, conclusion = ?, participants = ? WHERE id = ?");
-        $stmt->bind_param("ssssi", $title, $description, $conclusion, $participantsJSON, $id);
+            if ($participantsInput !== null) {
+                // Verify participants exist in employees table (throws Exception if any participant user ID is invalid)
+                $parsedParticipants = verifyAndGetParticipants($conn, $participantsInput);
 
-        if ($stmt->execute()) {
+                $delStmt = $conn->prepare("DELETE FROM discussion_participants WHERE discussion_id = ?");
+                $delStmt->bind_param("i", $id);
+                if (!$delStmt->execute()) {
+                    throw new Exception("Failed to update discussion participants: " . $delStmt->error);
+                }
+
+                if (!empty($parsedParticipants)) {
+                    $pStmt = $conn->prepare("INSERT INTO discussion_participants (discussion_id, user_id, role, encrypted_key) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE role = VALUES(role), encrypted_key = VALUES(encrypted_key)");
+                    foreach ($parsedParticipants as $p) {
+                        $pUserId = $p['user_id'];
+                        $pRole = $p['role'];
+                        $pEncKey = $p['encrypted_key'] ?? null;
+                        $pStmt->bind_param("iiss", $id, $pUserId, $pRole, $pEncKey);
+                        if (!$pStmt->execute()) {
+                            throw new Exception("Failed to insert participant user_id {$pUserId}: " . $pStmt->error);
+                        }
+                    }
+                }
+            }
+
+            $conn->commit();
             sendJsonResponse('success', ['id' => $id], "Discussion updated successfully.");
-        } else {
-            sendJsonResponse('error', null, "Failed to update discussion: " . $stmt->error);
+        } catch (Exception $e) {
+            $conn->rollback();
+            sendJsonResponse('error', null, $e->getMessage());
         }
         break;
 
@@ -351,13 +470,125 @@ switch ($action) {
             sendJsonResponse('error', null, "Unauthorized: Only the discussion creator or admin can delete this discussion.");
         }
 
-        $stmt = $conn->prepare("DELETE FROM discussions WHERE id = ?");
-        $stmt->bind_param("i", $id);
+        $conn->begin_transaction();
+        try {
+            $delPartStmt = $conn->prepare("DELETE FROM discussion_participants WHERE discussion_id = ?");
+            $delPartStmt->bind_param("i", $id);
+            $delPartStmt->execute();
+
+            $delStmt = $conn->prepare("DELETE FROM discussions WHERE id = ?");
+            $delStmt->bind_param("i", $id);
+            if (!$delStmt->execute()) {
+                throw new Exception("Failed to delete discussion: " . $delStmt->error);
+            }
+
+            $conn->commit();
+            sendJsonResponse('success', null, "Discussion deleted successfully.");
+        } catch (Exception $e) {
+            $conn->rollback();
+            sendJsonResponse('error', null, $e->getMessage());
+        }
+        break;
+
+    case 'add_participant':
+        $discussion_id = (int)($_POST['discussion_id'] ?? $requestData['discussion_id'] ?? $_GET['discussion_id'] ?? 0);
+        $user_id = (int)($_POST['user_id'] ?? $requestData['user_id'] ?? $_GET['user_id'] ?? 0);
+        $role = trim($_POST['role'] ?? $requestData['role'] ?? 'participant');
+
+        if ($discussion_id <= 0 || $user_id <= 0) {
+            sendJsonResponse('error', null, "Valid discussion ID and user ID are required.");
+        }
+
+        try {
+            $parsedParticipants = verifyAndGetParticipants($conn, [$user_id]);
+            if (empty($parsedParticipants)) {
+                sendJsonResponse('error', null, "Invalid participant user ID: Employee not found.");
+            }
+
+            $stmt = $conn->prepare("INSERT INTO discussion_participants (discussion_id, user_id, role) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE role = VALUES(role)");
+            $stmt->bind_param("iis", $discussion_id, $user_id, $role);
+
+            if ($stmt->execute()) {
+                sendJsonResponse('success', ['discussion_id' => $discussion_id, 'user_id' => $user_id], "Participant added/updated successfully.");
+            } else {
+                sendJsonResponse('error', null, "Failed to update participant: " . $stmt->error);
+            }
+        } catch (Exception $e) {
+            sendJsonResponse('error', null, $e->getMessage());
+        }
+        break;
+
+    case 'remove_participant':
+        $discussion_id = (int)($_POST['discussion_id'] ?? $requestData['discussion_id'] ?? $_GET['discussion_id'] ?? 0);
+        $user_id = (int)($_POST['user_id'] ?? $requestData['user_id'] ?? $_GET['user_id'] ?? 0);
+
+        if ($discussion_id <= 0 || $user_id <= 0) {
+            sendJsonResponse('error', null, "Valid discussion ID and user ID are required.");
+        }
+
+        $stmt = $conn->prepare("DELETE FROM discussion_participants WHERE discussion_id = ? AND user_id = ?");
+        $stmt->bind_param("ii", $discussion_id, $user_id);
 
         if ($stmt->execute()) {
-            sendJsonResponse('success', null, "Discussion deleted successfully.");
+            sendJsonResponse('success', null, "Participant removed successfully.");
         } else {
-            sendJsonResponse('error', null, "Failed to delete discussion: " . $stmt->error);
+            sendJsonResponse('error', null, "Failed to remove participant: " . $stmt->error);
+        }
+        break;
+
+    case 'update_participant_keys':
+        $id = (int)($_GET['id'] ?? $_POST['id'] ?? $requestData['id'] ?? 0);
+        $participantsInput = $_POST['participants'] ?? $requestData['participants'] ?? [];
+
+        if ($id <= 0 || empty($participantsInput)) {
+            sendJsonResponse('error', null, "Valid discussion ID and participants array are required.");
+        }
+
+        // Authorization Check: Creator, Admin, or assigned Discussion Participant can update keys
+        $checkStmt = $conn->prepare("SELECT created_by FROM discussions WHERE id = ?");
+        $checkStmt->bind_param("i", $id);
+        $checkStmt->execute();
+        $checkRes = $checkStmt->get_result();
+        $existingDisc = $checkRes ? $checkRes->fetch_assoc() : null;
+
+        if (!$existingDisc) {
+            sendJsonResponse('error', null, "Discussion not found.");
+        }
+
+        $isParticipant = false;
+        if ($currentUserId > 0) {
+            $partCheck = $conn->query("SELECT 1 FROM discussion_participants WHERE discussion_id = " . intval($id) . " AND user_id = " . intval($currentUserId) . " LIMIT 1");
+            if ($partCheck && $partCheck->num_rows > 0) {
+                $isParticipant = true;
+            }
+        }
+
+        if ($currentUserId > 0 && (int)$existingDisc['created_by'] !== $currentUserId && !$isUserAdmin && !$isParticipant) {
+            sendJsonResponse('error', null, "Unauthorized to update participant keys for this discussion.");
+        }
+
+        $parsedParticipants = verifyAndGetParticipants($conn, $participantsInput);
+
+        $conn->begin_transaction();
+        try {
+            $pStmt = $conn->prepare("INSERT INTO discussion_participants (discussion_id, user_id, role, encrypted_key) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE encrypted_key = VALUES(encrypted_key)");
+            foreach ($parsedParticipants as $p) {
+                $pUserId = $p['user_id'];
+                $pRole = $p['role'];
+                $pEncKey = $p['encrypted_key'] ?? null;
+                if (!empty($pEncKey)) {
+                    $pStmt->bind_param("iiss", $id, $pUserId, $pRole, $pEncKey);
+                    if (!$pStmt->execute()) {
+                        throw new Exception("Failed to update participant key for user_id {$pUserId}: " . $pStmt->error);
+                    }
+                }
+            }
+
+            $conn->commit();
+            sendJsonResponse('success', ['id' => $id], "Participant keys updated successfully.");
+        } catch (Exception $e) {
+            $conn->rollback();
+            sendJsonResponse('error', null, $e->getMessage());
         }
         break;
 
