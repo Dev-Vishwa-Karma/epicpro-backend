@@ -399,7 +399,7 @@ switch ($action) {
             }
         }
 
-        if ($currentUserId > 0 && (int)$existingDisc['created_by'] !== $currentUserId && !$isUserAdmin && !$isParticipant) {
+        if ($currentUserId > 0 && (int)$existingDisc['created_by'] !== $currentUserId && !$isParticipant) {
             sendJsonResponse('error', null, "Unauthorized: Only the discussion creator, admin, or participants can update this discussion.");
         }
 
@@ -563,7 +563,7 @@ switch ($action) {
             }
         }
 
-        if ($currentUserId > 0 && (int)$existingDisc['created_by'] !== $currentUserId && !$isUserAdmin && !$isParticipant) {
+        if ($currentUserId > 0 && (int)$existingDisc['created_by'] !== $currentUserId && !$isParticipant) {
             sendJsonResponse('error', null, "Unauthorized to update participant keys for this discussion.");
         }
 
