@@ -100,10 +100,8 @@ if (isset($action)) {
                             visibility_priority ASC,
                             first_name ASC
                     ";
-                }
-                else if ($roleFilter == 'admin') {
+                } else if ($roleFilter == 'admin') {
                     $query .= " AND (e.role = 'admin' OR e.role = 'super_admin')";
-
                 } else {
 
                     $query .= " ORDER BY e.id DESC";
@@ -193,10 +191,10 @@ if (isset($action)) {
                 try {
                     // Upload to profile folder
                     $profilePath = uploadFile($profileImage, 'uploads/profiles', ['image/jpeg', 'image/png', 'image/webp']);
-                    
+
                     if ($profilePath) {
                         $data['profile'] = $profilePath;
-            
+
                         if (strpos($profilePath, 'res.cloudinary.com') !== false) {
                             $galleryPath = $profilePath;
                         } else {
@@ -378,7 +376,7 @@ if (isset($action)) {
                 $department_head = $department['department_head'] ?? '';
 
                 $created_at = date('Y-m-d H:i:s');
-                
+
                 // Insert profile image into gallery if uploaded
                 if (!empty($data['profile'])) {
                     $gallery_stmt = $conn->prepare(
@@ -386,7 +384,7 @@ if (isset($action)) {
                     );
 
                     $gallery_stmt->bind_param('issi', $employee_id, $galleryPath, $created_at, $created_by);
-                    
+
                     if (!$gallery_stmt->execute()) {
                         $gallery_error = $gallery_stmt->error;
                         sendJsonResponse('error', null, "Failed to add profile image to gallery: $gallery_error");
@@ -581,15 +579,15 @@ if (isset($action)) {
                 // File uploads: handle files only if they are present
                 // Upload profile image
                 if (isset($_FILES['photo'])) {
-                     $profileImage = $_FILES['photo'];
+                    $profileImage = $_FILES['photo'];
                     if ($profileImage) {
                         try {
                             // Upload to profile folder
                             $profilePath = uploadFile($profileImage, 'uploads/profiles', ['image/jpeg', 'image/png', 'image/webp']);
-                            
+
                             if ($profilePath) {
                                 $data['profile'] = $profilePath;
-                    
+
                                 if (strpos($profilePath, 'res.cloudinary.com') !== false) {
                                     $galleryPath = $profilePath;
                                 } else {
@@ -609,7 +607,7 @@ if (isset($action)) {
                         }
                     }
                 }
-                               
+
 
                 // Upload Aadhaar card
                 if (isset($_FILES['aadhar_card_file'])) {
@@ -618,7 +616,7 @@ if (isset($action)) {
                         $data['aadhar_card_file'] = uploadFile($aadharCardFile, 'uploads/documents/aadhar', ['application/pdf', 'application/msword', 'text/plain', 'image/jpeg', 'image/png', 'image/webp', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/octet-stream']);
                     }
                 }
-            
+
 
                 // Upload PAN card
                 if (isset($_FILES['pan_card_file'])) {
@@ -682,7 +680,7 @@ if (isset($action)) {
                             }
 
                             $updated_at = date('Y-m-d H:i:s');
-                            
+
                             // Check if salary detail exists
                             if (isset($detail['id']) && !empty($detail['id'])) {
                                 // Update existing salary detail
@@ -720,7 +718,7 @@ if (isset($action)) {
                     //     if ($eventResult->num_rows > 0) {
                     //         $event_row = $eventResult->fetch_assoc();
                     //         $event_id = $event_row['id'];
-                            
+
                     //         $updateEventSql = "UPDATE events SET event_name = '$event_name', event_date = '$event_date', event_type = '$event_type', updated_at = '$updated_at', updated_by = {$data['updated_by']} WHERE employee_id = $logged_in_user_id";
                     //         $conn->query($updateEventSql);
                     //     } else {
@@ -767,69 +765,69 @@ if (isset($action)) {
             break;
 
 
-            case 'delete':
-                // Get data from $_GET instead of php://input (which is used for JSON)
-                $user_id = isset($_GET['user_id']) ? $_GET['user_id'] : null;
-                $logged_in_employee_id = isset($_GET['logged_in_employee_id']) ? $_GET['logged_in_employee_id'] : null;
-                $logged_in_employee_role = isset($_GET['logged_in_employee_role']) ? $_GET['logged_in_employee_role'] : null;
+        case 'delete':
+            // Get data from $_GET instead of php://input (which is used for JSON)
+            $user_id = isset($_GET['user_id']) ? $_GET['user_id'] : null;
+            $logged_in_employee_id = isset($_GET['logged_in_employee_id']) ? $_GET['logged_in_employee_id'] : null;
+            $logged_in_employee_role = isset($_GET['logged_in_employee_role']) ? $_GET['logged_in_employee_role'] : null;
 
-                if ($user_id && validateId($user_id)) {
-                    $id = $user_id;
-                    $deleted_by = null;
+            if ($user_id && validateId($user_id)) {
+                $id = $user_id;
+                $deleted_by = null;
 
-                    // Admin cannot deleted to super admin
-                    $roleCheck = $conn->prepare("SELECT role FROM employees WHERE id = ? AND deleted_at IS NULL");
-                    $roleCheck->bind_param('i', $id);
-                    $roleCheck->execute();
-                    $roleResult = $roleCheck->get_result();
-                    if ($roleResult && $roleRow = $roleResult->fetch_assoc()) {
-                        if (strtolower($roleRow['role']) === 'super_admin') {
-                            sendJsonResponse('error', null, 'Super Admin cannot be deleted.');
-                        }
+                // Admin cannot deleted to super admin
+                $roleCheck = $conn->prepare("SELECT role FROM employees WHERE id = ? AND deleted_at IS NULL");
+                $roleCheck->bind_param('i', $id);
+                $roleCheck->execute();
+                $roleResult = $roleCheck->get_result();
+                if ($roleResult && $roleRow = $roleResult->fetch_assoc()) {
+                    if (strtolower($roleRow['role']) === 'super_admin') {
+                        sendJsonResponse('error', null, 'Super Admin cannot be deleted.');
                     }
+                }
 
-                    // Check if logged-in user ID and role are provided
-                    if ($logged_in_employee_id && $logged_in_employee_role) {
-                        $logged_in_user_id = $logged_in_employee_id;
-                        $logged_in_user_role = strtolower($logged_in_employee_role);
+                // Check if logged-in user ID and role are provided
+                if ($logged_in_employee_id && $logged_in_employee_role) {
+                    $logged_in_user_id = $logged_in_employee_id;
+                    $logged_in_user_role = strtolower($logged_in_employee_role);
 
-                        // Allow only admin and super admin to set deleted_by
-                        if ($logged_in_user_role === 'admin' || $logged_in_user_role === 'super_admin') {
-                            $deleted_by = $logged_in_user_id;
-                        }
+                    // Allow only admin and super admin to set deleted_by
+                    if ($logged_in_user_role === 'admin' || $logged_in_user_role === 'super_admin') {
+                        $deleted_by = $logged_in_user_id;
                     }
+                }
 
-                    // Prepare the SQL query based on role condition
-                    if ($deleted_by) {
-                        $stmt = $conn->prepare("UPDATE employees SET deleted_at = NOW(), deleted_by = ? WHERE id = ?");
-                        $stmt->bind_param('ii', $deleted_by, $id);
-                    } else {
-                        $stmt = $conn->prepare("UPDATE employees SET deleted_at = NOW() WHERE id = ?");
-                        $stmt->bind_param('i', $id);
-                    }
+                // Prepare the SQL query based on role condition
+                if ($deleted_by) {
+                    $stmt = $conn->prepare("UPDATE employees SET deleted_at = NOW(), deleted_by = ? WHERE id = ?");
+                    $stmt->bind_param('ii', $deleted_by, $id);
+                } else {
+                    $stmt = $conn->prepare("UPDATE employees SET deleted_at = NOW() WHERE id = ?");
+                    $stmt->bind_param('i', $id);
+                }
 
+                if ($stmt->execute()) {
+                    // Soft delete from salary_details table
+                    $stmt = $conn->prepare("UPDATE salary_details SET deleted_at = NOW() WHERE employee_id = ?");
+                    $stmt->bind_param('i', $id);
                     if ($stmt->execute()) {
-                        // Soft delete from salary_details table
-                        $stmt = $conn->prepare("UPDATE salary_details SET deleted_at = NOW() WHERE employee_id = ?");
-                        $stmt->bind_param('i', $id);
-                        if ($stmt->execute()) {
-                            sendJsonResponse('success', null, 'Employee and salary details deleted successfully');
-                        } else {
-                            $error = $stmt->error;
-                            sendJsonResponse('error', null, "Failed to delete salary details: $error");
-                        }
+                        sendJsonResponse('success', null, 'Employee and salary details deleted successfully');
                     } else {
-                        sendJsonResponse('error', null, 'Failed to delete employee details');
+                        $error = $stmt->error;
+                        sendJsonResponse('error', null, "Failed to delete salary details: $error");
                     }
                 } else {
-                    sendJsonResponse('error', null, 'Invalid user ID');
+                    sendJsonResponse('error', null, 'Failed to delete employee details');
                 }
-                break;            
+            } else {
+                sendJsonResponse('error', null, 'Invalid user ID');
+            }
+            break;
 
         case 'profile-update':
             $employee_id = isset($_POST['employee_id']) ? $_POST['employee_id'] : null;
             $created_by = isset($_POST['created_by']) ? $_POST['created_by'] : null;
-            
+
             // Check if files are upload
             if (empty($employee_id) || !isset($_FILES['image'])) {
                 sendJsonResponse('error', null, "All fields are required");
@@ -855,7 +853,7 @@ if (isset($action)) {
                         }
                     }
                     $selectStmt->close();
-               
+
                     // Update the employee's profile field with the latest uploaded image
                     $updateStmt = $conn->prepare("UPDATE employees SET profile = ? WHERE id = ?");
                     $updateStmt->bind_param("si", $image_name, $employee_id);
@@ -882,6 +880,94 @@ if (isset($action)) {
         case 'check_status':
             // Check if user is active (auth_validate handles deletion check)
             sendJsonResponse('success', null, 'User is active');
+            break;
+
+        case 'check-public-key':
+        case 'get-public-key':
+            $headers = getallheaders();
+            $auth = $headers['Authorization'] ?? null;
+            $token_info = decode_token($auth);
+            $userId = $token_info[0] ?? null;
+
+            if (!$userId) {
+                http_response_code(401);
+                sendJsonResponse('error', null, 'Unauthorized');
+            }
+
+            $stmt = $conn->prepare("SELECT id, CONCAT(first_name, ' ', last_name) AS name, public_key, encrypted_blob FROM employees WHERE id = ? LIMIT 1");
+            $stmt->bind_param("i", $userId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            if ($result && $result->num_rows > 0) {
+                $user = $result->fetch_assoc();
+                sendJsonResponse('success', $user);
+            } else {
+                http_response_code(404);
+                sendJsonResponse('error', null, 'User not found');
+            }
+            break;
+
+        case 'verify-password':
+            $headers = getallheaders();
+            $auth = $headers['Authorization'] ?? null;
+            $token_info = decode_token($auth);
+            $userId = $token_info[0] ?? null;
+
+            if (!$userId) {
+                http_response_code(401);
+                sendJsonResponse('error', null, 'Unauthorized');
+            }
+
+            $password = $_POST['password'] ?? null;
+            if (!$password) {
+                sendJsonResponse('error', null, 'Password is required');
+            }
+
+            $hashedPassword = md5($password);
+            $stmt = $conn->prepare("SELECT id FROM employees WHERE id = ? AND password = ? LIMIT 1");
+            $stmt->bind_param("is", $userId, $hashedPassword);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            if ($result && $result->num_rows > 0) {
+                sendJsonResponse('success', null, 'Password verified successfully');
+            } else {
+                sendJsonResponse('error', null, 'Invalid password');
+            }
+            break;
+
+        case 'update-public-key':
+            $headers = getallheaders();
+            $auth = $headers['Authorization'] ?? null;
+            $token_info = decode_token($auth);
+            $userId = $token_info[0] ?? null;
+
+            if (!$userId) {
+                http_response_code(401);
+                sendJsonResponse('error', null, 'Unauthorized');
+            }
+
+            $publicKey = $_POST['public_key'] ?? null;
+            $rawBlob = $_POST['encrypted_blob'] ?? null;
+
+            if (!$publicKey) {
+                sendJsonResponse('error', null, 'Public key is required');
+            }
+
+            if ($rawBlob) {
+                $stmt = $conn->prepare("UPDATE employees SET public_key = ?, encrypted_blob = ? WHERE id = ?");
+                $stmt->bind_param("ssi", $publicKey, $rawBlob, $userId);
+            } else {
+                $stmt = $conn->prepare("UPDATE employees SET public_key = ? WHERE id = ?");
+                $stmt->bind_param("si", $publicKey, $userId);
+            }
+
+            if ($stmt->execute()) {
+                sendJsonResponse('success', ['id' => (int)$userId, 'public_key' => $publicKey], 'Public key and backup saved successfully');
+            } else {
+                sendJsonResponse('error', null, 'Failed to save public key');
+            }
             break;
 
         default:
