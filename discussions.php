@@ -86,13 +86,19 @@ function verifyAndGetParticipants($conn, $input)
                 $role = !empty($item['role']) ? trim($item['role']) : 'participant';
                 $encKey = $item['encrypted_key'] ?? null;
                 if ($uId > 0) {
-                    $rawParticipants[$uId] = ['role' => $role, 'encrypted_key' => $encKey];
+                    $rawParticipants[$uId] = [
+                        'role' => $role,
+                        'encrypted_key' => $encKey
+                    ];
                     $userIds[] = $uId;
                 }
             } else {
                 $uId = (int)$item;
                 if ($uId > 0) {
-                    $rawParticipants[$uId] = ['role' => 'participant', 'encrypted_key' => null];
+                    $rawParticipants[$uId] = [
+                        'role' => 'participant',
+                        'encrypted_key' => null
+                    ];
                     $userIds[] = $uId;
                 }
             }
@@ -106,37 +112,56 @@ function verifyAndGetParticipants($conn, $input)
     $userIds = array_values(array_unique($userIds));
     $inClause = implode(',', $userIds);
 
-    // Query employees table to verify existence of all participant user IDs
-    $res = $conn->query("SELECT id, role FROM employees WHERE id IN ($inClause)");
-    $validEmployees = [];
-    if ($res) {
-        while ($row = $res->fetch_assoc()) {
-            $validEmployees[(int)$row['id']] = $row['role'];
-        }
+    $sql = "
+        SELECT id, role, first_name, last_name
+        FROM employees
+        WHERE id IN ($inClause)
+    ";
+
+    $res = $conn->query($sql);
+
+    if (!$res) {
+        throw new Exception("Failed to verify participants.");
     }
 
-    // Verify if any provided participant user ID is invalid
-    $invalidIds = [];
-    foreach ($userIds as $uId) {
-        if (!isset($validEmployees[$uId])) {
-            $invalidIds[] = $uId;
-        }
-    }
-
-    if (!empty($invalidIds)) {
-        throw new Exception("Invalid participant user ID(s): " . implode(', ', $invalidIds) . ". Participants must be valid employees or admins.");
-    }
-
-    $verifiedParticipants = [];
-    foreach ($userIds as $uId) {
-        $verifiedParticipants[] = [
-            'user_id' => $uId,
-            'role' => is_array($rawParticipants[$uId]) ? $rawParticipants[$uId]['role'] : $rawParticipants[$uId],
-            'encrypted_key' => is_array($rawParticipants[$uId]) ? ($rawParticipants[$uId]['encrypted_key'] ?? null) : null
+    $employees = [];
+    while ($row = $res->fetch_assoc()) {
+        $employees[(int)$row['id']] = [
+            'role' => $row['role'],
+            'name' => trim($row['first_name'] . ' ' . $row['last_name'])
         ];
     }
 
-    return $verifiedParticipants;
+    $invalidParticipants = [];
+    $validParticipants = [];
+    foreach ($userIds as $uId) {
+        if (!isset($employees[$uId])) {
+            $invalidParticipants[] = "User ID {$uId}";
+            continue;
+        }
+
+        // User exists but is not admin/super_admin
+        if (!in_array($employees[$uId]['role'], ['admin', 'super_admin'])) {
+            $invalidParticipants[] = $employees[$uId]['name'];
+            continue;
+        }
+
+        // Valid participant
+        $validParticipants[] = [
+            'user_id' => $uId,
+            'role' => $rawParticipants[$uId]['role'],
+            'encrypted_key' => $rawParticipants[$uId]['encrypted_key']
+        ];
+    }
+
+    if (!empty($invalidParticipants)) {
+        throw new Exception(
+            "Invalid participants: " . implode(', ', $invalidParticipants) .
+            ". Only admin and super admin users are allowed."
+        );
+    }
+
+    return $validParticipants;
 }
 
 $currentUserId = (int)$token_info[0];
