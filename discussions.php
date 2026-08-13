@@ -161,6 +161,7 @@ isAdminCheck();
 switch ($action) {
     case 'view':
         $id = isset($_GET['id']) && is_numeric($_GET['id']) ? (int)$_GET['id'] : null;
+        $requested_id = isset($_GET['requested_id']) && is_numeric($_GET['requested_id']) ? (int)$_GET['requested_id'] : null;
         $search = isset($_GET['search']) ? trim($_GET['search']) : null;
         $created_by = isset($_GET['created_by']) && is_numeric($_GET['created_by']) ? (int)$_GET['created_by'] : null;
         $from_date = $_GET['from_date'] ?? null;
@@ -209,6 +210,11 @@ switch ($action) {
             $conditions[] = "DATE(d.created_at) = ?";
             $params[] = $exact_date;
             $types .= "s";
+        }
+        if ($requested_id !== null && $requested_id > 0) {
+            $conditions[] = "d.id < ?";
+            $params[] = $requested_id;
+            $types .= "i";
         }
 
         // Participants filter handling via discussion_participants table
@@ -525,7 +531,7 @@ switch ($action) {
         }
         break;
 
-    case 'request_key_recovery':
+    case 'request_key_recovery_for_single_discussion':
         $discussionId = (int)($_POST['discussion_id'] ?? $requestData['discussion_id'] ?? 0);
         $targetUserId = (int)($_POST['target_user_id'] ?? $requestData['target_user_id'] ?? 0);
 
@@ -585,7 +591,7 @@ switch ($action) {
         sendJsonResponse('success', ['tags' => $jsonTags], $message);
         break;
 
-    case 'recover_participant_key':
+    case 'recover_participant_key_for_single_discussion':
         $discussionId = (int)($_POST['discussion_id'] ?? $requestData['discussion_id'] ?? 0);
         $targetUserId = (int)($_POST['target_user_id'] ?? $requestData['target_user_id'] ?? 0);
         $encryptedKey = $_POST['encrypted_key'] ?? $requestData['encrypted_key'] ?? null;
@@ -650,26 +656,149 @@ switch ($action) {
         $user = fetchEmployee($conn, $currentUserId);
         $userName = $user['name'] ?? ('User ' . $currentUserId);
 
+        $countStmt = $conn->prepare("SELECT COUNT(DISTINCT dp1.discussion_id) AS total FROM discussion_participants dp1 JOIN discussion_participants dp2 ON dp1.discussion_id = dp2.discussion_id WHERE dp1.user_id = ? AND dp2.user_id = ?");
+        $countStmt->bind_param("ii", $currentUserId, $targetUserId);
+        $countStmt->execute();
+        $cRes = $countStmt->get_result();
+        $cRow = $cRes ? $cRes->fetch_assoc() : null;
+        $totalItems = $cRow ? (int)$cRow['total'] : 0;
+
+        $recoveryRequestId = 0;
+        $status = 'completed';
+        $recoveryRequestSql = 'SELECT id FROM discussion_recovery_request WHERE requester_id = ? AND approver_id = ? AND process_status != ?';
+        $recoveryRequesterStmt = $conn->prepare($recoveryRequestSql);
+        $recoveryRequesterStmt->bind_param("iis", $currentUserId, $targetUserId, $status);
+        $recoveryRequesterStmt->execute();
+        $checkRes = $recoveryRequesterStmt->get_result();
+        $existing = $checkRes ? $checkRes->fetch_assoc() : null;
+
         $notificationText = "$userName has requested a bulk E2EE key recovery for shared discussion(s).";
-        $notifSql = "INSERT INTO notifications (employee_id, body, title, type, created_by) VALUES (?, ?, 'Discussion Bulk Recovery Request', 'discussion_bulk_request', ?)";
-        $notifStmt = $conn->prepare($notifSql);
-        $notifId = 0;
-        if ($notifStmt) {
-            $notifStmt->bind_param("isi", $targetUserId, $notificationText, $currentUserId);
-            if ($notifStmt->execute()) {
-                $notifId = $notifStmt->insert_id;
+        $message = 'Bulk recovery request sent successfully.';
+        if ($existing) {
+            $notificationText = "$userName has again requested a bulk E2EE key recovery for shared discussion(s).";
+            $message = 'Bulk recovery request re-sent successfully.';
+        } else {
+            $requesterSql = "INSERT INTO discussion_recovery_request (requester_id, approver_id, total_items) VALUES (?, ?, ?)";
+            $requesterStmt = $conn->prepare($requesterSql);
+            $requesterStmt->bind_param("iii", $currentUserId, $targetUserId, $totalItems);
+            if ($requesterStmt->execute()) {
+                $recoveryRequestId = $requesterStmt->insert_id;
             }
         }
 
-        sendJsonResponse('success', ['request_id' => $notifId], "Bulk recovery request sent successfully.");
+        $notifSql = "INSERT INTO notifications (employee_id, body, title, type, created_by) VALUES (?, ?, 'Discussion Bulk Recovery Request', 'discussion_bulk_request', ?)";
+        $notifStmt = $conn->prepare($notifSql);
+        if ($notifStmt) {
+            $notifStmt->bind_param("isi", $targetUserId, $notificationText, $currentUserId);
+            $notifStmt->execute();
+        }
+
+        sendJsonResponse('success', ['id' => $recoveryRequestId, 'total_items' => $totalItems], $message);
+        break;
+
+
+    case 'update_request_bulk_recovery':
+        $id = (int)($_POST['request_id'] ?? $requestData['request_id'] ?? 0);
+        $status = $_POST['status'] ?? $requestData['status'] ?? 'accepted';
+
+        $recoveryRequestSql = 'SELECT id, approver_id, requester_id FROM discussion_recovery_request WHERE id = ?';
+        $recoveryRequesterStmt = $conn->prepare($recoveryRequestSql);
+        $recoveryRequesterStmt->bind_param("i", $id);
+        $recoveryRequesterStmt->execute();
+        $checkRes = $recoveryRequesterStmt->get_result();
+        $existing = $checkRes ? $checkRes->fetch_assoc() : null;
+
+        if (!$existing) {
+            sendJsonResponse('error', null, "Recovery Request is not available.");
+        } elseif ($currentUserId != $existing['approver_id'] && $currentUserId != $existing['requester_id']) {
+            sendJsonResponse('error', null, "You are not authorized to access this request.");
+        }
+
+        if (in_array($status, ['cancelled', 'declined'])) {
+            $deleteRecoveryRequestSql = 'DELETE FROM discussion_recovery_request WHERE id = ?';
+            $deleteRecoveryRequestStmt = $conn->prepare($deleteRecoveryRequestSql);
+            $deleteRecoveryRequestStmt->bind_param("i", $id);
+            $deleteRecoveryRequestStmt->execute();
+        } else {
+            $status = 'accepted';
+            $updateRecoveryRequestSql = 'UPDATE discussion_recovery_request SET approver_status = ? WHERE id = ?';
+            $updateRecoveryRequestStmt = $conn->prepare($updateRecoveryRequestSql);
+            $updateRecoveryRequestStmt->bind_param("si", $status, $id);
+            $updateRecoveryRequestStmt->execute();
+        }
+
+        $helper = fetchEmployee($conn, $currentUserId);
+        $helperName = $helper['name'] ?? ('User ' . $currentUserId);
+        $notifyText = "$helperName has $status your discussion recovery request.";
+        $notifyStmt = $conn->prepare("INSERT INTO notifications (employee_id, body, title, type, created_by) VALUES (?, ?, 'Discussion Recovery Request', 'discussion_bulk_accepted', ?)");
+
+        if ($existing['approver_id'] == $currentUserId && $notifyStmt) {
+            $notifyStmt->bind_param("isi", $existing['requester_id'], $notifyText, $currentUserId);
+            $notifyStmt->execute();
+        }
+
+        $conn->commit();
+        sendJsonResponse('success', null, "Bulk recovery request updated successfully.");
+        break;
+
+    case 'get_recovery_request':
+        $requesterId = (int)($_POST['requester_id'] ?? $requestData['requester_id'] ?? 0);
+        $approverId = (int)($_POST['approver_id'] ?? $requestData['approver_id'] ?? 0);
+        $status = $_POST['status'] ?? $requestData['status'] ?? null;
+
+        $recoveryRequestSql = 'SELECT drr.*, 
+                                      e.public_key AS requester_public_key, 
+                                      CONCAT(COALESCE(e.first_name, ""), " ", COALESCE(e.last_name, "")) AS requester_name
+                               FROM discussion_recovery_request drr
+                               LEFT JOIN employees e ON drr.requester_id = e.id
+                               WHERE drr.process_status != "completed"';
+        $params = [];
+        $types = "";
+
+        if ($approverId > 0) {
+            $recoveryRequestSql .= ' AND drr.approver_id = ?';
+            $params[] = $approverId;
+            $types .= "i";
+        }
+        if ($requesterId > 0) {
+            $recoveryRequestSql .= ' AND drr.requester_id = ?';
+            $params[] = $requesterId;
+            $types .= "i";
+        }
+        if (!empty($status)) {
+            $recoveryRequestSql .= ' AND drr.approver_status = ?';
+            $params[] = $status;
+            $types .= "s";
+        }
+
+        $recoveryRequestSql .= ' ORDER BY drr.id DESC';
+
+        $recoveryRequesterStmt = $conn->prepare($recoveryRequestSql);
+        if (!empty($params)) {
+            $recoveryRequesterStmt->bind_param($types, ...$params);
+        }
+
+        $recoveryRequesterStmt->execute();
+        $checkRes = $recoveryRequesterStmt->get_result();
+        $existing = [];
+        if ($checkRes) {
+            while ($row = $checkRes->fetch_assoc()) {
+                $existing[] = $row;
+            }
+        }
+
+        sendJsonResponse('success', $existing, "Recovery Request fetched successfully.");
         break;
 
     case 'bulk_recover_keys':
         $requesterId = (int)($_POST['requester_id'] ?? $requestData['requester_id'] ?? 0);
+        $requestId = (int)($_POST['request_id'] ?? $requestData['request_id'] ?? 0);
         $recoveries = $_POST['recoveries'] ?? $requestData['recoveries'] ?? [];
+        $markCompleted = !empty($_POST['mark_completed'] ?? $requestData['mark_completed'] ?? false);
+        $lastId = 0;
 
-        if ($requesterId <= 0 || empty($recoveries) || !is_array($recoveries)) {
-            sendJsonResponse('error', null, "Valid requester_id and recoveries array are required.");
+        if ($requesterId <= 0 || (!is_array($recoveries)) || (empty($recoveries) && !$markCompleted)) {
+            sendJsonResponse('error', null, "Valid requester_id and recoveries data are required.");
         }
 
         $conn->begin_transaction();
@@ -678,22 +807,54 @@ switch ($action) {
         try {
             $updateKeyStmt = $conn->prepare("INSERT INTO discussion_participants (discussion_id, user_id, role, encrypted_key, tags) VALUES (?, ?, 'participant', ?, NULL) ON DUPLICATE KEY UPDATE encrypted_key = VALUES(encrypted_key), tags = NULL");
 
-            foreach ($recoveries as $rec) {
-                $discId = (int)($rec['discussion_id'] ?? 0);
-                $encKey = $rec['encrypted_key'] ?? null;
+            if (!empty($recoveries) && is_array($recoveries)) {
+                foreach ($recoveries as $rec) {
+                    $discId = (int)($rec['discussion_id'] ?? 0);
+                    $encKey = $rec['encrypted_key'] ?? null;
 
-                if ($discId > 0 && !empty($encKey)) {
-                    $updateKeyStmt->bind_param("iis", $discId, $requesterId, $encKey);
-                    if ($updateKeyStmt->execute()) {
-                        $recoveredCount++;
+                    if ($discId > 0 && !empty($encKey)) {
+                        $updateKeyStmt->bind_param("iis", $discId, $requesterId, $encKey);
+                        if ($updateKeyStmt->execute()) {
+                            $recoveredCount++;
+                            $lastId = $discId;
+                        }
                     }
                 }
+            }
+
+            // fetch total items from request id to check if is completed or not (total items == recovered items)
+            $recoveryRequestSql = 'SELECT total_items, recovered_items, last_successful_item_id FROM discussion_recovery_request WHERE id = ?';
+            $recoveryRequesterStmt = $conn->prepare($recoveryRequestSql);
+            $recoveryRequesterStmt->bind_param("i", $requestId);
+            $recoveryRequesterStmt->execute();
+            $checkRes = $recoveryRequesterStmt->get_result();
+            $existing = $checkRes ? $checkRes->fetch_assoc() : null;
+
+            if ($lastId === 0 && $existing) {
+                $lastId = (int)($existing['last_successful_item_id'] ?? 0);
+            }
+
+            // Mark request status as completed when total items <= recovered items OR markCompleted is explicitly set
+            $totalItems = (int)($existing['total_items'] ?? 0);
+            $totalRecoveredItems = $recoveredCount + (int)($existing['recovered_items'] ?? 0);
+            $isCompleted = $markCompleted || ($totalItems > 0 && $totalRecoveredItems >= $totalItems);
+            if ($isCompleted) {
+                $compStmt = $conn->prepare("UPDATE discussion_recovery_request SET process_status = 'completed', recovered_items = ?, last_successful_item_id = ? WHERE id = ?");
+                $compStmt->bind_param("iii", $totalRecoveredItems, $lastId, $requestId);
+                $compStmt->execute();
+            } else {
+                $compStmt = $conn->prepare("UPDATE discussion_recovery_request SET process_status = 'processing', recovered_items = ?, last_successful_item_id = ? WHERE id = ?");
+                $compStmt->bind_param("iii", $totalRecoveredItems, $lastId, $requestId);
+                $compStmt->execute();
             }
 
             // Create notification for requester
             $helper = fetchEmployee($conn, $currentUserId);
             $helperName = $helper['name'] ?? ('User ' . $currentUserId);
             $notifText = "$helperName has recovered your E2EE keys for $recoveredCount discussion(s).";
+            if ($isCompleted) {
+                $notifText = "$helperName has completed recovering your E2EE keys for all $recoveredCount discussion(s).";
+            }
 
             $notifStmt = $conn->prepare("INSERT INTO notifications (employee_id, body, title, type, created_by) VALUES (?, ?, 'Discussions Recovered', 'discussion_bulk_recovered', ?)");
             if ($notifStmt) {
@@ -703,7 +864,9 @@ switch ($action) {
 
             $conn->commit();
             sendJsonResponse('success', [
-                'recovered_count' => $recoveredCount
+                'recovered_count' => $recoveredCount,
+                'total_items' => $totalItems,
+                'is_completed' => $isCompleted
             ], "Bulk discussion keys recovered successfully.");
         } catch (Exception $e) {
             $conn->rollback();
