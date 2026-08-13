@@ -17,7 +17,8 @@ include 'db_connection.php';
 include 'auth_validate.php';
 
 // Helper function to send JSON response
-function sendJsonResponse($status, $data = null, $message = null) {
+function sendJsonResponse($status, $data = null, $message = null)
+{
     header('Content-Type: application/json');
     if ($status === 'success') {
         echo json_encode(['status' => 'success', 'data' => $data, 'message' => $message]);
@@ -28,7 +29,8 @@ function sendJsonResponse($status, $data = null, $message = null) {
 }
 
 // Helper function to validate user ID
-function validateId($id) {
+function validateId($id)
+{
     return isset($id) && is_numeric($id) && $id > 0;
 }
 
@@ -48,7 +50,7 @@ if (isset($action)) {
                 FROM employees 
                 WHERE MONTH(dob) = '$current_month' AND DAY(dob) = '$current_day'
             ";
-           
+
             $employee_result = $conn->query($employee_sql);
 
             if (!$employee_result) {
@@ -85,7 +87,7 @@ if (isset($action)) {
             $failed_count = 0;
 
             // Prepare birthday messages
-            $birthday_names = array_map(function($emp) {
+            $birthday_names = array_map(function ($emp) {
                 return $emp['first_name'] . ' ' . $emp['last_name'];
             }, $birthday_employees);
             $birthday_names_string = implode(", ", $birthday_names);
@@ -150,7 +152,7 @@ if (isset($action)) {
         case 'get_notifications':
             // Pagination and limit setup
             $page = isset($_GET['page']) && is_numeric($_GET['page']) && $_GET['page'] > 0 ? (int)$_GET['page'] : null;
-            $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : null; 
+            $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : null;
             $offset = ($page - 1) * $limit;
 
             // Filters
@@ -171,7 +173,8 @@ if (isset($action)) {
                         notifications.`type`,
                         notifications.`read`, 
                         notifications.created_at,
-                        notifications.connect_id
+                        notifications.connect_id,
+                        notifications.created_by
                     FROM notifications
                     LEFT JOIN employees ON notifications.employee_id = employees.id
                     WHERE 1=1";
@@ -229,7 +232,7 @@ if (isset($action)) {
             }
 
             break;
-            
+
         case 'mark_read':
             if (isset($_GET['user_id']) && is_numeric($_GET['user_id'])) {
                 $user_id = (int)$_GET['user_id'];
@@ -280,7 +283,6 @@ if (isset($action)) {
                     } else {
                         sendJsonResponse('error', null, 'Failed to mark notification as read');
                     }
-
                 } else {
 
                     // Mark all notifications as read
@@ -324,7 +326,7 @@ if (isset($action)) {
         //         $employee_id = isset($_POST['employee_id']) ? $_POST['employee_id'] : null;
         //         $created_at = date('Y-m-d H:i:s');
         //         $updated_at = $created_at;
-                
+
         //         // Validate required fields
         //         if ($title && $body && $type) {
         //             // Prepare the SQL insert statement
@@ -430,23 +432,23 @@ if (isset($action)) {
 
 
         case 'delete':
-                if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
-                    // Prepare DELETE statement
-                    $stmt = $conn->prepare("DELETE FROM notifications WHERE id = ?");
-                    $stmt->bind_param('i', $_GET['id']);
-                    if ($stmt->execute()) {
-                        echo json_encode(['success' => 'Record deleted successfully']);
-                    } else {
-                        http_response_code(500);
-                        echo json_encode(['error' => 'Failed to delete record']);
-                    }
-                    exit;
+            if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
+                // Prepare DELETE statement
+                $stmt = $conn->prepare("DELETE FROM notifications WHERE id = ?");
+                $stmt->bind_param('i', $_GET['id']);
+                if ($stmt->execute()) {
+                    echo json_encode(['success' => 'Record deleted successfully']);
                 } else {
-                    http_response_code(400);
-                    echo json_encode(['error' => 'Invalid notification ID']);
-                    exit;
+                    http_response_code(500);
+                    echo json_encode(['error' => 'Failed to delete record']);
                 }
-                break;
+                exit;
+            } else {
+                http_response_code(400);
+                echo json_encode(['error' => 'Invalid notification ID']);
+                exit;
+            }
+            break;
 
         default:
             sendJsonResponse('error', null, 'Invalid action');
@@ -455,5 +457,3 @@ if (isset($action)) {
 } else {
     sendJsonResponse('error', null, 'Action parameter is missing');
 }
-
-?>

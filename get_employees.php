@@ -20,6 +20,7 @@ include 'auth_validate.php';
 header('Content-Type: application/json');
 
 require_once 'helpers.php';
+$userId = $token_info[0];
 
 // Helper function to validate user ID
 function validateId($id)
@@ -884,15 +885,6 @@ if (isset($action)) {
 
         case 'check-public-key':
         case 'get-public-key':
-            $headers = getallheaders();
-            $auth = $headers['Authorization'] ?? null;
-            $token_info = decode_token($auth);
-            $userId = $token_info[0] ?? null;
-
-            if (!$userId) {
-                http_response_code(401);
-                sendJsonResponse('error', null, 'Unauthorized');
-            }
 
             $stmt = $conn->prepare("SELECT id, CONCAT(first_name, ' ', last_name) AS name, public_key, encrypted_blob FROM employees WHERE id = ? LIMIT 1");
             $stmt->bind_param("i", $userId);
@@ -909,16 +901,6 @@ if (isset($action)) {
             break;
 
         case 'verify-password':
-            $headers = getallheaders();
-            $auth = $headers['Authorization'] ?? null;
-            $token_info = decode_token($auth);
-            $userId = $token_info[0] ?? null;
-
-            if (!$userId) {
-                http_response_code(401);
-                sendJsonResponse('error', null, 'Unauthorized');
-            }
-
             $password = $_POST['password'] ?? null;
             if (!$password) {
                 sendJsonResponse('error', null, 'Password is required');
@@ -938,26 +920,21 @@ if (isset($action)) {
             break;
 
         case 'update-public-key':
-            $headers = getallheaders();
-            $auth = $headers['Authorization'] ?? null;
-            $token_info = decode_token($auth);
-            $userId = $token_info[0] ?? null;
-
-            if (!$userId) {
-                http_response_code(401);
-                sendJsonResponse('error', null, 'Unauthorized');
-            }
-
+        case 'update-encrypted-blob':
+        case 'reset-pin':
             $publicKey = $_POST['public_key'] ?? null;
             $rawBlob = $_POST['encrypted_blob'] ?? null;
 
-            if (!$publicKey) {
-                sendJsonResponse('error', null, 'Public key is required');
+            if (!$publicKey && !$rawBlob) {
+                sendJsonResponse('error', null, 'Public key or encrypted blob is required');
             }
 
-            if ($rawBlob) {
+            if ($publicKey && $rawBlob) {
                 $stmt = $conn->prepare("UPDATE employees SET public_key = ?, encrypted_blob = ? WHERE id = ?");
                 $stmt->bind_param("ssi", $publicKey, $rawBlob, $userId);
+            } elseif ($rawBlob) {
+                $stmt = $conn->prepare("UPDATE employees SET encrypted_blob = ? WHERE id = ?");
+                $stmt->bind_param("si", $rawBlob, $userId);
             } else {
                 $stmt = $conn->prepare("UPDATE employees SET public_key = ? WHERE id = ?");
                 $stmt->bind_param("si", $publicKey, $userId);
