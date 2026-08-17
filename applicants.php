@@ -949,7 +949,7 @@ switch ($action) {
             $joining_timeframe = !empty($app['joining_timeframe']) ? trim($app['joining_timeframe']) : null;
             $bond_agreement = !empty($app['bond_agreement']) ? trim($app['bond_agreement']) : null;
             $branch = !empty($app['branch']) ? trim($app['branch']) : null;
-            $graduate_year = !empty($app['graduate_year']) ? (int)$app['graduate_year'] : null;
+            $graduate_year = !empty($app['graduate_year']) ? (int)$app['graduate_year'] : (!empty($app['graduation_year']) ? (int)$app['graduation_year'] : null);
 
             // Normalize status to valid DB ENUM ('pending', 'reviewed', 'interviewed', 'hired', 'rejected')
             $rawStatus = !empty($app['status']) ? trim($app['status']) : (!empty($app['final_status']) ? trim($app['final_status']) : (!empty($app['outcome']) ? trim($app['outcome']) : 'pending'));
