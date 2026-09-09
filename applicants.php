@@ -10,28 +10,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 require_once 'mailer.php';
 require_once 'db_connection.php';
+require_once __DIR__ . '/vendor/autoload.php';
 require_once 'email_templates.php';
 require_once 'helpers.php';
 header('Content-Type: application/json');
 
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
-function respond($status, $data = [], $code = 200) {
+function respond($status, $data = [], $code = 200)
+{
     http_response_code($code);
     echo json_encode(['status' => $status, 'data' => $data]);
     exit;
 }
 
 // Function to convert decimal experience to readable text
-function formatExperience($experience) {
+function formatExperience($experience)
+{
     if (empty($experience)) return '';
-    
+
     // Handle decimal format (e.g., 1.6 = 1 year 6 months)
     if (strpos($experience, '.') !== false) {
         $parts = explode('.', $experience);
         $years = (int)$parts[0];
         $months = (int)$parts[1];
-        
+
         $result = '';
         if ($years > 0) {
             $result .= $years . ' year' . ($years > 1 ? 's' : '');
@@ -42,11 +45,32 @@ function formatExperience($experience) {
         }
         return $result;
     }
-    
+
     // Handle integer format (e.g., 1 = 1 year)
+    $text = strtolower($experience);
+    if (str_contains($text, 'year') || str_contains($text, 'month')) {
+        return $text;
+    }
     $years = (int)$experience;
     if ($years == 0) return '0 months';
     return $years . ' year' . ($years > 1 ? 's' : '');
+}
+
+// Function to normalize incoming status strings from HR CSV/Excel import to valid DB ENUM values
+function normalizeApplicantStatus($statusStr)
+{
+    if (empty($statusStr)) return 'pending';
+    $lower = strtolower(trim((string)$statusStr));
+    if (in_array($lower, ['pending', 'reviewed', 'interviewed', 'hired', 'rejected'])) {
+        return $lower;
+    }
+    if (strpos($lower, 'shortlist') !== false && (strpos($lower, 'not') !== false || strpos($lower, 'no') !== false)) return 'rejected';
+    if (strpos($lower, 'reject') !== false || strpos($lower, 'decline') !== false) return 'rejected';
+    if (strpos($lower, 'select') !== false || strpos($lower, 'hire') !== false || strpos($lower, 'join') !== false || strpos($lower, 'offer') !== false) return 'hired';
+    if (strpos($lower, 'interview') !== false || strpos($lower, 'test') !== false || strpos($lower, 'shortlist') !== false) return 'interviewed';
+    if (strpos($lower, 'schedul') !== false || strpos($lower, 'review') !== false) return 'reviewed';
+    if (strpos($lower, 'completed') !== false || strpos($lower, 'close') !== false  || strpos($lower, 'done') !== false) return 'closed';
+    return 'pending';
 }
 
 switch ($action) {
@@ -79,15 +103,15 @@ switch ($action) {
             $types .= 'ssss';
         }
 
-        if (!empty($_GET['status']) && in_array($_GET['status'], ['pending','reviewed','interviewed','hired','rejected'])) {
+        if (!empty($_GET['status']) && in_array($_GET['status'], ['closed', 'pending', 'reviewed', 'interviewed', 'hired', 'rejected'])) {
             $where[] = "status = ?";
             $params[] = $_GET['status'];
             $types .= 's';
         }
 
-        $order = "created_at DESC";
+        $order = "created_at DESC, id DESC";
         if (!empty($_GET['order']) && $_GET['order'] === 'oldest') {
-            $order = "created_at ASC";
+            $order = "created_at ASC, id ASC";
         }
 
         $page = isset($_GET['page']) && is_numeric($_GET['page']) && $_GET['page'] > 0 ? (int)$_GET['page'] : 1;
@@ -147,11 +171,11 @@ switch ($action) {
             error_log("Database connection failed in add action");
             respond('error', ['message' => 'Database connection failed'], 500);
         }
-    
-        
+
+
         // Log received data for debugging
         error_log("Received POST data: " . print_r($_POST, true));
-        
+
         $fullname = $_POST['fullname'] ?? '';
         $email = $_POST['email'] ?? '';
         $phone = $_POST['phone'] ?? '';
@@ -203,13 +227,13 @@ switch ($action) {
 
         $sql = 'INSERT INTO applicants (fullname, email, phone, alternate_phone, dob, marital_status, experience, address, location, note, skills, joining_timeframe, bond_agreement, branch, graduate_year, resume_path, status, source, employee_id, employee_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
         error_log("SQL Query: " . $sql);
-        
+
         $stmt = $conn->prepare($sql);
         if (!$stmt) {
             error_log("Prepare failed: " . $conn->error);
             respond('error', ['message' => 'Database prepare failed: ' . $conn->error], 500);
         }
-        
+
         $bindResult = $stmt->bind_param('sssssssssssissssssss', $fullname, $email, $phone, $alternate_phone, $dob, $marital_status, $experience, $address, $location, $note, $skills, $joining_timeframe, $bond_agreement, $branch, $graduate_year, $resume_path, $status, $source, $employee_id, $employee_name);
 
         if (!$bindResult) {
@@ -243,7 +267,7 @@ switch ($action) {
                         $c_start = $company['start_date'] ?? '';
                         $c_end = !empty($company['end_date']) ? $company['end_date'] : null;
                         $c_current = isset($company['is_current']) ? (int)$company['is_current'] : 0;
-                        
+
                         $stmtCompany->bind_param('issssi', $applicantId, $c_name, $c_title, $c_start, $c_end, $c_current);
                         $stmtCompany->execute();
                     }
@@ -286,7 +310,7 @@ switch ($action) {
             }
         }
 
-        
+
         if (isset($_FILES['resume']) && $_FILES['resume']['error'] === UPLOAD_ERR_OK) {
             try {
                 $uploadedFilePath = uploadFile($_FILES['resume'], 'uploads/resumes');
@@ -351,7 +375,7 @@ switch ($action) {
                     $stmtDel = $conn->prepare('DELETE FROM applicant_company_details WHERE applicant_id = ?');
                     $stmtDel->bind_param('i', $applicantId);
                     $stmtDel->execute();
-                    
+
                     // Parse JSON
                     $companyDetails = json_decode($_POST['companyDetails'], true);
                     if ($companyDetails && is_array($companyDetails)) {
@@ -364,7 +388,7 @@ switch ($action) {
                                 $c_start = $company['start_date'] ?? '';
                                 $c_end = !empty($company['end_date']) ? $company['end_date'] : null;
                                 $c_current = isset($company['is_current']) ? (int)$company['is_current'] : 0;
-                                
+
                                 $stmtCompany->bind_param('issssi', $applicantId, $c_name, $c_title, $c_start, $c_end, $c_current);
                                 $stmtCompany->execute();
                             }
@@ -387,11 +411,11 @@ switch ($action) {
         if ($stmt->execute()) {
             respond('success', ['deleted' => $stmt->affected_rows]);
         } else {
-            respond('error', ['message' => $stmt->error], 400);                                                                                 
+            respond('error', ['message' => $stmt->error], 400);
         }
         break;
 
-        
+
     case 'sync_applicant':
         if (!$conn) {
             error_log("Database connection failed in sync_applicant");
@@ -409,25 +433,25 @@ switch ($action) {
 
         // Build API URL with filter (assuming API supports since date filter)
         $url = "https://qna.profilics.com/api/candidates";
-        
+
         if ($lastSync) {
             $url .= "?since=" . str_replace(' ', '%20', $lastSync);
         }
-    // var_dump($url);die;
+        // var_dump($url);die;
         $response = file_get_contents($url);
-       // var_dump($response);die;
+        // var_dump($response);die;
         if ($response === false) {
             error_log("Failed to fetch data from: " . $url);
             respond('error', ['message' => 'Failed to fetch data from external API'], 500);
         }
 
         $applicantData = json_decode($response, true);
-    
+
         if (json_last_error() !== JSON_ERROR_NONE) {
             error_log("JSON decode error: " . json_last_error_msg());
             respond('error', ['message' => 'Invalid JSON response from external API'], 500);
         }
-        
+
         if ($applicantData) {
             $insertedApplicants = 0;
             $duplicateApplicants = [];
@@ -435,7 +459,7 @@ switch ($action) {
 
             foreach ($applicantData['data'] as $applicant) {
                 $email = $applicant['email'] ?? '';
-                
+
                 if (!empty($email)) {
                     // Fetch existing record by email (id and fullname) to properly build duplicate payload
                     $stmtExisting = $conn->prepare('SELECT * FROM applicants WHERE email = ? LIMIT 1');
@@ -477,8 +501,23 @@ switch ($action) {
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
                         $stmtInsert->bind_param(
                             'sssssssssssssssss',
-                            $fullname, $email, $phone, $alternate_phone, $dob, $marital_status, $experience,
-                            $address, $location, $skills, $joining_timeframe, $bond_agreement, $resume_path, $branch, $graduate_year, $status, $source_sync
+                            $fullname,
+                            $email,
+                            $phone,
+                            $alternate_phone,
+                            $dob,
+                            $marital_status,
+                            $experience,
+                            $address,
+                            $location,
+                            $skills,
+                            $joining_timeframe,
+                            $bond_agreement,
+                            $resume_path,
+                            $branch,
+                            $graduate_year,
+                            $status,
+                            $source_sync
                         );
 
                         if ($stmtInsert->execute()) {
@@ -606,7 +645,7 @@ switch ($action) {
                 }
             }
             $updatedApplicants = count($duplicateApplicants);
-            if ($insertedApplicants > 0 || $updatedApplicants > 0 ) {
+            if ($insertedApplicants > 0 || $updatedApplicants > 0) {
                 $stmt = $conn->prepare("INSERT INTO sync_logs (last_sync) VALUES (NOW())");
                 $stmt->execute();
             }
@@ -738,6 +777,412 @@ switch ($action) {
         respond('success', $companies);
         break;
 
+    case 'import':
+        $rawInput = file_get_contents('php://input');
+        $inputData = json_decode($rawInput, true);
+
+        $fieldMapping = [];
+        if (isset($_POST['field_mapping'])) {
+            $fieldMapping = is_array($_POST['field_mapping']) ? $_POST['field_mapping'] : (json_decode($_POST['field_mapping'], true) ?? []);
+        } elseif (isset($inputData['field_mapping'])) {
+            $fieldMapping = $inputData['field_mapping'];
+        }
+
+        $applicantsToImport = [];
+
+        // Parse file on backend if uploaded
+        if (isset($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
+            $fileTmpPath = $_FILES['file']['tmp_name'];
+            $fileName = $_FILES['file']['name'];
+            $fileExtension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+
+            $rows = [];
+            if (in_array($fileExtension, ['csv', 'txt'])) {
+                if (($handle = fopen($fileTmpPath, 'r')) !== false) {
+                    while (($data = fgetcsv($handle, 10000, ',', '"', '\\')) !== false) {
+                        if (!empty(array_filter($data, function ($val) {
+                            return trim((string)$val) !== '';
+                        }))) {
+                            $rows[] = $data;
+                        }
+                    }
+                    fclose($handle);
+                }
+            } elseif (in_array($fileExtension, ['xlsx', 'xls'])) {
+                try {
+                    $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($fileTmpPath);
+                    $sheet = $spreadsheet->getActiveSheet();
+                    $rows = [];
+                    foreach ($sheet->getRowIterator() as $row) {
+                        $rowData = [];
+                        foreach ($row->getCellIterator() as $cell) {
+                            $rowData[] = $cell->getValue();
+                        }
+                        $rows[] = $rowData;
+                    }
+                } catch (\Exception $e) {
+                    respond('error', ['message' => 'Failed to parse Excel file: ' . $e->getMessage()], 400);
+                }
+            } else {
+                respond('error', ['message' => 'Unsupported file format. Please upload a CSV or XLSX file.'], 400);
+            }
+
+            if (!empty($rows)) {
+                $headerRowIndex = 0;
+                while ($headerRowIndex < count($rows) && empty(array_filter($rows[$headerRowIndex], function ($v) {
+                    return trim((string)$v) !== '';
+                }))) {
+                    $headerRowIndex++;
+                }
+
+                if ($headerRowIndex < count($rows)) {
+                    $headers = array_map(function ($h) {
+                        $str = trim((string)$h);
+                        return preg_replace('/\x{EF}\x{BB}\x{BF}/', '', $str);
+                    }, $rows[$headerRowIndex]);
+
+                    $dataRows = array_slice($rows, $headerRowIndex + 1);
+
+                    foreach ($dataRows as $row) {
+                        $appObj = [];
+                        foreach ($fieldMapping as $sysKey => $mappedHeader) {
+                            if (!empty($mappedHeader)) {
+                                $mappedHeaderClean = strtolower(trim((string)$mappedHeader));
+                                $colIndex = false;
+                                foreach ($headers as $idx => $h) {
+                                    if (strtolower(trim((string)$h)) === $mappedHeaderClean) {
+                                        $colIndex = $idx;
+                                        break;
+                                    }
+                                }
+                                if ($colIndex !== false && isset($row[$colIndex])) {
+                                    $val = trim((string)$row[$colIndex]);
+                                    if ($val !== '') {
+                                        $appObj[$sysKey] = $val;
+                                    }
+                                }
+                            }
+                        }
+
+                        // Also capture all original spreadsheet columns by raw header name
+                        foreach ($headers as $idx => $h) {
+                            if (isset($row[$idx])) {
+                                $val = trim((string)$row[$idx]);
+                                if ($val !== '') {
+                                    $appObj['raw_fields'][$h] = $val;
+                                }
+                            }
+                        }
+
+                        // Ignore summary/total count rows
+                        $nameLower = strtolower($appObj['fullname'] ?? '');
+                        if (strpos($nameLower, 'total candidates') !== false || strpos($nameLower, 'scheduled interviews') !== false || strpos($nameLower, 'completed interviews') !== false || strpos($nameLower, 'selected candidates') !== false || strpos($nameLower, 'rejected candidates') !== false) {
+                            continue;
+                        }
+
+                        if (!empty($appObj['fullname']) || !empty($appObj['email']) || !empty($appObj['phone'])) {
+                            $applicantsToImport[] = $appObj;
+                        }
+                    }
+                }
+            }
+        } elseif (isset($_POST['applicants'])) {
+            if (is_array($_POST['applicants'])) {
+                $applicantsToImport = $_POST['applicants'];
+            } else {
+                $applicantsToImport = json_decode($_POST['applicants'], true) ?? [];
+            }
+        } elseif (is_array($inputData) && isset($inputData['applicants'])) {
+            $applicantsToImport = $inputData['applicants'];
+        } elseif (is_array($inputData)) {
+            $applicantsToImport = $inputData;
+        }
+
+        if (empty($applicantsToImport) || !is_array($applicantsToImport)) {
+            respond('error', ['message' => 'No applicant data provided for import.'], 400);
+        }
+
+        $loggedInEmpName = $_POST['logged_in_employee_name'] ?? $inputData['logged_in_employee_name'] ?? null;
+
+        $insertedCount = 0;
+        $updatedCount = 0;
+        $unchangedCount = 0;
+        $errors = [];
+        $createdInThisBatch = [];
+        $updatedInThisBatch = [];
+
+        $stmtInsert = $conn->prepare('INSERT INTO applicants 
+            (fullname, email, phone, alternate_phone, dob, marital_status, experience, address, location, note, reject_reason, resume_path, skills, joining_timeframe, bond_agreement, branch, graduate_year, status, source, employee_name) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+
+        foreach ($applicantsToImport as $index => $app) {
+            $fullname = trim($app['fullname'] ?? '');
+            $email = !empty($app['email']) ? strtolower(trim($app['email'])) : '';
+            $phone = trim($app['phone'] ?? '');
+
+            // Handle comma-separated multiple phone numbers e.g. "8602850930, 9294665629"
+            $alternate_phone = !empty($app['alternate_phone']) ? trim($app['alternate_phone']) : null;
+            if (!empty($phone) && strpos($phone, ',') !== false) {
+                $phoneParts = array_map('trim', explode(',', $phone));
+                $phone = $phoneParts[0];
+                if (empty($alternate_phone) && isset($phoneParts[1])) {
+                    $alternate_phone = $phoneParts[1];
+                }
+            }
+
+            // Rule: Name is required AND at least one of Email or Phone must be provided
+            if (empty($email) && empty($phone)) {
+                $errors[] = "Row #" . ($index + 1) . ": At least Email or Phone is required.";
+                continue;
+            }
+            if (empty($fullname)) {
+                $fullname = !empty($email) ? strstr($email, '@', true) : $phone;
+            }
+
+            $dob = !empty($app['dob']) ? trim($app['dob']) : null;
+            $marital_status = !empty($app['marital_status']) ? trim($app['marital_status']) : null;
+            $experience = !empty($app['experience']) ? trim($app['experience']) : null;
+            $address = !empty($app['address']) ? trim($app['address']) : null;
+            $location = !empty($app['location']) ? trim($app['location']) : null;
+            $reject_reason = !empty($app['reject_reason']) ? trim($app['reject_reason']) : null;
+            $resume_path = !empty($app['resume_path']) ? trim($app['resume_path']) : null;
+            $joining_timeframe = !empty($app['joining_timeframe']) ? trim($app['joining_timeframe']) : null;
+            $bond_agreement = !empty($app['bond_agreement']) ? trim($app['bond_agreement']) : null;
+            $branch = !empty($app['branch']) ? trim($app['branch']) : null;
+            $graduate_year = !empty($app['graduate_year']) ? (int)$app['graduate_year'] : (!empty($app['graduation_year']) ? (int)$app['graduation_year'] : null);
+
+            // Normalize status to valid DB ENUM ('pending', 'reviewed', 'interviewed', 'hired', 'rejected')
+            $rawStatus = !empty($app['status']) ? trim($app['status']) : (!empty($app['final_status']) ? trim($app['final_status']) : (!empty($app['outcome']) ? trim($app['outcome']) : 'pending'));
+            $status = normalizeApplicantStatus($rawStatus);
+
+            $source = !empty($app['source']) ? trim($app['source']) : 'import';
+            $employee_name = !empty($app['employee_name']) ? trim($app['employee_name']) : (!empty($loggedInEmpName) ? trim($loggedInEmpName) : null);
+
+            // Construct rich note string with accurate prefixes for all followup, remark, review & outcome fields
+            $noteParts = [];
+
+            if (!empty($app['position']) && trim($app['position']) !== '-') {
+                $noteParts[] = "Position: " . trim($app['position']);
+            }
+            if (!empty($app['ctc']) && trim($app['ctc']) !== '-') {
+                $noteParts[] = "CTC: " . trim($app['ctc']);
+            }
+            if (!empty($app['note']) && trim($app['note']) !== '-') {
+                $noteParts[] = trim($app['note']);
+            }
+
+            $getRawVal = function ($labels) use ($app) {
+                if (empty($app['raw_fields']) || !is_array($app['raw_fields'])) return '';
+                foreach ($app['raw_fields'] as $h => $v) {
+                    $cleanH = strtolower(trim($h));
+                    foreach ($labels as $lbl) {
+                        if (strtolower(trim($lbl)) === $cleanH) {
+                            return trim((string)$v);
+                        }
+                    }
+                }
+                return '';
+            };
+
+            $f1 = $getRawVal(['follow-up1', 'followup1', 'follow_up1', 'follow up 1']);
+            if ($f1 !== '' && $f1 !== '-') {
+                $noteParts[] = "Follow-up 1: " . $f1;
+            }
+
+            $f2 = $getRawVal(['follow-up2', 'followup2', 'follow_up2', 'follow up 2']);
+            if ($f2 !== '' && $f2 !== '-' && !in_array($f2, $noteParts) && !in_array("Follow-up 2: " . $f2, $noteParts)) {
+                $noteParts[] = "Follow-up 2: " . $f2;
+            }
+
+            $remark = $getRawVal(['remark', 'remarks']);
+            if ($remark !== '' && $remark !== '-' && !in_array("Remark: " . $remark, $noteParts) && !in_array($remark, $noteParts)) {
+                $noteParts[] = "Remark: " . $remark;
+            }
+
+            $aptitude = $getRawVal(['aptitude test marks', 'aptitude_test_marks', 'aptitude marks', 'aptitude_marks']);
+            if ($aptitude !== '' && $aptitude !== '-') {
+                $noteParts[] = "Aptitude Marks: " . $aptitude;
+            }
+
+            $testReview = $getRawVal(['test review', 'test_review']);
+            if ($testReview !== '' && $testReview !== '-' && !in_array("Test Review: " . $testReview, $noteParts)) {
+                $noteParts[] = "Test Review: " . $testReview;
+            }
+
+            $machineTest = $getRawVal(['machine test', 'machine test ', 'machine_test']);
+            if ($machineTest !== '' && $machineTest !== '-') {
+                $noteParts[] = "Machine Test: " . $machineTest;
+            }
+
+            $finalRound = $getRawVal(['final round', 'final_round']);
+            if ($finalRound !== '' && $finalRound !== '-') {
+                $noteParts[] = "Final Round: " . $finalRound;
+            }
+
+            $outcome = $getRawVal(['outcome']);
+            if ($outcome !== '' && $outcome !== '-' && strtolower($outcome) !== 'completed' && strtolower($outcome) !== 'done') {
+                $noteParts[] = "Outcome: " . $outcome;
+            }
+
+            $finalRemark = $getRawVal(['final remark', 'final_remark']);
+            if ($finalRemark !== '' && $finalRemark !== '-' && !in_array("Final Remark: " . $finalRemark, $noteParts)) {
+                $noteParts[] = "Final Remark: " . $finalRemark;
+            }
+
+            $interviewDateVal = !empty($app['interview_date']) ? trim($app['interview_date']) : $getRawVal(['interview date', 'interview_date', 'date interviewed', 'interview schedule date']);
+            if ($interviewDateVal !== '' && $interviewDateVal !== '-') {
+                $noteParts[] = "Interview Date: " . $interviewDateVal;
+            }
+
+            $interviewTimeVal = !empty($app['interview_time']) ? trim($app['interview_time']) : $getRawVal(['interview time', 'interview_time', 'time interviewed', 'interview schedule time', 'time']);
+            if ($interviewTimeVal !== '' && $interviewTimeVal !== '-') {
+                $noteParts[] = "Interview Time: " . $interviewTimeVal;
+            }
+
+            $note = !empty($noteParts) ? implode(" | ", array_unique($noteParts)) : null;
+
+            $skillsVal = $app['skills'] ?? [];
+            if (is_array($skillsVal)) {
+                $skills = json_encode($skillsVal);
+            } elseif (is_string($skillsVal) && !empty($skillsVal)) {
+                $skillsArray = array_map('trim', explode(',', $skillsVal));
+                $skills = json_encode($skillsArray);
+            } else {
+                $skills = null;
+            }
+
+            // Check if applicant already exists by Email OR Phone
+            $existing = null;
+            if (!empty($email) || !empty($phone) || !empty($alternate_phone)) {
+                if (!empty($email)) {
+                    $stmtCheck = $conn->prepare('SELECT * FROM applicants WHERE LOWER(email) = ? LIMIT 1');
+                    $stmtCheck->bind_param('s', $email);
+                    $stmtCheck->execute();
+                    $existing = $stmtCheck->get_result()->fetch_assoc();
+                }
+                if ((!empty($phone) || !empty($alternate_phone)) && !$existing) {
+                    if (!empty($phone)) {
+                        $stmtCheck = $conn->prepare('SELECT * FROM applicants WHERE phone = ? OR alternate_phone = ? LIMIT 1');
+                        $stmtCheck->bind_param('ss', $phone, $phone);
+                        $stmtCheck->execute();
+                        $existing = $stmtCheck->get_result()->fetch_assoc();
+                    }
+                    if (!empty($alternate_phone) && !$existing) {
+                        $stmtCheck = $conn->prepare('SELECT * FROM applicants WHERE phone = ? OR alternate_phone = ? LIMIT 1');
+                        $stmtCheck->bind_param('ss', $alternate_phone, $alternate_phone);
+                        $stmtCheck->execute();
+                        $existing = $stmtCheck->get_result()->fetch_assoc();
+                    }
+                }
+            }
+
+            $targetApplicantId = null;
+
+            if ($existing) {
+                $targetApplicantId = (int)$existing['id'];
+                // Merge: Update only fields that are currently empty in database with incoming non-empty data
+                $updates = [];
+                $params = [];
+                $types = '';
+
+                $incomingFields = [
+                    'fullname' => $fullname,
+                    'email' => $email,
+                    'phone' => $phone,
+                    'alternate_phone' => $alternate_phone,
+                    'dob' => $dob,
+                    'marital_status' => $marital_status,
+                    'experience' => $experience,
+                    'address' => $address,
+                    'location' => $location,
+                    'note' => $note,
+                    'reject_reason' => $reject_reason,
+                    'resume_path' => $resume_path,
+                    'skills' => $skills,
+                    'joining_timeframe' => $joining_timeframe,
+                    'bond_agreement' => $bond_agreement,
+                    'branch' => $branch,
+                    'graduate_year' => $graduate_year,
+                    'source' => $source,
+                    'employee_name' => $employee_name,
+                ];
+
+                foreach ($incomingFields as $field => $val) {
+                    if ($val !== null && $val !== '' && $val !== '[]') {
+                        $dbVal = $existing[$field] ?? null;
+                        if ($dbVal === null || $dbVal === '' || $dbVal === '[]') {
+                            $updates[] = "$field = ?";
+                            $params[] = $val;
+                            $types .= (($field === 'graduate_year') ? 'i' : 's');
+                        }
+                    }
+                }
+
+                if (!empty($updates)) {
+                    $params[] = $existing['id'];
+                    $types .= 'i';
+                    $sqlUp = "UPDATE applicants SET " . implode(", ", $updates) . ", updated_at = CURRENT_TIMESTAMP WHERE id = ?";
+                    $stmtUp = $conn->prepare($sqlUp);
+                    $stmtUp->bind_param($types, ...$params);
+                    if ($stmtUp->execute()) {
+                        if (!in_array($targetApplicantId, $createdInThisBatch) && !in_array($targetApplicantId, $updatedInThisBatch)) {
+                            $updatedCount++;
+                            $updatedInThisBatch[] = $targetApplicantId;
+                        }
+                    } else {
+                        $errors[] = "Row #" . ($index + 1) . " Update Error: " . $stmtUp->error;
+                    }
+                } else {
+                    if (!in_array($targetApplicantId, $createdInThisBatch) && !in_array($targetApplicantId, $updatedInThisBatch)) {
+                        $unchangedCount++;
+                    }
+                }
+            } else {
+                // Insert new applicant
+                $emailVal = !empty($email) ? $email : null;
+                $phoneVal = !empty($phone) ? $phone : null;
+                $skillsValToInsert = $skills ? $skills : json_encode([]);
+
+                $stmtInsert->bind_param(
+                    'sssssssssssssissssss',
+                    $fullname,
+                    $emailVal,
+                    $phoneVal,
+                    $alternate_phone,
+                    $dob,
+                    $marital_status,
+                    $experience,
+                    $address,
+                    $location,
+                    $note,
+                    $reject_reason,
+                    $resume_path,
+                    $skillsValToInsert,
+                    $joining_timeframe,
+                    $bond_agreement,
+                    $branch,
+                    $graduate_year,
+                    $status,
+                    $source,
+                    $employee_name
+                );
+
+                if ($stmtInsert->execute()) {
+                    $targetApplicantId = (int)$conn->insert_id;
+                    $insertedCount++;
+                    $createdInThisBatch[] = $targetApplicantId;
+                } else {
+                    $errors[] = "Row #" . ($index + 1) . " Insert Error: " . $stmtInsert->error;
+                }
+            }
+        }
+
+        respond('success', [
+            'inserted' => $insertedCount,
+            'updated' => $updatedCount,
+            'errors' => $errors
+        ]);
+        break;
 
     default:
         respond('error', ['message' => 'Invalid action'], 400);
