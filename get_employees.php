@@ -919,6 +919,66 @@ if (isset($action)) {
             }
             break;
 
+        case 'change-password':
+            $oldPassword = $_POST['old_password'] ?? null;
+            $newPassword = $_POST['new_password'] ?? null;
+            $confirmPassword = $_POST['confirm_password'] ?? null;
+
+            if (!$oldPassword) {
+                sendJsonResponse('error', null, 'Please enter your old password.');
+            }
+
+            if (!$newPassword) {
+                sendJsonResponse('error', null, 'Please enter a new password.');
+            }
+
+            if (!$confirmPassword) {
+                sendJsonResponse('error', null, 'Please confirm your new password.');
+            }
+
+            if ($newPassword === $oldPassword) {
+                sendJsonResponse('error', null, 'New password cannot be same as old password.');
+            }
+
+            if ($newPassword !== $confirmPassword) {
+                sendJsonResponse('error', null, 'New password and confirmation password do not match.');
+            }
+
+            if (strlen($newPassword) < 6) {
+                sendJsonResponse('error', null, 'Password must be at least 6 characters.');
+            }
+
+            // Check if old password is correct
+            $hashedOld = md5($oldPassword);
+            $stmt = $conn->prepare(
+                "SELECT id FROM employees WHERE id = ? AND password = ? LIMIT 1"
+            );
+            $stmt->bind_param("is", $userId, $hashedOld);
+            $stmt->execute();
+
+            $result = $stmt->get_result();
+            if (!$result || $result->num_rows === 0) {
+                sendJsonResponse('error', null, 'Your old password is incorrect.');
+            }
+
+            // Update password
+            $hashedNew = md5($newPassword);
+            $stmt = $conn->prepare("UPDATE employees SET password = ? WHERE id = ?");
+            $stmt->bind_param("si", $hashedNew, $userId);
+
+            if ($stmt->execute()) {
+                sendJsonResponse('success', null, 'Your password has been updated successfully.');
+            } else {
+                sendJsonResponse(
+                    'error',
+                    null,
+                    'Unable to update your password. Please try again later.'
+                );
+            }
+
+            break;
+
+
         case 'update-public-key':
         case 'update-encrypted-blob':
         case 'reset-pin':
