@@ -19,7 +19,9 @@ include 'auth_validate.php';
 // Set the header for JSON response
 header('Content-Type: application/json');
 
+require_once 'email_template.php';
 require_once 'helpers.php';
+require_once 'mailer.php';
 $userId = $token_info[0];
 
 // Helper function to validate user ID
@@ -932,6 +934,14 @@ if (isset($action)) {
                 sendJsonResponse('error', null, 'Please enter a new password.');
             }
 
+            if (strlen($newPassword) <= 8) {
+                sendJsonResponse('error', null, 'Password must be at least 8 characters long.');
+            }
+
+            if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/', $newPassword)) {
+                sendJsonResponse('error', null, 'Password must include uppercase, lowercase, numbers, and symbols.');
+            }
+
             if (!$confirmPassword) {
                 sendJsonResponse('error', null, 'Please confirm your new password.');
             }
@@ -944,9 +954,6 @@ if (isset($action)) {
                 sendJsonResponse('error', null, 'New password and confirmation password do not match.');
             }
 
-            if (strlen($newPassword) < 6) {
-                sendJsonResponse('error', null, 'Password must be at least 6 characters.');
-            }
 
             // Check if old password is correct
             $hashedOld = md5($oldPassword);
