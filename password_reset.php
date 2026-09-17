@@ -86,11 +86,14 @@ if (isset($action)) {
             if (!$confirm_password) {
                 sendJsonResponse('error', null, 'Confirm password is required');
             }
+            if (strlen($new_password) <= 8) {
+                sendJsonResponse('error', null, 'Password must be at least 8 characters long');
+            }
+            if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/', $new_password)) {
+                sendJsonResponse('error', null, 'Password must include uppercase, lowercase, numbers, and symbols.');
+            }
             if ($new_password !== $confirm_password) {
                 sendJsonResponse('error', null, 'Passwords do not match');
-            }
-            if (strlen($new_password) < 6) {
-                sendJsonResponse('error', null, 'Password must be at least 6 characters long');
             }
 
             // Verify token
