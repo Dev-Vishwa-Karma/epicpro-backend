@@ -8,10 +8,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit();
 }
-require_once 'mailer.php';
+require_once __DIR__ . '/mailer.php';
 require_once 'db_connection.php';
 require_once __DIR__ . '/vendor/autoload.php';
-require_once 'email_templates.php';
+require_once __DIR__ . '/email_template.php';
 require_once 'helpers.php';
 header('Content-Type: application/json');
 
@@ -250,12 +250,12 @@ switch ($action) {
 
             // // Send admin notification
             // $subjectAdmin = "New Application Received - {$fullname}";
-            // $messageAdmin = getAdminNotificationEmail($applicant);
+            // $messageAdmin = EmailTemplate::getAdminNotificationEmail($applicant);
             // sendEmail('akash.profilics@gmail.com', $subjectAdmin, $messageAdmin);
 
             // // Send applicant confirmation
             // $subjectApplicant = "Application Received - {$fullname}";
-            // $messageApplicant = getApplicantConfirmationEmail($applicant);
+            // $messageApplicant = EmailTemplate::getApplicantConfirmationEmail($applicant);
             // sendEmail($email, $subjectApplicant, $messageApplicant);
             $companyDetails = isset($_POST['companyDetails']) ? json_decode($_POST['companyDetails'], true) : [];
             if (!empty($companyDetails) && is_array($companyDetails)) {
@@ -349,7 +349,7 @@ switch ($action) {
                 $stmt2->execute();
                 $applicant = $stmt2->get_result()->fetch_assoc();
 
-                $statusUpdate = getStatusUpdateEmail($applicant, $_POST['status']);
+                $statusUpdate = EmailTemplate::getStatusUpdateEmail($applicant, $_POST['status']);
                 // sendEmail($applicant['email'], $statusUpdate['subject'], $statusUpdate['message']);
 
                 // Send notification to referring employee if status changed and applicant is a referral

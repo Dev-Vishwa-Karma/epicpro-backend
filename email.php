@@ -16,13 +16,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
 
 include 'db_connection.php';
 include 'auth_validate.php';
-require 'send_mail.php';
 require 'helpers.php';
 require_once __DIR__ . '/pusher.php';
+require_once __DIR__ . '/mailer.php';
 $config = require __DIR__ . '/config.php';
 
 // Helper function to validate user ID
-function validateId($id) {
+function validateId($id)
+{
     return isset($id) && is_numeric($id) && $id > 0;
 }
 
@@ -38,7 +39,7 @@ if (isset($action)) {
     switch ($action) {
 
         case 'add':
-            $required = ['selectedEmployee','title','body'];
+            $required = ['selectedEmployee', 'title', 'body'];
             foreach ($required as $field) {
                 if (empty($_POST[$field])) {
                     sendJsonResponse('error', null, "$field is required");
@@ -48,7 +49,7 @@ if (isset($action)) {
                 'title'       => $_POST['title'],
                 'body'        => $_POST['body'],
             ];
-                
+
             $pusher = getPusher($config);
             $selectedEmployee = $_POST['selectedEmployee'];
             if (is_string($selectedEmployee)) {
@@ -77,9 +78,9 @@ if (isset($action)) {
                     "name" => $row['first_name'] . " " . $row['last_name'],
                 ];
             }, $result->fetch_all(MYSQLI_ASSOC));
-            
-            $emailResults = sendMailToUsers( $users, $data['title'], $data['body'], $config['email']);
-            
+
+            $emailResults = sendMailToUsers($users, $data['title'], $data['body'], $config['email']);
+
             $conn->close();
             echo json_encode([
                 "email" => $emailResults,
@@ -91,5 +92,3 @@ if (isset($action)) {
 } else {
     sendJsonResponse('error', null, 'Action parameter is missing');
 }
-
-?>

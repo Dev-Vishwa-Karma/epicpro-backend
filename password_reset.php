@@ -6,7 +6,8 @@ header("Access-Control-Allow-Credentials: true");
 
 include 'helpers.php';
 include 'db_connection.php';
-include 'mailer.php';
+require_once __DIR__ . '/mailer.php';
+require_once __DIR__ . '/email_template.php';
 
 header('Content-Type: application/json');
 
@@ -59,58 +60,7 @@ if (isset($action)) {
             }
             $reset_link = $base_url . "/reset-password?token=" . $reset_token;
             $subject = "Password Reset Request - Profilics Systems";
-            $body = "
-            <html>
-                <body style='margin:0; padding:0; font-family: Arial, sans-serif; background-color:#f6f8fa;'>
-                    <table align='center' cellpadding='0' cellspacing='0' width='100%' style='max-width:600px; background-color:#ffffff; border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,0.1); margin:40px auto;'>
-                    <tr>
-                        <td style='background-color:#007bff; padding:20px; text-align:center; border-top-left-radius:8px; border-top-right-radius:8px;'>
-                        <table align='center' cellpadding='0' cellspacing='0' style='margin:0 auto;'>
-                            <tr>
-                            <td style='vertical-align:middle; padding-right:10px;'>
-                                <img src='https://ik.imagekit.io/sentyaztie/profilics_logo-removebg-preview.png?updatedAt=1754393233457' alt='Profilics Systems Logo' width='40' height='40' style='border-radius:5px; vertical-align:middle;'>
-                            </td>
-                            <td style='vertical-align:middle;'>
-                                <h1 style='color:#ffffff; margin:0; font-size:22px;'>Profilics Systems</h1>
-                            </td>
-                            </tr>
-                        </table>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style='padding:30px; color:#333333;'>
-                        <h2 style='color:#007bff; font-size:20px; margin-bottom:10px;'>Password Reset Request</h2>
-                        <p style='font-size:15px; line-height:1.6; margin:0 0 15px;'>Dear <strong>{$user['first_name']} {$user['last_name']}</strong>,</p>
-                        <p style='font-size:15px; line-height:1.6; margin:0 0 15px;'>
-                            We received a request to reset your password for your Profilics Systems account. Please click the button below to set a new password.
-                        </p>
-                        <p style='text-align:center; margin:30px 0;'>
-                            <a href='{$reset_link}' style='background-color:#007bff; color:#ffffff; padding:12px 25px; font-size:16px; text-decoration:none; border-radius:5px; display:inline-block;'>
-                            Reset Password
-                            </a>
-                        </p>
-                        <p style='font-size:14px; color:#555555; line-height:1.6; margin:0 0 15px;'>
-                            This link will expire in <strong>1 hour</strong>. If you did not request a password reset, please ignore this email or contact our support team.
-                        </p>
-                        <hr style='border:none; border-top:1px solid #e0e0e0; margin:25px 0;'>
-                        <p style='font-size:14px; color:#777777; line-height:1.6; margin:0;'>
-                            Best regards,<br>
-                            <strong>Profilics Systems Team</strong><br>
-                            <a href='https://hr.profilics.com/' style='color:#007bff; text-decoration:none;'>hr.profilics.com</a>
-                        </p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style='background-color:#f1f1f1; text-align:center; padding:15px; border-bottom-left-radius:8px; border-bottom-right-radius:8px;'>
-                        <p style='font-size:12px; color:#888888; margin:0;'>
-                            © " . date('Y') . " Profilics Systems. All rights reserved.
-                        </p>
-                        </td>
-                    </tr>
-                    </table>
-                </body>
-            </html>
-            ";
+            $body = EmailTemplate::resetPasswordEmail($user, $reset_link, $subject);
 
             $result = sendEmail($email, $subject, $body);
             if ($result === true) {

@@ -1,19 +1,26 @@
 <?php
-
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
-
-require 'PHPMailer/src/Exception.php';
-require 'PHPMailer/src/PHPMailer.php';
-require 'PHPMailer/src/SMTP.php';
+require_once __DIR__ . '/vendor/autoload.php';
+require_once __DIR__ . '/email_template.php';
 
 $config = require __DIR__ . '/config.php';
-function sendEmail($to, $subject, $body)
+
+/**
+ * Creates and configures a new PHPMailer instance.
+ *
+ * @param array $emailConfig Optional email configuration override. If empty, uses $config['email'].
+ * @return \PHPMailer\PHPMailer\PHPMailer
+ */
+function getMailerInstance(array $emailConfig = []): \PHPMailer\PHPMailer\PHPMailer
 {
     global $config;
-    $mail = new PHPMailer(true);
 
-    // Enable SMTP debug output only on localhost
+    if (empty($emailConfig)) {
+        $emailConfig = $config['email'] ?? [];
+    }
+
+    $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
+
+    // Enable SMTP debug output only on non-production environment
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
     if ($host === 'hr.profilics.com') {
         $mail->SMTPDebug = 0;
@@ -24,19 +31,45 @@ function sendEmail($to, $subject, $body)
         };
     }
 
-    try {
-        // Server settings
-        $mail->isSMTP();
-        $mail->Host = $config['email']['host'];
-        $mail->SMTPAuth = true;
-        $mail->Username = $config['email']['username'];
-        $mail->Password = $config['email']['password'];
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port = $config['email']['port'];
-        $mail->Timeout    = 30;
+    // Server settings
+    $mail->isSMTP();
+    $mail->Host       = $emailConfig['host'] ?? '';
+    $mail->SMTPAuth   = true;
+    $mail->Username   = $emailConfig['username'] ?? '';
+    $mail->Password   = $emailConfig['password'] ?? '';
+    $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+    $mail->Port       = $emailConfig['port'] ?? 587;
+    $mail->Timeout    = 30;
 
+    return $mail;
+}
+
+/**
+ * Send a single email to a recipient.
+ *
+ * @param string $to Recipient email address
+ * @param string $subject Email subject
+ * @param string $body Email HTML body
+ * @param array $emailConfig Optional email config override
+ * @return bool|string True on success, error message string on failure
+ */
+function sendEmail(
+    string $to,
+    string $subject,
+    string $body,
+    array $emailConfig = []
+) {
+    global $config;
+    if (empty($emailConfig)) {
+        $emailConfig = $config['email'] ?? [];
+    }
+
+    try {
+        $mail = getMailerInstance($emailConfig);
         // Recipients
-        $mail->setFrom($config['email']['from_email'], $config['email']['from_name']);
+        $fromEmail = $emailConfig['from_email'] ?? '';
+        $fromName  = $emailConfig['from_name'] ?? '';
+        $mail->setFrom($fromEmail, $fromName);
         $mail->addAddress($to);
 
         // Content
@@ -49,9 +82,75 @@ function sendEmail($to, $subject, $body)
         $mail->send();
         error_log("Mail successfully sent to {$to}");
         return true;
-    } catch (Exception $e) {
-        $error = "PHPMailer Error: " . $mail->ErrorInfo . " | Exception: " . $e->getMessage();
+    } catch (\PHPMailer\PHPMailer\Exception $e) {
+        $error = "PHPMailer Error: " . $e->getMessage();
         error_log($error);
         return $error;
     }
+}
+
+/**
+ * Send Mail to multiple users with template styling.
+ *
+ * @param array $users List of users, each containing 'email' and 'name'
+ * @param string $subject Email subject
+ * @param string $message Email body content/message
+ * @param array $emailConfig Optional email configuration override
+ * @return array Array of sending results per user
+ */
+function sendMailToUsers(array $users, string $subject, string $message, array $emailConfig = []): array
+{
+    global $config;
+    if (empty($emailConfig)) {
+        $emailConfig = $config['email'] ?? [];
+    }
+
+    $results = [];
+
+    try {
+        $mail = getMailerInstance($emailConfig);
+        $fromEmail = $emailConfig['from_email'] ?? '';
+        $fromName  = $emailConfig['from_name'] ?? '';
+
+        foreach ($users as $user) {
+            try {
+                $mail->clearAddresses();
+                $mail->clearAttachments();
+                $mail->setFrom($fromEmail, $fromName);
+                $mail->addAddress($user['email']);
+                $mail->Subject = $subject;
+
+                $body = EmailTemplate::emailTemplate(
+                    $user['name'],
+                    $message,
+                    $subject,
+                    $emailConfig
+                );
+
+                $mail->isHTML(true);
+                $mail->Body    = $body;
+                $mail->AltBody = strip_tags($message);
+                $mail->send();
+
+                $results[] = [
+                    "email" => $user['email'],
+                    "status" => true
+                ];
+            } catch (\Throwable $th) {
+                $results[] = [
+                    "email" => $user['email'],
+                    "status" => false,
+                    "error" => $mail->ErrorInfo
+                ];
+            }
+        }
+    } catch (\PHPMailer\PHPMailer\Exception $e) {
+        $results[] = [
+            "email" => "",
+            "status" => false,
+            "error" => $e->getMessage()
+        ];
+    }
+
+    return $results;
 }
