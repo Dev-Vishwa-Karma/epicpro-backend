@@ -1080,7 +1080,6 @@ if (isset($action)) {
                 if ($result === true) {
                     sendJsonResponse('success', [
                         'new_email' => $newEmail,
-                        'expires_at' => $expiresAt
                     ], $isResend ? 'Verification code has been resent to your new email address. Please verify the code to complete the email change process.' : 'Verification code has been sent to your new email address. Please verify the code to complete the email change process.');
                 } else {
                     sendJsonResponse('error', null, $result);
