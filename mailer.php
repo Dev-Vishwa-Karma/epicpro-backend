@@ -12,12 +12,6 @@ $config = require __DIR__ . '/config.php';
  */
 function getMailerInstance(array $emailConfig = []): \PHPMailer\PHPMailer\PHPMailer
 {
-    global $config;
-
-    if (empty($emailConfig)) {
-        $emailConfig = $config['email'] ?? [];
-    }
-
     $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
 
     // Enable SMTP debug output only on non-production environment
@@ -50,19 +44,15 @@ function getMailerInstance(array $emailConfig = []): \PHPMailer\PHPMailer\PHPMai
  * @param string $to Recipient email address
  * @param string $subject Email subject
  * @param string $body Email HTML body
- * @param array $emailConfig Optional email config override
  * @return bool|string True on success, error message string on failure
  */
 function sendEmail(
     string $to,
     string $subject,
-    string $body,
-    array $emailConfig = []
+    string $body
 ) {
     global $config;
-    if (empty($emailConfig)) {
-        $emailConfig = $config['email'] ?? [];
-    }
+    $emailConfig = $config['email'] ?? [];
 
     try {
         $mail = getMailerInstance($emailConfig);
@@ -95,15 +85,12 @@ function sendEmail(
  * @param array $users List of users, each containing 'email' and 'name'
  * @param string $subject Email subject
  * @param string $message Email body content/message
- * @param array $emailConfig Optional email configuration override
  * @return array Array of sending results per user
  */
-function sendMailToUsers(array $users, string $subject, string $message, array $emailConfig = []): array
+function sendMailToUsers(array $users, string $subject, string $message): array
 {
     global $config;
-    if (empty($emailConfig)) {
-        $emailConfig = $config['email'] ?? [];
-    }
+    $emailConfig = $config['email'] ?? [];
 
     $results = [];
 

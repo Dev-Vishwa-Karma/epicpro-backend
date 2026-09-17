@@ -79,7 +79,7 @@ if (isset($action)) {
                 ];
             }, $result->fetch_all(MYSQLI_ASSOC));
 
-            $emailResults = sendMailToUsers($users, $data['title'], $data['body'], $config['email']);
+            $emailResults = sendMailToUsers($users, $data['title'], $data['body']);
 
             $conn->close();
             echo json_encode([
