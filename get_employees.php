@@ -934,7 +934,7 @@ if (isset($action)) {
                 sendJsonResponse('error', null, 'Please enter a new password.');
             }
 
-            if (strlen($newPassword) <= 8) {
+            if (strlen($newPassword) < 8) {
                 sendJsonResponse('error', null, 'Password must be at least 8 characters long.');
             }
 

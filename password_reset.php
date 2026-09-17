@@ -86,7 +86,7 @@ if (isset($action)) {
             if (!$confirm_password) {
                 sendJsonResponse('error', null, 'Confirm password is required');
             }
-            if (strlen($new_password) <= 8) {
+            if (strlen($new_password) < 8) {
                 sendJsonResponse('error', null, 'Password must be at least 8 characters long');
             }
             if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/', $new_password)) {
