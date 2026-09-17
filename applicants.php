@@ -250,12 +250,12 @@ switch ($action) {
 
             // // Send admin notification
             // $subjectAdmin = "New Application Received - {$fullname}";
-            // $messageAdmin = EmailTemplate::getAdminNotificationEmail($applicant);
+            // $messageAdmin = EmailTemplate::getAdminNotification($applicant);
             // sendEmail('akash.profilics@gmail.com', $subjectAdmin, $messageAdmin);
 
             // // Send applicant confirmation
             // $subjectApplicant = "Application Received - {$fullname}";
-            // $messageApplicant = EmailTemplate::getApplicantConfirmationEmail($applicant);
+            // $messageApplicant = EmailTemplate::getApplicantConfirmation($applicant);
             // sendEmail($email, $subjectApplicant, $messageApplicant);
             $companyDetails = isset($_POST['companyDetails']) ? json_decode($_POST['companyDetails'], true) : [];
             if (!empty($companyDetails) && is_array($companyDetails)) {
@@ -349,7 +349,7 @@ switch ($action) {
                 $stmt2->execute();
                 $applicant = $stmt2->get_result()->fetch_assoc();
 
-                $statusUpdate = EmailTemplate::getStatusUpdateEmail($applicant, $_POST['status']);
+                $statusUpdate = EmailTemplate::getStatusUpdate($applicant, $_POST['status']);
                 // sendEmail($applicant['email'], $statusUpdate['subject'], $statusUpdate['message']);
 
                 // Send notification to referring employee if status changed and applicant is a referral

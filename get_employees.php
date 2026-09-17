@@ -976,7 +976,7 @@ if (isset($action)) {
             if ($stmt->execute()) {
 
                 $subject = 'Password Changed Successfully';
-                $body = EmailTemplate::changePasswordEmail($user, $subject);
+                $body = EmailTemplate::changePassword($user, $subject);
                 $mailResult = sendEmail($user['email'], $subject, $body);
 
                 if ($mailResult === true) {

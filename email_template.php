@@ -8,7 +8,7 @@ class EmailTemplate
    * @param array $applicant The applicant data.
    * @return string The HTML template.
    */
-  public static function getAdminNotificationEmail($applicant)
+  public static function getAdminNotification($applicant)
   {
     $skillsList = implode(', ', json_decode($applicant['skills'], true));
 
@@ -101,7 +101,7 @@ class EmailTemplate
    * @param array $applicant The applicant data.
    * @return string The HTML template.
    */
-  public static function getApplicantConfirmationEmail($applicant)
+  public static function getApplicantConfirmation($applicant)
   {
     $skillsList = implode(', ', json_decode($applicant['skills'], true));
     $logoUrl = "https://media.licdn.com/dms/image/v2/C4E1BAQHFGqLkG3JFdQ/company-background_10000/company-background_10000/0/1594115529786/profilics_cover?e=2147483647&v=beta&t=DTPwUTb3dR51d6ofWRy95FDEJJkpNOdq1hc-bmTXtPI";
@@ -153,7 +153,7 @@ class EmailTemplate
    * @param array $status The status data.
    * @return string The HTML template.
    */
-  public static function getStatusUpdateEmail($applicant, $status)
+  public static function getStatusUpdate($applicant, $status)
   {
     $message = "Dear {$applicant['fullname']},<br><br>";
 
@@ -205,7 +205,7 @@ class EmailTemplate
    * @param string $resetLink The password reset link.
    * @return string The HTML template.
    */
-  public static function resetPasswordEmail($user, $resetLink, $subject = 'Password Reset Request')
+  public static function resetPassword($user, $resetLink, $subject = 'Password Reset Request')
   {
     $year = date('Y');
 
@@ -375,7 +375,7 @@ class EmailTemplate
    * @param string $subject The subject of the email.
    * @return string The HTML template.
    */
-  public static function changePasswordEmail($user, $subject = 'Password Changed Successfully')
+  public static function changePassword($user, $subject = 'Password Changed Successfully')
   {
     $year = date('Y');
 
@@ -641,7 +641,7 @@ class EmailTemplate
     string $userName,
     string $newEmail,
     string $otpCode,
-    string $subject = 'Verify Your New Email Address - EPIC HR'
+    string $subject = 'Verify Your New Email Address - Profilics Systems'
   ): string {
     $year = date('Y');
 
@@ -747,7 +747,7 @@ class EmailTemplate
           <div class='container'>
 
             <div class='header'>
-              EPIC HR
+              Profilics Systems
             </div>
 
             <div class='content'>
@@ -760,7 +760,7 @@ class EmailTemplate
 
               <p>
                 You have requested to change your email address
-                associated with your EPIC HR account.
+                associated with your Profilics Systems account.
               </p>
 
               <p>
@@ -792,7 +792,7 @@ class EmailTemplate
 
               <p style='margin-top: 25px;'>
                 Thanks,<br>
-                <strong>EPIC HR Team</strong>
+                <strong>Team Profilics</strong>
               </p>
 
             </div>
@@ -820,7 +820,7 @@ class EmailTemplate
     string $userName,
     string $newEmail,
     string $otpCode,
-    string $subject = 'Resent: Verify Your New Email Address - EPIC HR'
+    string $subject = 'Resent: Verify Your New Email Address - Profilics Systems'
   ): string {
     $year = date('Y');
 
@@ -926,7 +926,7 @@ class EmailTemplate
           <div class='container'>
 
             <div class='header'>
-              EPIC HR
+              Profilics Systems
             </div>
 
             <div class='content'>
@@ -939,7 +939,7 @@ class EmailTemplate
 
               <p>
                 We received a request to resend the verification code for updating 
-                your email address on your EPIC HR account.
+                your email address on your Profilics Systems account.
               </p>
 
               <p>
@@ -970,7 +970,7 @@ class EmailTemplate
 
               <p style='margin-top: 25px;'>
                 Thanks,<br>
-                <strong>EPIC HR Team</strong>
+                <strong>Team Profilics</strong>
               </p>
 
             </div>
@@ -994,7 +994,7 @@ class EmailTemplate
    */
   public static function emailChangeSuccess(
     string $userName,
-    string $subject = 'Email Address Changed Successfully - EPIC HR'
+    string $subject = 'Email Address Changed Successfully - Profilics Systems'
   ) {
     $year = date('Y');
 
@@ -1088,7 +1088,7 @@ class EmailTemplate
       <div class='container'>
 
         <div class='header'>
-          EPIC HR
+          Profilics Systems
         </div>
 
         <div class='content'>
@@ -1115,7 +1115,7 @@ class EmailTemplate
 
           <p style='margin-top: 25px;'>
             Thanks,<br>
-            <strong>EPIC HR Team</strong>
+            <strong>Team Profilics</strong>
           </p>
 
         </div>

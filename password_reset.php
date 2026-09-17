@@ -60,7 +60,7 @@ if (isset($action)) {
             }
             $reset_link = $base_url . "/reset-password?token=" . $reset_token;
             $subject = "Password Reset Request - Profilics Systems";
-            $body = EmailTemplate::resetPasswordEmail($user, $reset_link, $subject);
+            $body = EmailTemplate::resetPassword($user, $reset_link, $subject);
 
             $result = sendEmail($email, $subject, $body);
             if ($result === true) {
