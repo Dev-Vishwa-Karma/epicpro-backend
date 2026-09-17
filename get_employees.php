@@ -1018,6 +1018,7 @@ if (isset($action)) {
 
             $newEmail = trim($_POST['new_email'] ?? '');
             $password = $_POST['password'] ?? '';
+            $isResend = filter_var($_POST['is_resend'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
             if (empty($newEmail)) {
                 sendJsonResponse('error', null, 'Please enter your new email address.');
@@ -1044,7 +1045,7 @@ if (isset($action)) {
 
             $currentUser = $res->fetch_assoc();
             $currentEmail = $currentUser['email'];
-            $userName = $currentUser['first_name'] . ' ' . $currentUser['last_name'];
+            $userName = trim($currentUser['first_name'] . ' ' . $currentUser['last_name']);
 
             if (strtolower($newEmail) === strtolower($currentEmail)) {
                 sendJsonResponse('error', null, 'New email address cannot be the same as your current email address.');
@@ -1063,96 +1064,66 @@ if (isset($action)) {
                 sendJsonResponse('error', null, 'This email address is already in use by another user.');
             }
 
-            // Cancel any existing pending email change requests for this user
-            $stmtCancel = $conn->prepare("DELETE FROM email_change_requests WHERE user_id = ?");
-            $stmtCancel->bind_param("i", $userId);
-            $stmtCancel->execute();
-
             // Generate 6-digit OTP code
             $otpCode = str_pad(random_int(100000, 999999), 6, '0', STR_PAD_LEFT);
+            $expiresAt = date('Y-m-d H:i:s', strtotime('+15 minutes'));
 
-            // Calculate expiry time (exactly 30 minutes from now)
-            $stmtIns = $conn->prepare("INSERT INTO email_change_requests (user_id, old_email, new_email, verification_code, expires_at) VALUES (?, ?, ?, ?, NOW() + INTERVAL 30 MINUTE)");
-            $stmtIns->bind_param("isss", $userId, $currentEmail, $newEmail, $otpCode);
-
+            // Store in reset_token and reset_expires_at in employees table
+            $resetToken = md5($otpCode);
+            $stmtIns = $conn->prepare("UPDATE employees SET reset_token = ?, reset_expires_at = ? WHERE id = ?");
+            $stmtIns->bind_param("ssi", $resetToken, $expiresAt, $userId);
             if ($stmtIns->execute()) {
-                $requestId = $conn->insert_id;
-                $stmtGet = $conn->prepare("SELECT expires_at FROM email_change_requests WHERE id = ?");
+                $subject = $isResend == 1 ? "Resend: Verify Your New Email Address - EPIC HR" : "Verify Your New Email Address - EPIC HR";
+                $body = $isResend == 1 ? EmailTemplate::emailChangeResendVerification($userName, $newEmail, $otpCode, $subject) : EmailTemplate::emailChangeVerification($userName, $newEmail, $otpCode, $subject);
+                $result = sendEmail($newEmail, $subject, $body);
 
-                $stmtGet->bind_param("i", $requestId);
-                $stmtGet->execute();
-
-                $result = $stmtGet->get_result();
-                $row = $result->fetch_assoc();
-
-                $insertedExpiresAt = $row['expires_at'];
-                $subject = "Verify Your New Email Address - EPIC HR";
-                $body = EmailTemplate::emailChangeVerification($userName, $newEmail, $otpCode, $subject);
-                $mailResult = sendEmail($newEmail, $subject, $body);
-
-                sendJsonResponse('success', [
-                    'new_email' => $newEmail,
-                    'expires_at' => $insertedExpiresAt
-                ], 'Verification code has been sent to your new email address. Please verify the code to complete the email change process.');
+                if ($result === true) {
+                    sendJsonResponse('success', [
+                        'new_email' => $newEmail,
+                        'expires_at' => $expiresAt
+                    ], $isResend ? 'Verification code has been resent to your new email address. Please verify the code to complete the email change process.' : 'Verification code has been sent to your new email address. Please verify the code to complete the email change process.');
+                } else {
+                    sendJsonResponse('error', null, $result);
+                }
             } else {
                 sendJsonResponse('error', null, 'Failed to process email change request. Please try again later.');
             }
             break;
 
-        case 'get-pending-email-change':
-            $stmt = $conn->prepare("SELECT id, old_email, new_email, created_at, expires_at FROM email_change_requests WHERE user_id = ? AND status = 'pending' AND expires_at > NOW() ORDER BY id DESC LIMIT 1");
-            $stmt->bind_param("i", $userId);
-            $stmt->execute();
-            $result = $stmt->get_result();
 
-            if ($result && $result->num_rows > 0) {
-                $pending = $result->fetch_assoc();
-                sendJsonResponse('success', $pending, 'Pending email change request found.');
-            } else {
-                sendJsonResponse('success', null, 'No pending email change request.');
-            }
-            break;
-
-        case 'cancel-email-change':
-            $stmt = $conn->prepare("UPDATE email_change_requests SET status = 'cancelled' WHERE user_id = ? AND status = 'pending'");
-            $stmt->bind_param("i", $userId);
-            if ($stmt->execute()) {
-                sendJsonResponse('success', null, 'Pending email change request has been cancelled.');
-            } else {
-                sendJsonResponse('error', null, 'Failed to cancel email change request.');
-            }
-            break;
 
         case 'verify-email-code':
             $code = trim($_POST['verification_code'] ?? '');
+            $newEmail = trim($_POST['new_email'] ?? '');
 
             if (empty($code)) {
                 sendJsonResponse('error', null, 'Please enter the 6-digit verification code.');
             }
 
-            // Find pending request for user matching code and not expired
-            $stmt = $conn->prepare("SELECT id, new_email, expires_at FROM email_change_requests WHERE user_id = ? AND status = 'pending' AND verification_code = ?  ORDER BY id DESC LIMIT 1");
-            $stmt->bind_param("is", $userId, $code);
+            $stmt = $conn->prepare("SELECT reset_token, reset_expires_at, first_name, last_name FROM employees WHERE id = ? LIMIT 1");
+            $stmt->bind_param("i", $userId);
             $stmt->execute();
             $result = $stmt->get_result();
 
             if (!$result || $result->num_rows === 0) {
-                sendJsonResponse('error', null, 'Invalid verification code. Please check your code and try again.');
+                sendJsonResponse('error', null, 'User not found.');
             }
 
-            $req = $result->fetch_assoc();
-            $requestId = $req['id'];
-            $expiresAt = $req['expires_at'];
+            $user = $result->fetch_assoc();
+            $resetToken = $user['reset_token'];
+            $expiresAt = $user['reset_expires_at'];
             $now = date('Y-m-d H:i:s');
 
-
-            // Check if verification code matches
-            if ($expiresAt < $now) {
+            if (!empty($expiresAt) && $expiresAt < $now) {
                 sendJsonResponse('error', null, 'Verification code has expired. Please request a new code.');
             }
 
-            // Check if new_email is taken in the meantime
-            $stmtCheck = $conn->prepare("SELECT id, first_name, last_name FROM employees WHERE email = ? AND id != ? AND deleted_at IS NULL LIMIT 1");
+            if (md5($code) !== $resetToken) {
+                sendJsonResponse('error', null, 'Invalid verification code. Please check your code and try again.');
+            }
+
+            // Check if new_email is taken in the meantime by another employee
+            $stmtCheck = $conn->prepare("SELECT id FROM employees WHERE email = ? AND id != ? AND deleted_at IS NULL LIMIT 1");
             $stmtCheck->bind_param("si", $newEmail, $userId);
             $stmtCheck->execute();
             $resCheck = $stmtCheck->get_result();
@@ -1161,24 +1132,12 @@ if (isset($action)) {
                 sendJsonResponse('error', null, 'The new email address is already in use by another account. Please use another email address.');
             }
 
-            $newEmail = $req['new_email'];
-
-            // Update employees email
-            $stmtUpd = $conn->prepare("UPDATE employees SET email = ? WHERE id = ?");
+            // Update employee email and clear reset_token and reset_expires_at
+            $stmtUpd = $conn->prepare("UPDATE employees SET email = ?, reset_token = NULL, reset_expires_at = NULL WHERE id = ?");
             $stmtUpd->bind_param("si", $newEmail, $userId);
 
             if ($stmtUpd->execute()) {
-                // Mark request as verified
-                $stmtReq = $conn->prepare("UPDATE email_change_requests SET status = 'verified' WHERE id = ?");
-                $stmtReq->bind_param("i", $requestId);
-                $stmtReq->execute();
-
-                $stmtUser = $conn->prepare("SELECT first_name, last_name FROM employees WHERE id = ?");
-                $stmtUser->bind_param("i", $userId);
-                $stmtUser->execute();
-                $resUser = $stmtUser->get_result();
-                $user = $resUser->fetch_assoc();
-                $userName = $user['first_name'] . ' ' . $user['last_name'];
+                $userName = trim($user['first_name'] . ' ' . $user['last_name']);
 
                 $subject = "EPIC HR - Email Address Change Successful";
                 $body = EmailTemplate::emailChangeSuccess($userName, $subject);
