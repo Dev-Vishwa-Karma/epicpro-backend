@@ -16,13 +16,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
 
 include 'db_connection.php';
 include 'auth_validate.php';
-require 'send_mail.php';
 require 'helpers.php';
 require_once __DIR__ . '/pusher.php';
+require_once __DIR__ . '/mailer.php';
 $config = require __DIR__ . '/config.php';
 
 // Helper function to validate user ID
-function validateId($id) {
+function validateId($id)
+{
     return isset($id) && is_numeric($id) && $id > 0;
 }
 
@@ -31,7 +32,8 @@ if (!isAdminCheck()) {
     sendJsonResponse('error', null, 'Access denied. You do not have permission to access this route.');
 }
 //Save connects
-function saveConnects($conn, $data, $id = null) {
+function saveConnects($conn, $data, $id = null)
+{
 
     if ($id) {
         $stmt = $conn->prepare("
@@ -39,22 +41,22 @@ function saveConnects($conn, $data, $id = null) {
             SET title=?, body=?, type=?, status=?, priority=?, filePath=?, updated_at=? 
             WHERE id=?
         ");
-        $stmt->bind_param( "sssssssi", $data['title'], $data['body'], $data['type'], $data['status'], $data['priority'], $data['filePath'], $data['updated_at'],$id);
-
+        $stmt->bind_param("sssssssi", $data['title'], $data['body'], $data['type'], $data['status'], $data['priority'], $data['filePath'], $data['updated_at'], $id);
     } else {
         $stmt = $conn->prepare("
             INSERT INTO connects 
             (title, body, type, status, priority, filePath, created_by, created_at, updated_at) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
-         $stmt->bind_param( "sssssssss", $data['title'], $data['body'], $data['type'], $data['status'], $data['priority'], $data['filePath'], $data['created_by'], $data['created_at'], $data['updated_at'] );
+        $stmt->bind_param("sssssssss", $data['title'], $data['body'], $data['type'], $data['status'], $data['priority'], $data['filePath'], $data['created_by'], $data['created_at'], $data['updated_at']);
     }
 
     $stmt->execute();
     return $id ? $id : $stmt->insert_id;
 }
 // Save users who will receive the connects and trigger pusher event
-function insertConnectUsers( $conn, $connect_id, $selectedEmployee, $data, $pusher, $config) {
+function insertConnectUsers($conn, $connect_id, $selectedEmployee, $data, $pusher, $config)
+{
 
     $stmt = $conn->prepare("
         INSERT INTO connects_users 
@@ -63,7 +65,7 @@ function insertConnectUsers( $conn, $connect_id, $selectedEmployee, $data, $push
     ");
     $receiver = [];
     $errors = [];
-    $empId = 0; 
+    $empId = 0;
     $stmt->bind_param("iiss", $connect_id, $empId, $data['created_at'], $data['updated_at']);
 
     $notif_stmt = null;
@@ -86,7 +88,6 @@ function insertConnectUsers( $conn, $connect_id, $selectedEmployee, $data, $push
             if ($notif_stmt) {
                 $notif_stmt->execute();
             }
-
         } else {
             $errors[] = $stmt->error;
         }
@@ -149,7 +150,7 @@ if (isset($action)) {
                 $where .= " AND pn.status = '$filter'";
             }
 
-            if($search){
+            if ($search) {
                 $columnMap = [
                     'type'   => 'pn.type',
                     'status' => 'nu.connect_status'
@@ -164,9 +165,9 @@ if (isset($action)) {
             }
 
             $query = '';
-            
+
             //SENT Connects
-            if($filter === 'sent' || $filter === 'draft'){
+            if ($filter === 'sent' || $filter === 'draft') {
                 $query = "
                     SELECT 
                         pn.id,
@@ -202,7 +203,7 @@ if (isset($action)) {
                     GROUP BY pn.id
                     ORDER BY pn.id DESC
                 ";
-            }else{
+            } else {
                 $query = "
                     SELECT 
                         pn.id,
@@ -246,7 +247,7 @@ if (isset($action)) {
 
         case 'add':
 
-            $required = ['selectedEmployee','title','body','createdBy','email','type','priority','status'];
+            $required = ['selectedEmployee', 'title', 'body', 'createdBy', 'email', 'type', 'priority', 'status'];
 
             foreach ($required as $field) {
                 if (empty($_POST[$field])) {
@@ -264,13 +265,13 @@ if (isset($action)) {
                 'created_at'  => date('Y-m-d H:i:s'),
                 'updated_at'  => date('Y-m-d H:i:s'),
             ];
-                
+
             $selectedEmployee = $_POST['selectedEmployee'];
             $to = $_POST['email'];
             $newFiles = handleConnectFileUpload($_FILES['attach'] ?? []);
             $data['filePath'] = json_encode($newFiles);
             $pusher = getPusher($config);
-            
+
             try {
 
                 $conn->begin_transaction();
@@ -279,7 +280,7 @@ if (isset($action)) {
                     $conn->query("DELETE FROM connects_users WHERE connect_id = {$data['id']}");
                 }
 
-                list($receiver, $errors) = insertConnectUsers( $conn, $connect_id, $selectedEmployee, $data, $pusher, $config);
+                list($receiver, $errors) = insertConnectUsers($conn, $connect_id, $selectedEmployee, $data, $pusher, $config);
 
                 $conn->commit();
             } catch (\Throwable $th) {
@@ -303,7 +304,7 @@ if (isset($action)) {
                     "name" => $row['first_name'] . " " . $row['last_name'],
                 ];
             }, $result->fetch_all(MYSQLI_ASSOC));
-            
+
             // if($data['status'] === 'sent'){
             //     dispatchJob($conn, 'send_email', [
             //         "users"   => $users,
@@ -347,7 +348,6 @@ if (isset($action)) {
                     }
 
                     $stmt->bind_param('ii', $user_id, $connect_id);
-                    
                 } else {
                     $stmt = $conn->prepare("
                         UPDATE connects_users 
@@ -374,17 +374,17 @@ if (isset($action)) {
 
         case 'is_removed':
 
-                $id = (int)($_GET['id'] ?? 0);
-                $employee_id = (int)($_GET['employee_id'] ?? 0);
-                $hidden = (int)($_GET['hidden'] ?? 1);
+            $id = (int)($_GET['id'] ?? 0);
+            $employee_id = (int)($_GET['employee_id'] ?? 0);
+            $hidden = (int)($_GET['hidden'] ?? 1);
 
-                if (!$id || !$employee_id) {
-                    http_response_code(400);
-                    echo json_encode(['error' => 'Invalid request']);
-                    exit;
-                }
+            if (!$id || !$employee_id) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Invalid request']);
+                exit;
+            }
 
-                $stmt = $conn->prepare("
+            $stmt = $conn->prepare("
                     UPDATE connects_users 
                     SET hidden = ?, 
                     hide_date = NOW() 
@@ -392,28 +392,28 @@ if (isset($action)) {
                     AND employee_id = ?
                 ");
 
-                if (!$stmt) {
-                    http_response_code(500);
-                    echo json_encode(['error' => 'Prepare failed']);
-                    exit;
-                }
-
-                $stmt->bind_param("iii", $hidden, $id, $employee_id);
-
-                if ($stmt->execute()) {
-                    echo json_encode(['success' => 'Record hidden successfully']);
-                } else {
-                    http_response_code(500);
-                    echo json_encode(['error' => 'Failed to hide record']);
-                }
-
+            if (!$stmt) {
+                http_response_code(500);
+                echo json_encode(['error' => 'Prepare failed']);
                 exit;
+            }
+
+            $stmt->bind_param("iii", $hidden, $id, $employee_id);
+
+            if ($stmt->execute()) {
+                echo json_encode(['success' => 'Record hidden successfully']);
+            } else {
+                http_response_code(500);
+                echo json_encode(['error' => 'Failed to hide record']);
+            }
+
+            exit;
 
             break;
 
         case 'update_status':
 
-            $required = ['id','status','sender','user'];
+            $required = ['id', 'status', 'sender', 'user'];
             foreach ($required as $field) {
                 if (empty($_POST[$field])) {
                     sendJsonResponse('error', null, "$field is required");
@@ -428,7 +428,7 @@ if (isset($action)) {
 
             $pusher = getPusher($config);
 
-             // Allowed statuses
+            // Allowed statuses
             $allowed_status = ['0', '1', 'unread', 'read', 'completed', 'ready_to_discuss'];
             $formattedStatus = $allowed_status[$data['status']] ?? ucfirst(str_replace('_', ' ', $data['status']));
 
@@ -451,11 +451,11 @@ if (isset($action)) {
             $stmt->bind_param('sii', $data['status'], $data['id'], $data['user']['id']);
 
             if ($stmt->execute()) {
-                $pusher->trigger($config['pusher']['channel'], 'update_status'.$data['sender']['id'], [
-                'id' => $data['id'],
-                'title' => 'Status Updated',
-                'message' => "Status changed to \"{$formattedStatus}\", by {$data['user']['name']}",
-            ]);
+                $pusher->trigger($config['pusher']['channel'], 'update_status' . $data['sender']['id'], [
+                    'id' => $data['id'],
+                    'title' => 'Status Updated',
+                    'message' => "Status changed to \"{$formattedStatus}\", by {$data['user']['name']}",
+                ]);
                 sendJsonResponse('success', null, 'Connect status updated successfully');
             } else {
                 sendJsonResponse('error', null, 'Failed to update connect status');
@@ -469,5 +469,3 @@ if (isset($action)) {
 } else {
     sendJsonResponse('error', null, 'Action parameter is missing');
 }
-
-?>

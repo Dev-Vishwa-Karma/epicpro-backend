@@ -21,7 +21,7 @@ header('Content-Type: application/json');
 
 require_once 'email_template.php';
 require_once 'helpers.php';
-require_once 'mailer.php';
+require_once __DIR__ . '/mailer.php';
 $userId = $token_info[0];
 
 // Helper function to validate user ID
@@ -934,7 +934,7 @@ if (isset($action)) {
                 sendJsonResponse('error', null, 'Please enter a new password.');
             }
 
-            if (strlen($newPassword) <= 8) {
+            if (strlen($newPassword) < 8) {
                 sendJsonResponse('error', null, 'Password must be at least 8 characters long.');
             }
 
@@ -957,9 +957,7 @@ if (isset($action)) {
 
             // Check if old password is correct
             $hashedOld = md5($oldPassword);
-            $stmt = $conn->prepare(
-                "SELECT id FROM employees WHERE id = ? AND password = ? LIMIT 1"
-            );
+            $stmt = $conn->prepare("SELECT id, first_name, last_name, email FROM employees WHERE id = ? AND password = ? LIMIT 1");
             $stmt->bind_param("is", $userId, $hashedOld);
             $stmt->execute();
 
@@ -968,19 +966,26 @@ if (isset($action)) {
                 sendJsonResponse('error', null, 'Your old password is incorrect.');
             }
 
+            $user = $result->fetch_assoc();
+
             // Update password
             $hashedNew = md5($newPassword);
             $stmt = $conn->prepare("UPDATE employees SET password = ? WHERE id = ?");
             $stmt->bind_param("si", $hashedNew, $userId);
 
             if ($stmt->execute()) {
-                sendJsonResponse('success', null, 'Your password has been updated successfully.');
+
+                $subject = 'Password Changed Successfully';
+                $body = EmailTemplate::changePassword($user, $subject);
+                $mailResult = sendEmail($user['email'], $subject, $body);
+
+                if ($mailResult === true) {
+                    sendJsonResponse('success', null, 'Your password has been updated successfully.');
+                } else {
+                    sendJsonResponse('error', null, $mailResult);
+                }
             } else {
-                sendJsonResponse(
-                    'error',
-                    null,
-                    'Unable to update your password. Please try again later.'
-                );
+                sendJsonResponse('error', null, 'Unable to update your password. Please try again later.');
             }
 
             break;
@@ -1142,7 +1147,11 @@ if (isset($action)) {
                 $body = EmailTemplate::emailChangeSuccess($userName, $subject);
                 $mailResult = sendEmail($newEmail, $subject, $body);
 
-                sendJsonResponse('success', ['new_email' => $newEmail], 'Email address updated successfully!');
+                if ($mailResult === true) {
+                    sendJsonResponse('success', ['new_email' => $newEmail], 'Email address updated successfully!');
+                } else {
+                    sendJsonResponse('error', ['new_email' => $newEmail], $mailResult);
+                }
             } else {
                 sendJsonResponse('error', null, 'Failed to update email address. Please try again.');
             }
