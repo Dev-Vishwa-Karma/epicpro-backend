@@ -1,11 +1,12 @@
 <?php
 
-// $config = require __DIR__ . '/config.php';
+$config = require __DIR__ . '/config.php';
 
-$host = "localhost";
-$username = "root";
-$password = "";
-$database = "epic_hrr";
+$db = $config['database'] ?? [];
+$host = $db['host'];
+$username = $db['username'];
+$password = $db['password'];
+$database = $db['name'];
 
 // Create a connection
 $conn = new mysqli($host, $username, $password, $database);
@@ -17,4 +18,3 @@ if ($conn->connect_error) {
 
 // Optional: Set charset (recommended for UTF-8)
 $conn->set_charset("utf8mb4");
-?>

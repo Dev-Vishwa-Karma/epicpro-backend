@@ -16,24 +16,26 @@ function getMailerInstance(array $emailConfig = []): \PHPMailer\PHPMailer\PHPMai
 
     // Enable SMTP debug output only on non-production environment
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    if ($host === 'hr.profilics.com') {
+    $isProduction = (strpos($host, 'hr.profilics.com') !== false);
+    if ($isProduction) {
         $mail->SMTPDebug = 0;
+        $mail->isSendmail();
     } else {
         $mail->SMTPDebug = 2;
         $mail->Debugoutput = function ($str, $level) {
             error_log("SMTP Debug level {$level}: {$str}");
         };
-    }
 
-    // Server settings
-    $mail->isSMTP();
-    $mail->Host       = $emailConfig['host'] ?? '';
-    $mail->SMTPAuth   = true;
-    $mail->Username   = $emailConfig['username'] ?? '';
-    $mail->Password   = $emailConfig['password'] ?? '';
-    $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
-    $mail->Port       = $emailConfig['port'] ?? 587;
-    $mail->Timeout    = 30;
+        // Server settings
+        $mail->isSMTP();
+        $mail->Host       = $emailConfig['host'] ?? '';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = $emailConfig['username'] ?? '';
+        $mail->Password   = $emailConfig['password'] ?? '';
+        $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = $emailConfig['port'] ?? 587;
+        $mail->Timeout    = 30;
+    }
 
     return $mail;
 }
